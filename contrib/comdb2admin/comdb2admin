@@ -1,13 +1,15 @@
 #!/bin/bash
 
 function usage {
-    echo "Usage: comdb2admin task"
+    echo "Usage: $0 task"
     echo "       create dbname"
     echo "       stop dbname"
     echo "       start dbname"
     echo "       drop dbname"
     echo "       status dbname"
     echo "       send dbname cmd..."
+    echo "       makecluster dbname hosts"
+    echo "       addhosts hostname [hostname...]"
     exit 1
 }
 
@@ -18,9 +20,8 @@ fi
 [[ -z "$USER" ]] && export USER=$(id -un)
 
 task=$1
+keyfile=~/.ssh/comdb2
 shift
-
-dbname=
 
 set -e
 
@@ -28,7 +29,7 @@ config=/opt/bb/etc/supervisord_cdb2.conf
 
 function create {
     if [[ $# -ne 1 ]]; then
-        echo "Usage: comdb2admin create dbname" >&2
+        echo "Usage: $0 create dbname" >&2
         exit 1
     fi
     dbname=$1
@@ -58,7 +59,7 @@ EOF
 
 function start {
     if [[ $# -ne 1 ]]; then
-        echo "Usage: comdb2admin start dbname" >&2
+        echo "Usage: $0 start dbname" >&2
         exit 1
     fi
     dbname=$1
@@ -67,7 +68,7 @@ function start {
 
 function stop {
     if [[ $# -ne 1 ]]; then
-        echo "Usage: comdb2admin stop dbname" >&2
+        echo "Usage: $0 stop dbname" >&2
         exit 1
     fi
     dbname=$1
@@ -80,7 +81,7 @@ function status {
 
 function drop {
     if [[ $# -ne 1 ]]; then
-        echo "Usage: comdb2admin stop dbname" >&2
+        echo "Usage: $0 stop dbname" >&2
         exit 1
     fi
     dbname=$1
@@ -99,7 +100,7 @@ function drop {
 
 function send {
     if [[ $# -lt 2 ]]; then
-        echo "Usage: comdb2admin send dbname cmd..." >&2
+        echo "Usage: $0 send dbname cmd..." >&2
         exit 1
     fi
     dbname=$1
@@ -107,8 +108,94 @@ function send {
     cdb2sql -tabs $dbname "exec procedure sys.cmd.send('$*')"
 }
 
+function check_ssh {
+    host=$1
+    shift
+    ssh -q -o StrictHostKeyChecking=false -o BatchMode=yes $host hostname >/dev/null
+}
+
+
+function have_comdb2db {
+    echo 0
+}
+
+function generate_key {
+    ssh-keygen -f $keyfile -N '' >/dev/null
+}
+
+function add_to_comdb2db {
+    host=$1
+    shift
+
+    # TODO: bobby tables, use @bind?  It's still undocumented, and not that great.
+    cdb2sql comdb2db default "insert into machines(name, cluster, room) values('$host', '', '')" >/dev/null
+}
+
+function addhosts {
+    while [[ $# -ne 0 ]]; do
+        host=$1
+        shift
+
+        if [[ ! -f ~/.ssh/comdb2.pub ]]; then
+            generate_key
+        fi
+
+        set +e
+        check_ssh $host
+        rc=$?
+        set -e
+
+        if [[ $rc -ne 0 ]]; then 
+            echo "Looks like we can't get to $host via ssh.  Going to try to "
+            echo "copy our key there. You may be prompted for a password."
+            echo
+            ssh-copy-id -i $keyfile -o LogLevel=Error $host
+            scp -q $keyfile ${host}:.ssh/
+            set +e
+            check_ssh $host
+            if [[ $? -ne 0 ]]; then
+                echo "Still can't get to $host, though we copied the key successfully. Giving up."
+                exit 1
+            fi
+            set -e
+        fi
+
+        comdb2db=$(have_comdb2db)
+        if [[ $comdb2db -eq 0 ]]; then
+            echo "Looks like comdb2db isn't set up yet. \"$0 addhosts $host\" can be re-run to"
+            echo "set it up once comdb2db is configured using \"$0 bootstrap hosts\"."
+        else
+            add_to_comdb2db $host
+            echo "Added $host to comdb2db.  Use \"$0 configure_host $host ...\" to change cluster name and datacenter."
+        fi
+    done
+}
+
+function makecluster {
+    if [[ $# -lt 2 ]]; then
+        echo "Usage: $0 send dbname cmd..." >&2
+        exit 1
+    fi
+
+    dbname=$1
+    shift
+    hosts=$*
+    err=0
+    for host in $hosts; do
+        set +e
+        check_ssh $host
+        rc=$?
+        set -e
+        if [[ $rc -ne 0 ]]; then    
+            echo "Can't connect to $host.  Did you add it using \"$0 addhost $host?\""
+            err=1
+        fi
+    done
+}
+
+
 case $task in
-    create|start|stop|drop|status|send)
+    create|start|stop|drop|status|send|makecluster|addhosts)
         $task $*
     ;;
 
