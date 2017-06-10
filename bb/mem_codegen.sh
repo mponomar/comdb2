@@ -17,7 +17,7 @@ mkfiles() ## mkheader <modulename> <moduledir>
     moduleheader="${moduledir}${modulefilename}.h"
     modulesrc="${moduledir}${modulefilename}.c"
 
-    echo "Generating memory files for module $module..."
+#   echo "Generating memory files for module $module..."
 
     ## header file
     rm -f $tempfile

@@ -111,7 +111,7 @@ s_tail "_${s_rot}_ext_h" >> $t_ipf
 #move into place
 cmp $t_ipf $a_ext > /dev/null 2>&1 ||
 (
-    echo "Building $a_ext"
+#   echo "Building $a_ext"
     rm -f $a_ext
     cp $t_ipf $a_ext
     chmod 444 $a_ext
