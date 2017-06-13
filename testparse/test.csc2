@@ -1,0 +1,37 @@
+constants {
+    A = 983,
+    B = 2
+}
+
+constants {
+    C = 3
+}
+
+tag ondisk {
+    int a[12]    dbstore=17 dbload="foobar"  dbstore=x'2233'
+    cstring a    
+    blob b 
+    cstring d[A]
+}
+
+tag ondisk {
+    int f
+}
+
+tag "t" {
+    int a
+}
+
+tag "t" {
+    int b
+}
+
+keys {
+    dup "a" = a+<DESCEND>b+c+<ASCEND>d
+   recnums dup "b" = a
+}
+
+constraints {
+    "a" -> <"bleh":"bar">
+    "b" -> <"bleh":"bar">
+}
