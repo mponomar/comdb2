@@ -1490,12 +1490,7 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
         reqlog_logf(logger, REQL_INFO, "rqid=%llx", rqid);
     }
 
-    if (clnt->query_stats == NULL) {
-        record_query_cost(thd, clnt);
-        reqlog_set_path(logger, clnt->query_stats);
-    }
     reqlog_set_vreplays(logger, clnt->verify_retries);
-
     reqlog_end_request(logger, stmt_rc, __func__, __LINE__);
 
     thd->nmove = thd->nfind = thd->nwrite = thd->ntmpread = thd->ntmpwrite = 0;
@@ -3507,7 +3502,7 @@ void thr_set_current_sql(const char *sql)
     }
 }
 
-static void setup_reqlog_new_sql(struct sqlthdstate *thd, struct sqlclntstate *clnt)
+void setup_reqlog_new_sql(struct sqlthdstate *thd, struct sqlclntstate *clnt)
 {
     char info_nvreplays[40];
     info_nvreplays[0] = '\0';
@@ -3520,11 +3515,11 @@ static void setup_reqlog_new_sql(struct sqlthdstate *thd, struct sqlclntstate *c
 
     reqlog_new_sql_request(thd->logger, NULL, clnt->tag, clnt->tagbuf,
                            clnt->tagbufsz, clnt->nullbits, clnt->numnullbits);
-    log_client_context(thd->logger, clnt);
+
     log_queue_time(thd->logger, clnt);
 }
 
-static void query_stats_setup(struct sqlthdstate *thd, struct sqlclntstate *clnt)
+void query_stats_setup(struct sqlthdstate *thd, struct sqlclntstate *clnt)
 {
     /* debug */
     thr_set_current_sql(clnt->sql);
@@ -5242,13 +5237,11 @@ static int run_stmt(struct sqlthdstate *thd, struct sqlclntstate *clnt,
         if (rc)
             goto out;
 
+        int sz = clnt->sql_query->cnonce.len;
         char cnonce[256];
         cnonce[0] = '\0';
-        if (clnt->sql_query) {
-            int sz = clnt->sql_query->cnonce.len;
-        }
 
-        if (gbl_extended_sql_debug_trace && clnt->sql_query) {
+        if (gbl_extended_sql_debug_trace) {
             bzero(cnonce, sizeof(cnonce));
             snprintf(cnonce, 256, "%s", clnt->sql_query->cnonce.data);
             logmsg(LOGMSG_USER, "%s: cnonce '%s': iswrite=%d replay=%d "
@@ -5423,12 +5416,10 @@ static int handle_sqlite_requests(struct sqlthdstate *thd,
         if (rc) {
             int irc = errstat_get_rc(&err);
             /* certain errors are saved, in that case we don't send anything */
-            if(irc == ERR_PREPARE || irc == ERR_PREPARE_RETRY) {
+            if(irc == ERR_PREPARE || irc == ERR_PREPARE_RETRY)
                 if(comm->send_prepare_error)
                     comm->send_prepare_error(clnt, err.errstr, 
                                              (irc == ERR_PREPARE_RETRY));
-                reqlog_set_error(thd->logger, sqlite3_errmsg(thd->sqldb));
-            }
             goto errors;
         }
 
