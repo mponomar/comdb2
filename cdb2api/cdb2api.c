@@ -3287,6 +3287,7 @@ read_record:
         }
     }
 
+#if WITH_SSL
     if (type == RESPONSE_HEADER__SQL_RESPONSE_SSL) {
         hndl->s_sslmode = PEER_SSL_REQUIRE;
         try_ssl(hndl, hndl->sb, hndl->connected_host);
@@ -3294,6 +3295,7 @@ read_record:
         --retries_done;
         goto retry_queries;
     }
+#endif
 
     /* Dbinfo .. go to new node */
     if (type == RESPONSE_HEADER__DBINFO_RESPONSE) {
