@@ -1,0 +1,17 @@
+FROM base/archlinux:latest
+
+RUN \
+   yes '' | pacman -Sqyu sudo base-devel gcc protobuf protobuf-c libunwind bison flex openssl readline sqlite zlib lz4 gawk tcl
+
+EXPOSE 5105
+
+COPY . /build/
+
+RUN \
+   chmod -R 777 build
+
+WORKDIR /build
+
+RUN sudo -u nobody make arch-current && yes | pacman -U /build/distro/arch/*comdb2*.xz
+
+ENV PATH="/opt/bb/bin:${PATH}"

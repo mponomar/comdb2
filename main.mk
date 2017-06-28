@@ -23,7 +23,7 @@ ifeq ($(arch),Linux)
   UNWINDLIBS?=-lunwind
   ARCHLIBS+=$(BBSTATIC) $(UNWINDLIBS) $(BBDYN)
   CXXFLAGS=-fpermissive $(CFLAGS_DEBUGGING) $(CFLAGS_64)
-  LIBREADLINE=$(BBSTATIC) -lreadline -lhistory -lncurses $(BBDYN) -ltermcap
+  LIBREADLINE=$(BBSTATIC) -lreadline -lhistory -lncurses $(BBDYN)
   # Use GCC, but we already use GCC anyway.
   CXX11=$(CXX)
   CXX11FLAGS=-std=c++11 $(CXXFLAGS)

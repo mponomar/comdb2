@@ -39,10 +39,10 @@ rm -rf $RPM_BUILD_ROOT
 /opt/bb/include/cdb2api.h
 /opt/bb/lib/libcdb2api.a
 /opt/bb/lib/libcdb2protobuf.a
-/opt/bb/lib/systemd/system/pmux.service
-/opt/bb/lib/systemd/system/cdb2sockpool.service
-/opt/bb/lib/systemd/system/supervisor_cdb2.service
-/opt/bb/usr/local/lib/pkgconfig/cdb2api.pc
+/usr/lib/systemd/system/pmux.service
+/usr/lib/systemd/system/cdb2sockpool.service
+/usr/lib/systemd/system/supervisor_cdb2.service
+/usr/lib/pkgconfig/cdb2api.pc
 /opt/bb/bin/comdb2admin
 /opt/bb/etc/supervisord_cdb2.conf
 /opt/bb/lib/libcdb2api.so
@@ -68,11 +68,6 @@ ln /opt/bb/bin/comdb2 /opt/bb/bin/cdb2_dump
 ln /opt/bb/bin/comdb2 /opt/bb/bin/cdb2_printlog
 ln /opt/bb/bin/comdb2 /opt/bb/bin/cdb2_stat
 ln /opt/bb/bin/comdb2 /opt/bb/bin/cdb2_verify
-
-cp /opt/bb/usr/local/lib/pkgconfig/cdb2api.pc /usr/local/lib/pkgconfig/cdb2api.pc
-cp /opt/bb/lib/systemd/system/pmux.service /lib/systemd/system/
-cp /opt/bb/lib/systemd/system/cdb2sockpool.service /lib/systemd/system/
-cp /opt/bb/lib/systemd/system/supervisor_cdb2.service /lib/systemd/system/
 
 systemctl daemon-reload
 if [ ! -e /.dockerenv ]; then

@@ -1,4 +1,4 @@
-all: build-deb build-rpm build-inst
+all: build-deb build-rpm build-inst #build-arch
 
 build-deb:
 	-docker rm -f debtest
@@ -23,3 +23,11 @@ build-inst:
 	./testdbs insttest
 	-docker kill insttest
 	-docker rm insttest
+
+build-arch:
+	-docker rm -f archtest
+	docker build -t smoketest-arch -f Dockerfile.arch.build ../../
+	docker run -d --name archtest smoketest-arch /build/tests/smoketest/docker-dev-entrypoint.sh db1 db2 db3 db4 db5
+	./testdbs archtest
+	-docker kill archtest
+	-docker rm archtest

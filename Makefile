@@ -1,5 +1,5 @@
 PACKAGE=comdb2
-VERSION?=$(shell grep ^comdb2 deb/changelog  | sed 's/^comdb2 .//; s/-.*//g')
+VERSION?=$(shell grep ^comdb2 distro/deb/changelog  | sed 's/^comdb2 .//; s/-.*//g')
 include main.mk
 include libs.mk
 
@@ -65,11 +65,11 @@ clean:
 	rm -f $(TASKS) $(ARS) $(OBJS) $(GENC) $(GENH) $(GENMISC)
 
 # Supply our own deb builder to make packaging easier.  In case
-# there's ever an official Debian package being maintained, use 'deb'
+# there's ever an official Debian package being maintained, use 'distro/deb'
 # as the debian directory (and we/they wouldn't use this target)
 deb-current: clean deb-clean
 	rm -fr debian
-	cp -r deb debian
+	cp -r distro/deb debian
 	rm -f ../$(PACKAGE)_$(VERSION).orig.tar.gz
 	tar acf ../$(PACKAGE)_$(VERSION).orig.tar.gz *
 	dpkg-buildpackage -us -uc
@@ -79,15 +79,22 @@ deb-current: clean deb-clean
 rpm-current: clean rpm-clean
 	-mkdir -p ${HOME}/rpmbuild/BUILD ${HOME}/rpmbuild/BUILDROOT ${HOME}/rpmbuild/RPMS ${HOME}/rpmbuild/SOURCES ${HOME}/rpmbuild/SPECS ${HOME}/rpmbuild/SRPMS
 	tar --transform="s|\\./|$(PACKAGE)-$(VERSION)/|" -acf ${HOME}/rpmbuild/SOURCES/$(PACKAGE)-$(VERSION).tar.gz .
-	sed s'/VVEERRSSIIOONN/$(VERSION)/' rpmbuild/comdb2.spec > ${HOME}/rpmbuild/SPECS/$(PACKAGE)-$(VERSION).spec
+	sed s'/VVEERRSSIIOONN/$(VERSION)/' distro/rpmbuild/comdb2.spec > ${HOME}/rpmbuild/SPECS/$(PACKAGE)-$(VERSION).spec
 	rpmbuild -bb ${HOME}/rpmbuild/SPECS/$(PACKAGE)-$(VERSION).spec
 	@ls -l ${HOME}/rpmbuild/RPMS/*/$(PACKAGE)-$(VERSION)*.rpm
+
+arch-current: clean arch-clean
+	cd distro/arch && makepkg -f 
+	@ls -l distro/arch/*.xz
 
 rpm-clean:
 	rm -f ${HOME}/rpmbuild/SOURCES/$(PACKAGE)_$(VERSION)*
 
 deb-clean:
 	rm -f ../$(PACKAGE)_$(VERSION)*
+
+arch-clean:
+	rm -fr distro/arch/{src,pkg,*.xz}
 
 test: $(TASKS)
 	$(MAKE) -C tests
@@ -106,10 +113,10 @@ install: all
 	install -D cdb2sql $(DESTDIR)$(PREFIX)/bin/cdb2sql
 	install -D comdb2ar $(DESTDIR)$(PREFIX)/bin/comdb2ar
 	install -D pmux $(DESTDIR)$(PREFIX)/bin/pmux
-	install -D tools/pmux/pmux.service $(DESTDIR)$(PREFIX)/lib/systemd/system/pmux.service
-	install -D tools/cdb2sockpool/cdb2sockpool.service $(DESTDIR)$(PREFIX)/lib/systemd/system/cdb2sockpool.service
-	install -D contrib/comdb2admin/supervisor_cdb2.service $(DESTDIR)$(PREFIX)/lib/systemd/system/supervisor_cdb2.service
-	install -D cdb2api/cdb2api.pc $(DESTDIR)$(PREFIX)/usr/local/lib/pkgconfig/cdb2api.pc
+	install -D tools/pmux/pmux.service $(DESTDIR)/usr/lib/systemd/system/pmux.service
+	install -D tools/cdb2sockpool/cdb2sockpool.service $(DESTDIR)/usr/lib/systemd/system/cdb2sockpool.service
+	install -D contrib/comdb2admin/supervisor_cdb2.service $(DESTDIR)/usr/lib/systemd/system/supervisor_cdb2.service
+	install -D cdb2api/cdb2api.pc $(DESTDIR)/usr/lib/pkgconfig/cdb2api.pc
 	install -D db/comdb2dumpcsc $(DESTDIR)$(PREFIX)/bin/comdb2dumpcsc
 	mkdir -p $(DESTDIR)$(PREFIX)/var/cdb2/ $(DESTDIR)$(PREFIX)/etc/cdb2 $(DESTDIR)$(PREFIX)/var/log/cdb2 $(DESTDIR)$(PREFIX)/etc/cdb2/rtcpu $(DESTDIR)$(PREFIX)/var/lib/cdb2 $(DESTDIR)$(PREFIX)/etc/cdb2/config/comdb2.d/  $(DESTDIR)$(PREFIX)/tmp/cdb2/ $(DESTDIR)$(PREFIX)/var/log/cdb2_supervisor/conf.d $(DESTDIR)$(PREFIX)/etc/cdb2_supervisor/conf.d/ $(DESTDIR)$(PREFIX)/var/run $(DESTDIR)$(PREFIX)/var/log/cdb2_supervisor/
 	[ -z "$(DESTDIR)" ] && chown $(USER):$(GROUP) $(DESTDIR)$(PREFIX)/var/cdb2/ $(DESTDIR)$(PREFIX)/etc/cdb2 $(DESTDIR)$(PREFIX)/var/log/cdb2 $(DESTDIR)$(PREFIX)/etc/cdb2/rtcpu $(DESTDIR)$(PREFIX)/var/lib/cdb2 $(DESTDIR)$(PREFIX)/etc/cdb2/config/comdb2.d/ $(DESTDIR)$(PREFIX)/etc/cdb2/config/ $(DESTDIR)$(PREFIX)/tmp/cdb2/ $(DESTDIR)$(PREFIX)/var/log/cdb2_supervisor/conf.d $(DESTDIR)$(PREFIX)/etc/cdb2_supervisor/conf.d/  $(DESTDIR)$(PREFIX)/var/run $(DESTDIR)$(PREFIX)/var/log/cdb2_supervisor/ || true  
