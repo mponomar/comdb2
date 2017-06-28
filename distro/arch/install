@@ -1,35 +1,27 @@
-# This is a default template for a post-install scriptlet.
-# Uncomment only required functions and remove any functions
-# you don't need (and this header).
+#!/bin/bash
 
 ## arg 1:  the new package version
-#pre_install() {
-	# do something here
-#}
+post_install() {
+    sudo useradd -d /home/comdb2 -m -r -s /bin/bash -U comdb2
+    for dir in /opt/bb/var /opt/bb/var/log ; do
+        [ ! -d $dir ] && mkdir -p $dir
+        chmod 755 $dir
+    done
+    for dir in /opt/bb/var/run; do
+        [ ! -d $dir ] && mkdir -p $dir
+        chmod 777 $dir
+    done
+    for dir in /opt/bb/var/cdb2/ /opt/bb/etc/cdb2 /opt/bb/var/log/cdb2 /opt/bb/var/lib/cdb2 /opt/bb/etc/cdb2/config/comdb2.d/ /opt/bb/var/log/cdb2_supervisor /opt/bb/etc/cdb2_supervisor/conf.d/; do
+        [ ! -d $dir ] && mkdir -p $dir
+        chown comdb2:comdb2 $dir
+        chmod 775 $dir
+    done
+    rm -f /opt/bb/bin/cdb2_printlog && ln /opt/bb/bin/comdb2 /opt/bb/bin/cdb2_printlog
+    rm -f /opt/bb/bin/cdb2_verify && ln /opt/bb/bin/comdb2 /opt/bb/bin/cdb2_verify
+    rm -f /opt/bb/bin/cdb2_dump && ln /opt/bb/bin/comdb2 /opt/bb/bin/cdb2_dump
+    rm -f /opt/bb/bin/cdb2_stat && ln /opt/bb/bin/comdb2 /opt/bb/bin/cdb2_stat
 
-## arg 1:  the new package version
-#post_install() {
-	# do something here
-#}
-
-## arg 1:  the new package version
-## arg 2:  the old package version
-#pre_upgrade() {
-	# do something here
-#}
-
-## arg 1:  the new package version
-## arg 2:  the old package version
-#post_upgrade() {
-	# do something here
-#}
-
-## arg 1:  the old package version
-#pre_remove() {
-	# do something here
-#}
-
-## arg 1:  the old package version
-#post_remove() {
-	# do something here
-#}
+    echo 'PATH=$PATH:/opt/bb/bin' >> /home/comdb2/.profile
+    chmod +x /home/comdb2/.profile
+    chown comdb2:comdb2 /home/comdb2/.profile
+}
