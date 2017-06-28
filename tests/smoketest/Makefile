@@ -1,4 +1,4 @@
-all: build-deb build-rpm build-inst #build-arch
+all: build-deb build-rpm build-inst build-arch
 
 build-deb:
 	-docker rm -f debtest
