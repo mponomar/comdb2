@@ -445,13 +445,15 @@ rle_compress_type(A) ::= LZ4. {A = REC_LZ4;}
 
 
 cmd ::= alter_comdb2table.
-alter_comdb2table ::= dryrun(D) ALTER TABLE nm(Y) dbnm(Z) comdb2opt(O) NOSQL(C). {
+alter_comdb2table ::= /*dryrun(D)*/ ALTER TABLE nm(Y) dbnm(Z) comdb2opt(O) NOSQL(C). {
         comdb2AlterTable(pParse,&Y,&Z,O,&C,D);
 }
 
+/*
 %type dryrun {int}
 dryrun(D) ::= DRYRUN.  {D=1;}
 dryrun(D) ::= . {D=0;}
+*/
 
 
 ///////////////////// The CREATE TABLE statement ////////////////////////////

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export SRCHOME=${SRCHOME:-$(realpath .)}
+
 if [[ $# -ne 3 ]]; then
         echo $*
         echo "$0 usage: srcfile BDBLIBDIR BERKDBLIBDIR"

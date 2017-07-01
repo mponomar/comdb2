@@ -8673,7 +8673,6 @@ int main(int argc, char **argv)
 
     /* what is my local hostname */
     getmyid();
-
     /* ignore too large files signals */
     struct sigaction sact;
     sact.sa_handler = SIG_IGN;
@@ -8903,7 +8902,7 @@ static int put_all_csc2()
     for (ii = 0; ii < thedb->num_dbs; ii++) {
         if (thedb->dbs[ii]->dbtype == DBTYPE_TAGGED_TABLE) {
             int rc;
-            
+
             if (thedb->dbs[ii]->lrlfname)
                rc = load_new_table_schema_file(thedb, thedb->dbs[ii]->dbname,
                      thedb->dbs[ii]->lrlfname);

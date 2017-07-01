@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export SRCHOME=${SRCHOME:-$(realpath .)}
+
 #usage
 if [[ $# != 4 ]]; then
     print "$0 usage: <source> <cfile> <hfile> <template>"

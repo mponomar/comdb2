@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export SRCHOME=${SRCHOME:-$(realpath .)}
+
 #usage
 if [[ "$#" -lt "3" ]]; then
     print "$0 usage: <root> <hext-file> <cfile> [ <cfile2> <cfile3> .. ]"

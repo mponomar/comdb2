@@ -1,5 +1,6 @@
 #!/bin/sh
 
+export SRCHOME=$(realpath .)
 placeholder_number='__HIMIKE__'
 placeholder_name='__HIGHMIKE__'
 placeholder_inc='__HAIMIKE__'
