@@ -127,7 +127,7 @@ proc write_sqlpipe {query} {
   global pipe_closed
   global pipe_counter
 
-  if {$pipe_counter > 50} {
+  if {$pipe_counter > 1000} {
     close_sqlpipe
     set pipe_counter 0 
   }
@@ -628,6 +628,14 @@ proc do_test {name cmd expected} {
   #AZ
   flush stdout
   #exit 1
+  } elseif {[regexp {^/.*/$} "$expected"]} {
+    set regex [regsub -all {/} $expected {}]
+    if {[regexp $regex $result]} {
+      puts " Ok"
+    } else {
+      puts "\nExpected: \[$expected\]\n     Got: \[$result\]"
+      fail_test $name
+    }
   } elseif {[string compare $result $expected]} {
     puts "\nExpected: \[$expected\]\n     Got: \[$result\]"
     fail_test $name

@@ -21,8 +21,6 @@ source $testdir/tester.tcl
 # TODO: sqlite_like_count - can simulate with "SET sqlite_like_count value"
 #                                             select sqlite_like_count()
 
-skip_test {
-
 # Create some sample data to work with.
 #
 do_test like-1.0 {
@@ -1124,8 +1122,6 @@ skip_test {
                 expr {$x<1000}
         } {1}
     }
-}
-
 }
 
 # As of 2017-07-27 (3.21.0) the LIKE optimization works with ESCAPE as
