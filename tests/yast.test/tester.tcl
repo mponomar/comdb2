@@ -127,7 +127,7 @@ proc write_sqlpipe {query} {
   global pipe_closed
   global pipe_counter
 
-  if {$pipe_counter > 1000} {
+  if {$pipe_counter > 50} {
     close_sqlpipe
     set pipe_counter 0 
   }
@@ -258,6 +258,7 @@ proc queryplan {sql} {
     set table ""
     set detail ""
 
+
     regexp {^\(.*detail='(.+)'\)$} $plan _ detail
     #puts stderr "detail... $detail"
     set found [regexp {^SEARCH TABLE ([[:alnum:]]+) AS ([[:alnum:]]+) USING(?: COVERING)?? INDEX ([$_[:alnum:]]+) .*$} $detail _ table as idx]
@@ -283,11 +284,15 @@ proc queryplan {sql} {
       continue
     }
 
-    set found [regexp {^SEARCH TABLE ([[:alnum:]]+) USING(?: COVERING)?? INDEX ([$_[:alnum:]]+) .*$} $detail _ table idx]
+    set found [regexp {^(SCAN|SEARCH) TABLE ([[:alnum:]]+) USING( COVERING)? INDEX ([$_[:alnum:]]+) .*$} $detail _ _ table covering idx]
     if {$found} {
       set idx [do_it_to_the_index_name $idx]
       #AZ matches more without this: set table [patch_query_plan $idx $table]
-      set data [concat $data $table $idx]
+      if {$covering eq ""} {
+        set data [concat $data $table $idx]
+      } else {
+        set data [concat $data {{}} $idx]
+      }
       continue
     }
 
@@ -1184,7 +1189,7 @@ proc drop_index {origquery} {
       append csc2schema $k
     }
     puts $csc2 $csc2schema 
-    puts "DROPPING no keys so schema should be same as $k and is $csc2schema , but is not $schemaorig"
+    # puts "DROPPING no keys so schema should be same as $k and is $csc2schema , but is not $schemaorig"
     close $csc2
   }
   set rc [catch {exec $cdb2sql --cdb2cfg $cdb2_config $comdb2_name default  "ALTER TABLE  $table \{$csc2schema\}" } output]
@@ -1555,6 +1560,7 @@ proc fix_ifcapable_expr {expr} {
 proc ifcapable {expr code {else ""} {elsecode ""}} {
   #regsub -all {[a-z_0-9]+} $expr {$::sqlite_options(&)} e2
   #set e2 [fix_ifcapable_expr $expr]
+
   switch $expr {
     update_delete_limit -
     explain -
@@ -1567,9 +1573,11 @@ proc ifcapable {expr code {else ""} {elsecode ""}} {
 
     reindex -
     comdb2_skip -
+    like_opt -
     reverse_unordered_selects -
     indexed_by -
     integrityck -
+    like_match_blobs -
     tclvar {
       set c [catch {uplevel 1 $elsecode} r]
     }
@@ -2196,6 +2204,9 @@ proc sql36231 {sql} {
 # If the library is compiled with the SQLITE_DEFAULT_AUTOVACUUM macro set
 # to non-zero, then set the global variable $AUTOVACUUM to 1.
 #set AUTOVACUUM $sqlite_options(default_autovacuum)
+
+proc skip_test {test} {
+}
 
 source $testdir/thread_common.tcl
 
