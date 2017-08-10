@@ -1,0 +1,33 @@
+#!/bin/bash
+bash -n "$0" | exit 1
+
+comdb2task=../../comdb2
+
+NEWNAME="valgrind$$test"
+echo "name $NEWNAME" >> ${DBNAME}.lrl
+$comdb2task $NEWNAME --create --lrl ${DBNAME}.lrl
+
+valgrind --leak-check=full --log-file=valgrind.out --suppressions=../valgrind.supp --show-reachable=yes $comdb2task $NEWNAME --lrl ${DBNAME}.lrl &
+
+trap "cdb2sql $NEWNAME \"exec procedure sys.cmd.send('exit')\"" EXIT
+
+while :; do 
+    # cdb2sql may fail if the db isn't up yet
+    set +e
+    out=$(cdb2sql -tabs $NEWNAME local 'select 1') ||
+    [[ "$out" = "1" ]] && break
+    set -e
+    sleep 1
+done
+
+for i in $(seq 1 1000); do echo "select 1"; done | cdb2sql ${NEWNAME} - >/dev/null; send ${NEWNAME} exit
+sleep 30
+
+grep -q 'ERROR SUMMARY: 0 errors from 0 contexts' valgrind.out
+if [[ $? -ne 0 ]]; then
+    echo "Still have warnings: "
+    cat valgrind.out
+    exit 1
+fi
+
+exit 0
