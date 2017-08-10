@@ -648,7 +648,7 @@ static int run_statement(const char *sql, int ntypes, int *types,
             rc = cdb2_open(&cdb2h, dbname, dbtype, 0);
         }
 
-        cdb2_push_context(cdb2h, "cdb2sql");
+        // cdb2_push_context(cdb2h, "cdb2sql");
         if (rc) {
             fprintf(stderr, "cdb2_open rc %d %s\n", rc, cdb2_errstr(cdb2h));
             cdb2_close(cdb2h);

@@ -33,9 +33,11 @@
 #    define SBUF2_DFL_SIZE 1024ULL
 #  endif
 #  include "mem_bb.h"
-#  define calloc comdb2_calloc_bb
-#  define malloc(size) comdb2_malloc(sb->allocator, size)
-#  define free comdb2_free
+#  ifndef USE_SYS_ALLOC
+#    define calloc comdb2_calloc_bb
+#    define malloc(size) comdb2_malloc(sb->allocator, size)
+#    define free comdb2_free
+#  endif
 #else /* SBUF2_SERVER */
 #  ifndef SBUF2_DFL_SIZE
 #    define SBUF2_DFL_SIZE (1024ULL * 128ULL)

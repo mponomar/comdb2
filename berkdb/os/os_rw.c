@@ -50,10 +50,11 @@ static const char revid[] = "$Id: os_rw.c,v 11.30 2003/05/23 21:19:05 bostic Exp
 #include "db_int.h"
 #include "dbinc/db_swap.h"
 #include "printformats.h"
-#include "mem_restore.h"
 
 #include <poll.h>
 #include "logmsg.h"
+
+#include "mem_restore.h"
 
 uint64_t bb_berkdb_fasttime(void);
 
@@ -85,8 +86,8 @@ free_iobuf(void *p)
 {
 	struct iobuf *b = p;
 
-	free(b->buf);
-	comdb2_free(b);
+	comdb2_free_berkdb(b->buf);
+	comdb2_free_berkdb(b);
 }
 
 static void

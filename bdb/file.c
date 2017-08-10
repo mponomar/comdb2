@@ -88,6 +88,7 @@
 #include <bb_oscompat.h>
 #include <logmsg.h>
 #include <portmuxapi.h>
+#include <plhash.h>
 
 #include "db_int.h"
 #include "dbinc/db_swap.h"
@@ -1636,12 +1637,26 @@ static int bdb_close_int(bdb_state_type *bdb_state, int envonly)
             }
         }
     }
+    bdb_destroy_private_blkseq(bdb_state);
 
     free(bdb_state->origname);
     free(bdb_state->name);
     free(bdb_state->dir);
     free(bdb_state->txndir);
     free(bdb_state->tmpdir);
+
+    free(bdb_state->seqnum_info->seqnums);
+    free(bdb_state->last_downgrade_time);
+    free(bdb_state->master_lease);
+    free(bdb_state->seqnum_info->waitlist);
+    free(bdb_state->seqnum_info->trackpool);
+    free(bdb_state->seqnum_info->time_10seconds);
+    free(bdb_state->seqnum_info->time_minute);
+    free(bdb_state->seqnum_info->expected_udp_count);
+    free(bdb_state->seqnum_info->incomming_udp_count);
+    free(bdb_state->seqnum_info->udp_average_counter);
+
+    free(bdb_state);
     /* We can not free bdb_state because other threads get READLOCK
      * and it does not work well doing so on freed memory, so don't:
      * memset(bdb_state, 0xff, sizeof(bdb_state));
@@ -7998,8 +8013,14 @@ typedef struct file_set {
     DB_LSN ckp;
 } file_set_t;
 
+static int free_fileset_name(void *obj, void *arg) {
+    free(obj);
+    return 0;
+}
+
 static void free_file_set(file_set_t *fs)
 {
+    hash_for(fs->fnames, free_fileset_name, NULL);
     hash_free(fs->fnames);
     free(fs);
 }
@@ -8021,6 +8042,10 @@ static inline int log_get_record(DB_LOGC *logc, DBT *logrec, DB_LSN *lsn,
                        "%s: failed reading repo log record rc=%d\n", __func__,
                        rc);
             return rc;
+        }
+        if (logrec->data) {
+            free(logrec->data);
+            logrec->data = NULL;
         }
     }
 
@@ -8061,6 +8086,8 @@ static int check_proper_debug_log(DB_ENV *dbenv, DB_LOGC *logc, DB_LSN *lsn)
 
 error:
     if (argp) __os_free(dbenv, argp);
+    if (logrec.data)
+        free(logrec.data);
 
     return rc;
 }
@@ -8096,6 +8123,8 @@ static int get_file_name(DB_ENV *dbenv, DB_LOGC *logc, DB_LSN *lsn, int *done,
 
 done:
     if (argp) __os_free(dbenv, argp);
+    if (logrec.data)
+        free(logrec.data);
 
     return rc;
 }
@@ -8130,6 +8159,8 @@ static int get_prev_checkpoint(DB_ENV *dbenv, DB_LOGC *logc, DB_LSN *lsn,
 
 done:
     if (argp) __os_free(dbenv, argp);
+    if (logrec.data)
+        free(logrec.data);
 
     return rc;
 }
@@ -8163,20 +8194,38 @@ skip_empties:
 
         LOGCOPY_32(&type, logrec.data);
         if (type == DB___dbreg_register) empty = 0;
-        if (type != DB___db_debug) continue;
+        if (type != DB___db_debug) {
+            if (logrec.data) {
+                free(logrec.data);
+                logrec.data = NULL;
+            }
+            continue;
+        }
 
         rc = __db_debug_read(dbenv, logrec.data, &argp);
         if (rc) goto done;
         LOGCOPY_32(&type, argp->op.data);
+        if (logrec.data) {
+            if (logrec.data) {
+                free(logrec.data);
+                logrec.data = NULL;
+            }
+        }
         if (type == 2) break;
     } while (1);
 
     if (empty) {
         *lsn = saved_lsn; /* skip empty checkpoint */
+        if (logrec.data) {
+            free(logrec.data);
+            logrec.data = NULL;
+        }
         goto skip_empties;
     }
 done:
     if (argp) __os_free(dbenv, argp);
+    if (logrec.data)
+        free(logrec.data);
 
     return rc;
 }

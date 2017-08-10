@@ -991,7 +991,6 @@ static void init_q_vars()
     q_sql_steps_all = quantize_new(100, 100000, "steps");
 }
 
-#ifdef DEBUG
 static void cleanup_q_vars()
 {
     quantize_free(q_min);
@@ -1006,7 +1005,6 @@ static void cleanup_q_vars()
     quantize_free(q_sql_steps_hour);
     quantize_free(q_sql_steps_all);
 }
-#endif
 
 /* Send an alert about the fact that I'm incoherent */
 static int send_incoherent_message(int num_online, int duration)
@@ -1445,13 +1443,14 @@ void clean_exit(void)
 
 #ifdef DEBUG
     sleep(4); // wait for other threads to exit by themselves
+#endif
 
     backend_cleanup(thedb);
     net_cleanup_subnets();
     cleanup_q_vars();
     cleanup_switches();
-#endif
     free_gbl_tunables();
+    comdb2ma_exit();
 
     exit(0);
 }

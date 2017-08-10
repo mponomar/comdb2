@@ -3449,6 +3449,7 @@ int bdb_oldest_outstanding_ltran(bdb_state_type *bdb_state, int *ltran_count,
 
     if (ltrancount == 0) {
         *ltran_count = ltrancount;
+        __os_free(bdb_state->dbenv, ltranlist);
         return 0;
     }
 

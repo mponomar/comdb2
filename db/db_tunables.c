@@ -737,6 +737,7 @@ int free_gbl_tunables()
     }
     hash_free(gbl_tunables->hash);
     pthread_mutex_destroy(&gbl_tunables->mu);
+    free(gbl_tunables->array);
     free(gbl_tunables);
     gbl_tunables = 0;
     return 0;

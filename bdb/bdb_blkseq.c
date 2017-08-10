@@ -144,6 +144,29 @@ int bdb_create_private_blkseq(bdb_state_type *bdb_state)
     return 0;
 }
 
+int bdb_destroy_private_blkseq(bdb_state_type *bdb_state)
+{
+    int rc;
+    for (int stripe = 0; stripe < bdb_state->attr->private_blkseq_stripes; stripe++) {
+        for (int i = 0; i < 2; i++) {
+            DB *db = bdb_state->blkseq[i][stripe];
+            rc = db->close(db, NULL, DB_NOSYNC);
+            if (rc) {
+                fprintf(stderr, "close i %d stripe %d rc %d\n", i, stripe, rc);
+            }
+        }
+        bdb_state->blkseq_env[stripe]->close(bdb_state->blkseq_env[stripe], 0);
+        if (rc) {
+            fprintf(stderr, "close env stripe %d rc %d\n", stripe, rc);
+        }
+        pthread_mutex_destroy(&bdb_state->blkseq_lk[stripe]);
+    }
+    free(bdb_state->blkseq[0]);
+    free(bdb_state->blkseq[1]);
+    free(bdb_state->blkseq_last_lsn[0]);
+    free(bdb_state->blkseq_last_lsn[1]);
+}
+
 static uint8_t get_stripe(bdb_state_type *bdb_state, uint8_t *bytes, int len)
 {
     uint8_t stripe = 0;
