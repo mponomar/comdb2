@@ -197,7 +197,7 @@ for csc2 in $(ls *.csc2 2>/dev/null); do
     cp $PWD/$csc2 $DBDIR/
 done >> $DBDIR/${DBNAME}.lrl
 
-mkdir -p $TESTDIR/var/log/cdb2 $TESTDIR/tmp/cdb2
+mkdir -p $TESTDIR/var/log/cdb2 $TESTDIR/tmp/cdb2 $TESTDIR/var/cdb2
 
 PARAMS="$DBNAME --no-global-lrl"
 $comdb2task --create --lrl $DBDIR/${DBNAME}.lrl --pidfile ${TMPDIR}/$DBNAME.pid $PARAMS  >$TESTDIR/logs/${DBNAME}.init 2>&1

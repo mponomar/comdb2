@@ -5056,7 +5056,7 @@ static void *connect_thread(void *arg)
         poll(NULL, 0, 1000);
     }
 
-    poll(NULL, 0, 1000);
+    // poll(NULL, 0, 1000);
 
     /* lock, unlink, free, damn it */
     rem_from_netinfo(netinfo_ptr, host_node_ptr);

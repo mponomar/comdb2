@@ -1,13 +1,17 @@
 #!/bin/bash
 bash -n "$0" | exit 1
 
-comdb2task=../../comdb2
+pwd
+comdb2task=${TESTSROOTDIR}/../comdb2
 
 NEWNAME="valgrind$$test"
-echo "name $NEWNAME" >> ${DBNAME}.lrl
-$comdb2task $NEWNAME --create --lrl ${DBNAME}.lrl
+echo $NEWNAME
+echo "name $NEWNAME" >> ${NEWNAME}.lrl
+echo "dir $COMDB2_ROOT/var/cdb2/$NEWNAME" >> ${NEWNAME}.lrl
+$comdb2task $NEWNAME --create --lrl ${NEWNAME}.lrl
 
-valgrind --leak-check=full --log-file=valgrind.out --suppressions=../valgrind.supp --show-reachable=yes $comdb2task $NEWNAME --lrl ${DBNAME}.lrl &
+set -x
+valgrind --leak-check=full --log-file=valgrind.out --suppressions=${TESTSROOTDIR}/valgrind.supp --show-reachable=yes $comdb2task $NEWNAME --lrl ${NEWNAME}.lrl &
 
 trap "cdb2sql $NEWNAME \"exec procedure sys.cmd.send('exit')\"" EXIT
 

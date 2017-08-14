@@ -1,7 +1,0 @@
-{
-    Thread local storage for active threads
-    Memcheck:Leak
-    ...
-    fun:_dl_allocate_tls
-    ...
-}
