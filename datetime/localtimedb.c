@@ -2248,7 +2248,6 @@ static int db_tzset(name) register const char *name;
 
     db_settzname();
 
-
     return 0;
 }
 
