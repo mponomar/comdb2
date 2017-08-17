@@ -158,6 +158,8 @@ struct comdb2_tunable {
 
     /* Frees the memory used by tunable. (Optional) */
     void (*destroy)(void *);
+
+    char *default_tunable_value;
 };
 typedef struct comdb2_tunable comdb2_tunable;
 
@@ -178,11 +180,26 @@ typedef struct {
     pthread_mutex_t mu;
 } comdb2_tunables;
 
+#define REGISTER_TUNABLE_WITH_DEFAULT(NAME, DESCR, TYPE, VAR_PTR, DEFAULT,     \
+                         FLAGS, VALUE_FN, VERIFY_FN, UPDATE_FN, DESTROY_FN)    \
+    do {                                                                       \
+        comdb2_tunable t = {.name = NAME, .descr = DESCR, .type = TYPE,        \
+                             .var = VAR_PTR, .default_tunable_value = DEFAULT, \
+                             .flags = FLAGS, .value = VALUE_FN,                \
+                             .verify = VERIFY_FN, .update = UPDATE_FN,         \
+                             .destroy = DESTROY_FN};                           \
+        register_tunable(t);                                                   \
+    } while (0)
+
+
 #define REGISTER_TUNABLE(NAME, DESCR, TYPE, VAR_PTR, FLAGS, VALUE_FN,          \
                          VERIFY_FN, UPDATE_FN, DESTROY_FN)                     \
     do {                                                                       \
-        comdb2_tunable t = {NAME,     DESCR,     TYPE,      VAR_PTR,   FLAGS,  \
-                            VALUE_FN, VERIFY_FN, UPDATE_FN, DESTROY_FN};       \
+        comdb2_tunable t = {.name = NAME, .descr = DESCR, .type = TYPE,        \
+                             .var = VAR_PTR, .default_tunable_value = NULL,    \
+                             .flags = FLAGS, .value = VALUE_FN,                \
+                             .verify = VERIFY_FN, .update = UPDATE_FN,         \
+                             .destroy = DESTROY_FN};                           \
         register_tunable(t);                                                   \
     } while (0)
 

@@ -166,8 +166,9 @@ static void init_pool_list(void)
 
 #include "tunables.h"
 
-#define REGISTER_THDPOOL_TUNABLE(POOL, NAME, DESCR, TYPE, VAR_PTR, FLAGS,      \
-                                 VALUE_FN, VERIFY_FN, UPDATE_FN, DESTROY_FN)   \
+#define REGISTER_THDPOOL_TUNABLE(POOL, NAME, DESCR, TYPE, VAR_PTR,             \
+                                 FLAGS, VALUE_FN, VERIFY_FN,                   \
+                                 UPDATE_FN, DESTROY_FN)                        \
     snprintf(buf, sizeof(buf), "%s.%s", POOL, #NAME);                          \
     REGISTER_TUNABLE(buf, DESCR, TYPE, VAR_PTR, FLAGS, VALUE_FN, VERIFY_FN,    \
                      UPDATE_FN, DESTROY_FN)

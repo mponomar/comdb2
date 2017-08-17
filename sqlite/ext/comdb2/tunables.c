@@ -45,6 +45,7 @@ enum {
     TUNABLES_COLUMN_TYPE,
     TUNABLES_COLUMN_VALUE,
     TUNABLES_COLUMN_READONLY,
+    TUNABLES_COLUMN_DEFAULT_VALUE,
 };
 
 static int systblTunablesConnect(sqlite3 *db, void *pAux, int argc,
@@ -55,7 +56,7 @@ static int systblTunablesConnect(sqlite3 *db, void *pAux, int argc,
 
     rc = sqlite3_declare_vtab(db, "CREATE TABLE comdb2_tunables(\"name\", "
                                   "\"description\", \"type\", \"value\", "
-                                  "\"read_only\")");
+                                  "\"read_only\", \"default_value\")");
 
     if (rc == SQLITE_OK) {
         if ((*ppVtab = sqlite3_malloc(sizeof(sqlite3_vtab))) == 0) {
@@ -192,6 +193,14 @@ static int systblTunablesColumn(sqlite3_vtab_cursor *cur, sqlite3_context *ctx,
     case TUNABLES_COLUMN_READONLY:
         sqlite3_result_text(ctx, YESNO(tunable->flags & READONLY), -1, NULL);
         break;
+
+    case TUNABLES_COLUMN_DEFAULT_VALUE:
+        if (tunable->default_tunable_value)
+            sqlite3_result_text(ctx, tunable->default_tunable_value, -1, NULL);
+        else
+            sqlite3_result_null(ctx);
+        break;
+
     default: assert(0);
     };
 
