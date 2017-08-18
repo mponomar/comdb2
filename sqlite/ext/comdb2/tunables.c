@@ -195,8 +195,19 @@ static int systblTunablesColumn(sqlite3_vtab_cursor *cur, sqlite3_context *ctx,
         break;
 
     case TUNABLES_COLUMN_DEFAULT_VALUE:
-        if (tunable->default_tunable_value)
-            sqlite3_result_text(ctx, tunable->default_tunable_value, -1, NULL);
+        if (tunable->default_tunable_value) {
+            if (tunable->type == TUNABLE_BOOLEAN) {
+                int val;
+                val = (tunable->value) ? *(int *)tunable->value(tunable)
+                    : *(int *)tunable->var;
+                if ((tunable->flags & INVERSE_VALUE) != 0) {
+                    val = (val == 0) ? 1 : 0;
+                }
+                sqlite3_result_text(ctx, (val) ? "ON" : "OFF", -1, NULL);
+            }
+            else
+                sqlite3_result_text(ctx, tunable->default_tunable_value, -1, NULL);
+        }
         else
             sqlite3_result_null(ctx);
         break;
