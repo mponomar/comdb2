@@ -184,7 +184,8 @@ typedef struct {
                          FLAGS, VALUE_FN, VERIFY_FN, UPDATE_FN, DESTROY_FN)    \
     do {                                                                       \
         comdb2_tunable t = {.name = NAME, .descr = DESCR, .type = TYPE,        \
-                             .var = VAR_PTR, .default_tunable_value = DEFAULT, \
+                             .var = VAR_PTR,                                   \
+                             .default_tunable_value = strdup(DEFAULT),         \
                              .flags = FLAGS, .value = VALUE_FN,                \
                              .verify = VERIFY_FN, .update = UPDATE_FN,         \
                              .destroy = DESTROY_FN};                           \

@@ -919,7 +919,11 @@ int register_tunable(comdb2_tunable tunable)
     t->verify = tunable.verify;
     t->update = tunable.update;
     t->destroy = tunable.destroy;
-    t->default_tunable_value = tunable.default_tunable_value;
+
+    if (tunable.default_tunable_value)
+        t->default_tunable_value = strdup(tunable.default_tunable_value);
+    else
+        t->default_tunable_value = NULL;
 
     if (already_exists) {
         assert(slot != -1);

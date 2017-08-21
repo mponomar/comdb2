@@ -276,18 +276,28 @@ void *bdb_attr_create(void)
 
 #define DEF_ATTR(NAME, name, type, dflt, desc)                                 \
     bdb_attr->name = (dflt);                                                   \
+    do {                                                                       \
+    int val = dflt;                                                            \
+    char str[20];                                                              \
+    sprintf(str, "%d", val);                                                   \
     REGISTER_TUNABLE_WITH_DEFAULT(#NAME, desc,                                 \
                      bdb_to_tunable_type(BDB_ATTRTYPE_##type),                 \
-                     &bdb_attr->name, #dflt,                                   \
+                     &bdb_attr->name, str,                                     \
                      bdb_to_tunable_flag(BDB_ATTRTYPE_##type), NULL, NULL,     \
-                     NULL, NULL);
+                     NULL, NULL);                                              \
+    } while (0);
 #define DEF_ATTR_2(NAME, name, type, dflt, desc, flags, verify_fn, update_fn)  \
     bdb_attr->name = (dflt);                                                   \
+    do {                                                                       \
+    int val = dflt;                                                            \
+    char str[20];                                                              \
+    sprintf(str, "%d", val);                                                   \
     REGISTER_TUNABLE_WITH_DEFAULT(#NAME, desc,                                 \
                      bdb_to_tunable_type(BDB_ATTRTYPE_##type),                 \
-                     &bdb_attr->name, #dflt,                                   \
+                     &bdb_attr->name, str,                                     \
                      bdb_to_tunable_flag(BDB_ATTRTYPE_##type) | flags, NULL,   \
-                     verify_fn, update_fn, NULL);
+                     verify_fn, update_fn, NULL);                              \
+    } while (0);
 
 #include "attr.h"
 #undef DEF_ATTR
