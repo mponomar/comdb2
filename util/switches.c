@@ -73,7 +73,9 @@ void register_switch(const char *name, const char *descr, switch_on_fn on_fn,
         maxnamelen = len;
     }
 
-    REGISTER_TUNABLE((char *)name, (char *)descr, TUNABLE_BOOLEAN, context,
+    int val;
+    memcpy(&val, context, sizeof(int));
+    REGISTER_TUNABLE_WITH_INT_DEFAULT((char *)name, (char *)descr, TUNABLE_BOOLEAN, context, val,
                      NOARG, NULL, NULL, NULL, NULL);
 }
 
