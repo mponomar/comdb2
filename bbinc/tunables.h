@@ -192,6 +192,36 @@ typedef struct {
         register_tunable(t);                                                   \
     } while (0)
 
+#define REGISTER_TUNABLE_WITH_INT_DEFAULT(NAME, DESCR, TYPE, VAR_PTR, DEFAULT, \
+                         FLAGS, VALUE_FN, VERIFY_FN, UPDATE_FN, DESTROY_FN)    \
+    do {                                                                       \
+        char *s = comdb2_asprintf("%d", DEFAULT);                              \
+        comdb2_tunable t = {.name = NAME, .descr = DESCR, .type = TYPE,        \
+                             .var = VAR_PTR,                                   \
+                             .default_tunable_value = s,                       \
+                             .flags = FLAGS, .value = VALUE_FN,                \
+                             .verify = VERIFY_FN, .update = UPDATE_FN,         \
+                             .destroy = DESTROY_FN};                           \
+        register_tunable(t);                                                   \
+        free(s);                                                               \
+    } while (0)
+
+#define REGISTER_TUNABLE_WITH_DOUBLE_DEFAULT(NAME, DESCR, TYPE, VAR_PTR, DEFAULT, \
+                         FLAGS, VALUE_FN, VERIFY_FN, UPDATE_FN, DESTROY_FN)    \
+    do {                                                                       \
+        char *s = comdb2_asprintf("%0.6f", DEFAULT);                           \
+        comdb2_tunable t = {.name = NAME, .descr = DESCR, .type = TYPE,        \
+                             .var = VAR_PTR,                                   \
+                             .default_tunable_value = s,                       \
+                             .flags = FLAGS, .value = VALUE_FN,                \
+                             .verify = VERIFY_FN, .update = UPDATE_FN,         \
+                             .destroy = DESTROY_FN};                           \
+        register_tunable(t);                                                   \
+        free(s);                                                               \
+    } while (0)
+
+
+
 
 #define REGISTER_TUNABLE(NAME, DESCR, TYPE, VAR_PTR, FLAGS, VALUE_FN,          \
                          VERIFY_FN, UPDATE_FN, DESTROY_FN)                     \

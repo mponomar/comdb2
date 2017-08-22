@@ -54,11 +54,11 @@ DEF_ATTR(LOGFILEDELTA, logfiledelta, BYTES, 4096,
          "purpose of determining if a new node is in sync.")
 DEF_ATTR(LOGMEMSIZE, logmemsize, BYTES, 10485760,
          "Use this much memory for a log file in-memory buffer.")
-DEF_ATTR(LOGDELETEAGE, logdeleteage, SECS, 7200, NULL)
+DEF_ATTR(LOGDELETEAGE, logdeleteage, SECS, 0, NULL)
 DEF_ATTR(LOGDELETELOWFILENUM, logdeletelowfilenum, QUANTITY, -1,
          "Set the lowest deleteable log file number.")
 DEF_ATTR(SYNCTRANSACTIONS, synctransactions, BOOLEAN, 0, NULL)
-DEF_ATTR(CACHESIZE, cachesize, KBYTES, /* 4MB */ 4194304 / 1024, NULL)
+DEF_ATTR(CACHESIZE, cachesize, KBYTES, /* 4MB */ 64 * 1024, NULL)
 DEF_ATTR(CACHESEGSIZE, cache_seg_size, MBYTES, 1024, NULL)
 DEF_ATTR(
     NUMBERKDBCACHES, num_berkdb_caches, QUANTITY, 0,

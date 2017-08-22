@@ -38,10 +38,6 @@ char *comdb2_vasprintf(const char *fmt, va_list args)
         va_end(argscpy);
         return NULL;
     }
-    if (len == 1) {
-        va_end(argscpy);
-        return strdup("");
-    }
 
     p = malloc(len + 1);
 
@@ -63,9 +59,6 @@ char *comdb2_asprintf(const char *fmt, ...)
     va_end(args);
     if (len < 0)
         return NULL;
-    if (len == 1)
-        return strdup("");
-
     p = malloc(len + 1);
 
     va_start(args, fmt);
