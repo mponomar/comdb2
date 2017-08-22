@@ -197,7 +197,6 @@ typedef struct {
     do {                                                                       \
         char s[20];                                                            \
         snprintf(s, 20, "%d", DEFAULT);                                        \
-        printf("%s %d %s\n", NAME, DEFAULT, s);                                \
         comdb2_tunable t = {.name = NAME, .descr = DESCR, .type = TYPE,        \
                              .var = VAR_PTR,                                   \
                              .default_tunable_value = s,                       \
