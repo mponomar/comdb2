@@ -55,7 +55,7 @@ static inline int trigger_register_int(trigger_reg_t *t)
     if (!bdb_amimaster(bdb_state))
         return CDB2_TRIG_NOT_MASTER;
     if (trigger_hash == NULL) {
-        printf("setting up trigger registry\n");
+        logmsg(LOGMSG_DEBUG, "setting up trigger registry\n");
         trigger_hash = hash_init_str(offsetof(trigger_info_t, qname));
     }
     trigger_reg_to_cpu(t);
@@ -66,12 +66,12 @@ static inline int trigger_register_int(trigger_reg_t *t)
         strcpy(info->qname, t->qname);
         info->trigger_cookie = t->trigger_cookie;
         hash_add(trigger_hash, info);
-        printf("%s %s ASSIGNED host:%s trigger_cookie:0x%llx\n", __func__,
+        logmsg(LOGMSG_DEBUG, "%s %s ASSIGNED host:%s trigger_cookie:0x%llx\n", __func__,
                info->qname, info->host, flibc_htonll(info->trigger_cookie));
         return 1;
     } else if (strcmp(info->host, t->qname + t->qlen) &&
                info->trigger_cookie == t->trigger_cookie) {
-        printf("%s %s ALREADY ASSIGNED host:%s trigger_cookie:0x%llx\n",
+        logmsg(LOGMSG_DEBUG, "%s %s ALREADY ASSIGNED host:%s trigger_cookie:0x%llx\n",
                __func__, info->qname, info->host, flibc_htonll(info->trigger_cookie));
         return 1;
     }
