@@ -5253,6 +5253,13 @@ int dbq_add(struct ireq *iq, void *trans, const void *dta, size_t dtalen)
     bdb_queue_add(bdb_handle, trans, dta, dtalen, &bdberr, &genid);
     iq->gluewhere = "bdb_queue_add done";
 
+    if (iq->usedb->dbtype == DBTYPE_QUEUEDB) {
+        pthread_mutex_lock(&iq->usedb->consumer_wait_lk);
+        pthread_cond_broadcast(&iq->usedb->consumer_wait_cond);
+        pthread_mutex_unlock(&iq->usedb->consumer_wait_lk);
+    }
+
+
     if (bdberr == 0) {
         /* remember that this queue was updated so the consumer can
          * be woken after we commit. */

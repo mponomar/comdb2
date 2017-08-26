@@ -834,6 +834,10 @@ struct dbtable {
 
     /* lock for consumer list */
     pthread_rwlock_t consumer_lk;
+
+    /* lock and condition for waiting dbquedb consumers */
+    pthread_cond_t consumer_wait_cond;
+    pthread_mutex_t consumer_wait_lk;
 };
 
 struct log_delete_state {

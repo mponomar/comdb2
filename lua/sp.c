@@ -129,6 +129,8 @@ typedef struct {
     struct bdb_queue_found *item;
     struct dbq_cursor last;
     struct dbq_cursor next;
+    pthread_cond_t wait; 
+    pthread_mutex_t lk;
     trigger_reg_t info; // must be last in struct
 } dbconsumer_t;
 
@@ -501,6 +503,35 @@ static int dbq_poll_int(Lua L, dbconsumer_t *q)
     return -1;
 }
 
+static int dbq_block(Lua L, dbconsumer_t *q) {
+    int rc;
+
+    for (;;) {
+        if ((rc = dbq_get(&q->iq, 0, &q->last, (void **)&q->item, &q->len,
+                        &q->dtaoff, &q->next, NULL)) == 0) {
+            pthread_mutex_unlock(&q->iq.usedb->consumer_wait_lk);
+            return dbq_pushargs(L, q);
+        }
+        else if (rc != IX_NOTFND) {
+            pthread_mutex_unlock(&q->iq.usedb->consumer_wait_lk);
+            return rc;
+        }
+        /* Nothing on queue - we got woken up because of a master swing or database exit. */
+        if ((rc = check_retry_conditions(L, 0)) != 0) {
+            pthread_mutex_unlock(&q->iq.usedb->consumer_wait_lk);
+            return rc;
+        }
+        /* Wait to be woken up.  We release the lock immediately since our condition
+           is safe to check without holding it. Top of the loop tries to read the queue
+           again. */
+        pthread_mutex_lock(&q->iq.usedb->consumer_wait_lk);
+        pthread_cond_wait(&q->iq.usedb->consumer_wait_cond, &q->iq.usedb->consumer_wait_lk);
+        pthread_mutex_unlock(&q->iq.usedb->consumer_wait_lk);
+    }
+
+    return 0;
+}
+
 static int dbq_poll(Lua L, dbconsumer_t *q, int delay)
 {
     while (1) {
@@ -529,7 +560,11 @@ static int dbq_poll(Lua L, dbconsumer_t *q, int delay)
 static int dbconsumer_get_int(Lua L, dbconsumer_t *q)
 {
     int rc;
+#if 0
     while ((rc = dbq_poll(L, q, dbq_delay)) == 0)
+        ;
+#endif
+    while ((rc = dbq_block(L, q)) == 0)
         ;
     return rc;
 }

@@ -1514,6 +1514,16 @@ struct dbtable *newqdb(struct dbenv *env, const char *name, int avgsz, int pages
     tbl->dbtype = isqueuedb ? DBTYPE_QUEUEDB : DBTYPE_QUEUE;
     tbl->avgitemsz = avgsz;
     tbl->queue_pagesize_override = pagesize;
+    rc = pthread_cond_init(&tbl->consumer_wait_cond, NULL);
+    if (rc) {
+        logmsg(LOGMSG_ERROR, "%s pthread_cond_init rc %d\n", __func__, rc);
+        return NULL;
+    }
+    rc = pthread_mutex_init(&tbl->consumer_wait_lk, NULL);
+    if (rc) {
+        logmsg(LOGMSG_ERROR, "%s pthread_mutex_init rc %d\n", __func__, rc);
+        return NULL;
+    }
 
     if (tbl->dbtype == DBTYPE_QUEUEDB) {
         rc = pthread_rwlock_init(&tbl->consumer_lk, NULL);
