@@ -2890,6 +2890,16 @@ static int new_master_callback(void *bdb_handle, char *host)
         /*bdb_set_timeout(bdb_handle, 0, &bdberr);*/
     }
 
+    /* Poke any waiting consumers on master swing. */
+    for (int i = 0; i < thedb->num_qdbs; i++) {
+        if (thedb->qdbs[i]->dbtype == DBTYPE_QUEUEDB) {
+            pthread_mutex_lock(&thedb->qdbs[i]->consumer_wait_lk);
+            pthread_cond_broadcast(&thedb->qdbs[i]->consumer_wait_cond);
+            pthread_mutex_unlock(&thedb->qdbs[i]->consumer_wait_lk);
+        }
+    }
+
+
     gbl_lost_master_time = 0; /* reset this */
 
     /* fudge around my lockless access to gbl_master_changes */
