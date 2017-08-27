@@ -66,13 +66,16 @@ static inline int trigger_register_int(trigger_reg_t *t)
         strcpy(info->qname, t->qname);
         info->trigger_cookie = t->trigger_cookie;
         hash_add(trigger_hash, info);
-        logmsg(LOGMSG_DEBUG, "%s %s ASSIGNED host:%s trigger_cookie:0x%llx\n", __func__,
-               info->qname, info->host, flibc_htonll(info->trigger_cookie));
+        logmsg(LOGMSG_DEBUG, "%s %s ASSIGNED host:%s trigger_cookie:0x%llx\n",
+               __func__, info->qname, info->host,
+               flibc_htonll(info->trigger_cookie));
         return 1;
     } else if (strcmp(info->host, t->qname + t->qlen) &&
                info->trigger_cookie == t->trigger_cookie) {
-        logmsg(LOGMSG_DEBUG, "%s %s ALREADY ASSIGNED host:%s trigger_cookie:0x%llx\n",
-               __func__, info->qname, info->host, flibc_htonll(info->trigger_cookie));
+        logmsg(LOGMSG_DEBUG,
+               "%s %s ALREADY ASSIGNED host:%s trigger_cookie:0x%llx\n",
+               __func__, info->qname, info->host,
+               flibc_htonll(info->trigger_cookie));
         return 1;
     }
     return CDB2_TRIG_ASSIGNED_OTHER;

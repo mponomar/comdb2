@@ -322,7 +322,7 @@ int bdb_queuedb_get(bdb_state_type *bdb_state, int consumer,
 
     dbt_key.flags = dbt_data.flags = DB_DBT_REALLOC;
 
-    printf("app_private %p\n",  bdb_state->dbp_data[0][0]->app_private);
+    printf("app_private %p\n", bdb_state->dbp_data[0][0]->app_private);
 
     rc = bdb_state->dbp_data[0][0]->cursor(bdb_state->dbp_data[0][0], NULL,
                                            &dbcp, 0);

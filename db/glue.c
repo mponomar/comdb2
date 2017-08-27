@@ -2899,7 +2899,6 @@ static int new_master_callback(void *bdb_handle, char *host)
         }
     }
 
-
     gbl_lost_master_time = 0; /* reset this */
 
     /* fudge around my lockless access to gbl_master_changes */
@@ -5269,7 +5268,6 @@ int dbq_add(struct ireq *iq, void *trans, const void *dta, size_t dtalen)
         pthread_cond_broadcast(&iq->usedb->consumer_wait_cond);
         pthread_mutex_unlock(&iq->usedb->consumer_wait_lk);
     }
-
 
     if (bdberr == 0) {
         /* remember that this queue was updated so the consumer can

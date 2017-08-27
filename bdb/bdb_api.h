@@ -1963,6 +1963,7 @@ struct bias_info {
 
 void bdb_set_fld_hints(bdb_state_type *, uint16_t *);
 
-void bdb_set_rep_callback(bdb_state_type *bdb_state, void(*callback)(void*), void *usrptr);
+void bdb_set_rep_callback(bdb_state_type *bdb_state, void (*callback)(void *),
+                          void *usrptr);
 
 #endif
