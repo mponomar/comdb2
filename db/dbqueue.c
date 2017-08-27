@@ -2077,3 +2077,10 @@ flushed_buffer:
 }
 
 enum consumer_t consumer_type(struct consumer *c) { return c->type; }
+
+void queue_event_callback(void *usrptr) {
+    struct dbtable *db = (struct dbtable*) usrptr;
+    pthread_mutex_lock(&db->consumer_wait_lk);
+    pthread_cond_broadcast(&db->consumer_wait_cond);
+    pthread_mutex_unlock(&db->consumer_wait_lk);
+}

@@ -3650,4 +3650,6 @@ comdb2_tunable_err handle_lrl_tunable(char *name, int name_len, char *value,
 
 int db_is_stopped(void);
 
+void queue_event_callback(void *usrptr);
+
 #endif /* !INCLUDED_COMDB2_H */

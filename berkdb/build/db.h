@@ -1658,6 +1658,10 @@ struct __db {
 	uint8_t temptable;
 	int offset_bias;
 	uint8_t olcompact;
+
+    void (*rep_event_callback)(void *);
+    void *rep_event_callback_usrptr;
+    void (*set_rep_event_callback) __P((DB*, void(*)(void*), void* usrptr));
 };
 
 /*

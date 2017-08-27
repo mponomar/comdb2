@@ -4161,6 +4161,7 @@ int backend_open(struct dbenv *dbenv)
                    dbenv->basedir, db->dbname, bdberr);
             return -1;
         }
+        bdb_set_rep_callback(db->handle, queue_event_callback, db);
     }
     if (fix_consumers_with_bdblib(dbenv) != 0)
         return -1;

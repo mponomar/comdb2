@@ -3233,6 +3233,7 @@ __rep_process_txn_int(dbenv, rctl, rec, ltrans, maxlsn, commit_gen, lockid, rp,
 	int get_locks_and_ack = 1;
 	void *pglogs = NULL;
 	u_int32_t keycnt = 0;
+    DB *dbp;
 
 	db_rep = dbenv->rep_handle;
 	rep = db_rep->region;

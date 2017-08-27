@@ -2881,3 +2881,30 @@ __db_txn_auto_resolve(dbenv, txn, nosync, ret)
 
 	return (ret);
 }
+
+/*
+ * PUBLIC: void __db_set_rep_event_callback __P((DB *, void(*)(void*), void* usrptr));
+ */
+void __db_set_rep_event_callback(dbp, callback, usrptr)
+    DB *dbp;
+    void (*callback)(void*);
+    void *usrptr;
+{
+    DB *ldbp;
+    DB_ENV *dbenv = dbp->dbenv;
+
+    dbp->rep_event_callback = callback;
+    dbp->rep_event_callback_usrptr = usrptr;
+    
+    /* There may be other DBs open on the same database (eg: there will be a recovery
+       handle).  Find them and set the same callback. */
+    MUTEX_THREAD_LOCK(dbenv, dbenv->dblist_mutexp);
+	for (ldbp = __dblist_get(dbenv, dbp->adj_fileid);
+	    ldbp != NULL && ldbp->adj_fileid == dbp->adj_fileid;
+	    ldbp = LIST_NEXT(ldbp, dblistlinks)) {
+
+        ldbp->rep_event_callback = callback;
+        ldbp->rep_event_callback_usrptr = usrptr;
+    }
+    MUTEX_THREAD_UNLOCK(dbenv, dbenv->dblist_mutexp);
+}

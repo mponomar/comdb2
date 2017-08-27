@@ -160,6 +160,9 @@ __db_addrem_recover(dbenv, dbtp, lsnp, op, info)
 			goto out;
 	}
 
+    if (file_dbp->rep_event_callback)
+        file_dbp->rep_event_callback(file_dbp->rep_event_callback_usrptr);
+
 	if ((ret = __memp_fget(mpf, &argp->pgno, 0, &pagep)) != 0) {
 		if (DB_UNDO(op)) {
 			/*

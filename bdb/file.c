@@ -8343,3 +8343,9 @@ done:
 
     logc->close(logc, 0);
 }
+
+void bdb_set_rep_callback(bdb_state_type *bdb_state, void(*callback)(void*), void *usrptr) {
+    DB *dbp = bdb_state->dbp_data[0][0];
+    dbp->set_rep_event_callback(dbp, callback, usrptr);
+}
+
