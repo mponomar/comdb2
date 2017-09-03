@@ -1128,7 +1128,7 @@ static int open_sockpool_ll(void)
     return fd;
 }
 
-void cdb2_enable_sockpool()
+void cdb2_enable_sockpool(void)
 {
     pthread_mutex_lock(&cdb2_sockpool_mutex);
     sockpool_enabled = 1;
@@ -1136,7 +1136,7 @@ void cdb2_enable_sockpool()
 }
 
 /* Disable sockpool and close sockpool socket */
-void cdb2_disable_sockpool()
+void cdb2_disable_sockpool(void)
 {
     pthread_mutex_lock(&cdb2_sockpool_mutex);
     /* Close sockpool fd */
