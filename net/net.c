@@ -5575,26 +5575,198 @@ void net_register_child_net(netinfo_type *netinfo_ptr,
     Pthread_rwlock_unlock(&(netinfo_ptr->lock));
 }
 
+static void sbuf_is_ready(netinfo_type *netinfo_ptr, SBUF2 *sb);
+
+static SBUF2* setup_sbuf_for_fd(netinfo_type *netinfo_ptr, int new_fd) {
+    SBUF2 *sb;
+
+    /* get a buffered pointer to the socket */
+    sb = sbuf2open(new_fd, 0); /* no flags yet... */
+    if (sb == NULL) {
+        logmsg(LOGMSG_ERROR, "sbuf2open failed\n");
+        return NULL;
+    }
+
+    if (debug_switch_net_verbose()) {
+        logmsg(LOGMSG_DEBUG, "Setting wrapper\n");
+        sbuf2setr(sb, sbuf2read_wrapper);
+        sbuf2setw(sb, sbuf2write_wrapper);
+    }
+
+    sbuf2setbufsize(sb, netinfo_ptr->bufsz);
+
+    return sb;
+}
+
+void connection_is_ready(netinfo_type *netinfo_ptr, int fd) {
+    SBUF2 *sb;
+
+    sb = setup_sbuf_for_fd(netinfo_ptr, fd);
+    if (sb == NULL) {
+        int rc = close(fd);
+        if (rc) {
+            logmsg(LOGMSG_ERROR, "%s: close %d rc %d %s\n", __func__, fd, 
+                    errno, strerror(errno));
+            return;
+        }
+        return;
+    }
+    sbuf_is_ready(netinfo_ptr, sb);
+}
+
+void handle_connection_inline(netinfo_type *netinfo_ptr, int new_fd) {
+    /* reasonable default for poll */
+    int polltm = 100;
+    struct pollfd pol;
+    int rc;
+    char paddr[64];
+
+    /* use tuned value if set */
+    if (netinfo_ptr->netpoll > 0) {
+        polltm = netinfo_ptr->netpoll;
+    }
+
+    /* setup poll */
+    pol.fd = new_fd;
+    pol.events = POLLIN;
+
+    /* poll */
+    rc = poll(&pol, 1, polltm);
+
+    /* drop connection on poll error */
+    if (rc < 0) {
+        findpeer(new_fd, paddr, sizeof(paddr));
+        logmsg(LOGMSG_ERROR, "%s: error from poll: %s, peeraddr=%s\n", __func__,
+                strerror(errno), paddr);
+        goto err;
+    }
+
+    /* drop connection on timeout */
+    else if (0 == rc) {
+        findpeer(new_fd, paddr, sizeof(paddr));
+        logmsg(LOGMSG_ERROR, "%s: timeout reading from socket, peeraddr=%s\n",
+                __func__, paddr);
+        goto err;
+    }
+
+    /* drop connection if i would block in read */
+    if ((pol.revents & POLLIN) == 0) {
+        findpeer(new_fd, paddr, sizeof(paddr));
+        logmsg(LOGMSG_ERROR, "%s: cannot read without blocking, peeraddr=%s\n",
+                __func__, paddr);
+        goto err;
+    }
+
+    /* the above poll ensures that this will not block */
+    connection_is_ready(netinfo_ptr, new_fd);
+    return;
+
+err:
+    rc = close(new_fd);
+    if (rc) {
+        fprintf(stderr, "%s: close %d rc %d %s\n", __func__, new_fd, errno, strerror(errno));
+    }
+}
+
+
+static void sbuf_is_ready(netinfo_type *netinfo_ptr, SBUF2 *sb) {
+    uint8_t firstbyte;
+    connect_and_accept_t *ca;
+    struct sockaddr_in cliaddr;
+    char paddr[64];
+    int rc;
+    int new_fd;
+    watchlist_node_type *watchlist_node;
+    pthread_t tid;
+
+
+    rc = read_stream(netinfo_ptr, NULL, sb, &firstbyte, 1);
+    if (rc != 1) {
+        findpeer(new_fd, paddr, sizeof(paddr));
+        logmsg(LOGMSG_ERROR, "%s: read_stream failed for = %s\n", __func__,
+                paddr);
+        sbuf2close(sb);
+        return;
+    }
+
+    /* appsock reqs have a non-0 first byte */
+    if (firstbyte > 0) {
+        if (firstbyte != sbuf2ungetc(firstbyte, sb)) {
+            logmsg(LOGMSG_ERROR, "sbuf2ungetc failed %s:%d\n", __FILE__,
+                    __LINE__);
+            sbuf2close(sb);
+            return;
+        }
+
+        /* call user specified app routine */
+        if (netinfo_ptr->appsock_rtn) {
+            /* set up the watchlist system for this node */
+            watchlist_node = calloc(1, sizeof(watchlist_node_type));
+            if (!watchlist_node) {
+                logmsg(LOGMSG_ERROR, "%s: malloc watchlist_node failed\n",
+                        __func__);
+                sbuf2close(sb);
+                return;
+            }
+            memcpy(watchlist_node->magic, "WLST", 4);
+            watchlist_node->in_watchlist = 0;
+            watchlist_node->netinfo_ptr = netinfo_ptr;
+            watchlist_node->sb = sb;
+            watchlist_node->readfn = sbuf2getr(sb);
+            watchlist_node->writefn = sbuf2getw(sb);
+            watchlist_node->addr = cliaddr;
+            sbuf2setrw(sb, net_reads, net_writes);
+            sbuf2setuserptr(sb, watchlist_node);
+
+            /* this doesn't read- it just farms this off to a thread */
+            (netinfo_ptr->appsock_rtn)(netinfo_ptr, sb);
+        }
+
+        return;
+    }
+
+    /* If we get here, it's a connection from another node */
+
+    /* grab pool memory for connect_and_accept_t */
+    Pthread_mutex_lock(&(netinfo_ptr->connlk));
+    ca = (connect_and_accept_t *)pool_getablk(netinfo_ptr->connpool);
+    Pthread_mutex_unlock(&(netinfo_ptr->connlk));
+
+    /* setup connect_and_accept args */
+    ca->netinfo_ptr = netinfo_ptr;
+    ca->sb = sb;
+    ca->addr = cliaddr.sin_addr;
+
+    /* connect and accept- this might be replaced with a threadpool later */
+    rc = pthread_create(&tid, &(netinfo_ptr->pthread_attr_detach),
+            connect_and_accept, ca);
+
+    if (rc != 0) {
+        logmsg(LOGMSG_ERROR, "%s:pthread_create error: %s\n", __func__,
+                strerror(errno));
+        free(ca);
+        sbuf2close(sb);
+        return;
+    }
+
+}
 
 static void *accept_thread(void *arg)
 {
     netinfo_type *netinfo_ptr;
-    struct pollfd pol;
     int rc;
     int listenfd;
     int polltm;
     int tcpbfsz;
     struct linger linger_data;
-    struct sockaddr_in cliaddr;
     connect_and_accept_t *ca;
     pthread_t tid;
-    char paddr[64];
     int clilen;
     int new_fd;
     int flag = 1;
-    SBUF2 *sb;
     portmux_fd_t *portmux_fds = NULL;
     watchlist_node_type *watchlist_node;
+    struct sockaddr_in cliaddr;
 
     thread_started("net accept");
 
@@ -5732,132 +5904,7 @@ static void *accept_thread(void *arg)
         }
 #endif
 
-        /* get a buffered pointer to the socket */
-        sb = sbuf2open(new_fd, 0); /* no flags yet... */
-        if (sb == NULL) {
-            logmsg(LOGMSG_ERROR, "sbuf2open failed\n");
-            continue;
-        }
-
-        if (debug_switch_net_verbose()) {
-            logmsg(LOGMSG_DEBUG, "Setting wrapper\n");
-            sbuf2setr(sb, sbuf2read_wrapper);
-            sbuf2setw(sb, sbuf2write_wrapper);
-        }
-
-        sbuf2setbufsize(sb, netinfo_ptr->bufsz);
-
-        /* reasonable default for poll */
-        polltm = 100;
-
-        /* use tuned value if set */
-        if (netinfo_ptr->netpoll > 0) {
-            polltm = netinfo_ptr->netpoll;
-        }
-
-        /* setup poll */
-        pol.fd = new_fd;
-        pol.events = POLLIN;
-
-        /* poll */
-        rc = poll(&pol, 1, polltm);
-
-        /* drop connection on poll error */
-        if (rc < 0) {
-            findpeer(new_fd, paddr, sizeof(paddr));
-            logmsg(LOGMSG_ERROR, "%s: error from poll: %s, peeraddr=%s\n", __func__,
-                    strerror(errno), paddr);
-            sbuf2close(sb);
-            continue;
-        }
-
-        /* drop connection on timeout */
-        else if (0 == rc) {
-            findpeer(new_fd, paddr, sizeof(paddr));
-            logmsg(LOGMSG_ERROR, "%s: timeout reading from socket, peeraddr=%s\n",
-                    __func__, paddr);
-            sbuf2close(sb);
-            continue;
-        }
-
-        /* drop connection if i would block in read */
-        if ((pol.revents & POLLIN) == 0) {
-            findpeer(new_fd, paddr, sizeof(paddr));
-            logmsg(LOGMSG_ERROR, "%s: cannot read without blocking, peeraddr=%s\n",
-                    __func__, paddr);
-            sbuf2close(sb);
-            continue;
-        }
-
-        /* the above poll ensures that this will not block */
-
-        uint8_t firstbyte;
-        rc = read_stream(netinfo_ptr, NULL, sb, &firstbyte, 1);
-        if (rc != 1) {
-            findpeer(new_fd, paddr, sizeof(paddr));
-            logmsg(LOGMSG_ERROR, "%s: read_stream failed for = %s\n", __func__,
-                    paddr);
-            sbuf2close(sb);
-            continue;
-        }
-
-        /* appsock reqs have a non-0 first byte */
-        if (firstbyte > 0) {
-            if (firstbyte != sbuf2ungetc(firstbyte, sb)) {
-                logmsg(LOGMSG_ERROR, "sbuf2ungetc failed %s:%d\n", __FILE__,
-                        __LINE__);
-                sbuf2close(sb);
-                continue;
-            }
-
-            /* call user specified app routine */
-            if (netinfo_ptr->appsock_rtn) {
-                /* set up the watchlist system for this node */
-                watchlist_node = calloc(1, sizeof(watchlist_node_type));
-                if (!watchlist_node) {
-                    logmsg(LOGMSG_ERROR, "%s: malloc watchlist_node failed\n",
-                            __func__);
-                    sbuf2close(sb);
-                    continue;
-                }
-                memcpy(watchlist_node->magic, "WLST", 4);
-                watchlist_node->in_watchlist = 0;
-                watchlist_node->netinfo_ptr = netinfo_ptr;
-                watchlist_node->sb = sb;
-                watchlist_node->readfn = sbuf2getr(sb);
-                watchlist_node->writefn = sbuf2getw(sb);
-                watchlist_node->addr = cliaddr;
-                sbuf2setrw(sb, net_reads, net_writes);
-                sbuf2setuserptr(sb, watchlist_node);
-
-                /* this doesn't read- it just farms this off to a thread */
-                (netinfo_ptr->appsock_rtn)(netinfo_ptr, sb);
-            }
-
-            continue;
-        }
-
-        /* grab pool memory for connect_and_accept_t */
-        Pthread_mutex_lock(&(netinfo_ptr->connlk));
-        ca = (connect_and_accept_t *)pool_getablk(netinfo_ptr->connpool);
-        Pthread_mutex_unlock(&(netinfo_ptr->connlk));
-
-        /* setup connect_and_accept args */
-        ca->netinfo_ptr = netinfo_ptr;
-        ca->sb = sb;
-        ca->addr = cliaddr.sin_addr;
-
-        /* connect and accept- this might be replaced with a threadpool later */
-        rc = pthread_create(&tid, &(netinfo_ptr->pthread_attr_detach),
-                            connect_and_accept, ca);
-
-        if (rc != 0) {
-            logmsg(LOGMSG_ERROR, "%s:pthread_create error: %s\n", __func__,
-                    strerror(errno));
-            free(ca);
-            sbuf2close(sb);
-            continue;
-        }
+        handle_connection_inline(netinfo_ptr, new_fd);
     }
 
     close(listenfd);
