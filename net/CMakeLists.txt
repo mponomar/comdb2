@@ -2,6 +2,7 @@ add_library(net
   info.c
   net.c
   trace.c
+  readynotify.c
 )
 
 set(module net)
