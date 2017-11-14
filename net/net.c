@@ -5579,7 +5579,8 @@ void net_register_child_net(netinfo_type *netinfo_ptr,
 
 static void sbuf_is_ready(netinfo_type *netinfo_ptr, SBUF2 *sb);
 
-static SBUF2* setup_sbuf_for_fd(netinfo_type *netinfo_ptr, int new_fd) {
+static SBUF2 *setup_sbuf_for_fd(netinfo_type *netinfo_ptr, int new_fd)
+{
     SBUF2 *sb;
 
     /* get a buffered pointer to the socket */
@@ -5600,16 +5601,17 @@ static SBUF2* setup_sbuf_for_fd(netinfo_type *netinfo_ptr, int new_fd) {
     return sb;
 }
 
-void connection_is_ready(void *p, int fd) {
+void connection_is_ready(void *p, int fd)
+{
     SBUF2 *sb;
-    netinfo_type *netinfo_ptr  = (netinfo_type*) p;
+    netinfo_type *netinfo_ptr = (netinfo_type *)p;
 
     sb = setup_sbuf_for_fd(netinfo_ptr, fd);
     if (sb == NULL) {
         int rc = close(fd);
         if (rc) {
-            logmsg(LOGMSG_ERROR, "%s: close %d rc %d %s\n", __func__, fd, 
-                    errno, strerror(errno));
+            logmsg(LOGMSG_ERROR, "%s: close %d rc %d %s\n", __func__, fd, errno,
+                   strerror(errno));
             return;
         }
         return;
@@ -5617,7 +5619,8 @@ void connection_is_ready(void *p, int fd) {
     sbuf_is_ready(netinfo_ptr, sb);
 }
 
-void handle_connection_inline(netinfo_type *netinfo_ptr, int new_fd) {
+void handle_connection_inline(netinfo_type *netinfo_ptr, int new_fd)
+{
     /* reasonable default for poll */
     int polltm = 100;
     struct pollfd pol;
@@ -5640,7 +5643,7 @@ void handle_connection_inline(netinfo_type *netinfo_ptr, int new_fd) {
     if (rc < 0) {
         findpeer(new_fd, paddr, sizeof(paddr));
         logmsg(LOGMSG_ERROR, "%s: error from poll: %s, peeraddr=%s\n", __func__,
-                strerror(errno), paddr);
+               strerror(errno), paddr);
         goto err;
     }
 
@@ -5648,7 +5651,7 @@ void handle_connection_inline(netinfo_type *netinfo_ptr, int new_fd) {
     else if (0 == rc) {
         findpeer(new_fd, paddr, sizeof(paddr));
         logmsg(LOGMSG_ERROR, "%s: timeout reading from socket, peeraddr=%s\n",
-                __func__, paddr);
+               __func__, paddr);
         goto err;
     }
 
@@ -5656,7 +5659,7 @@ void handle_connection_inline(netinfo_type *netinfo_ptr, int new_fd) {
     if ((pol.revents & POLLIN) == 0) {
         findpeer(new_fd, paddr, sizeof(paddr));
         logmsg(LOGMSG_ERROR, "%s: cannot read without blocking, peeraddr=%s\n",
-                __func__, paddr);
+               __func__, paddr);
         goto err;
     }
 
@@ -5667,12 +5670,13 @@ void handle_connection_inline(netinfo_type *netinfo_ptr, int new_fd) {
 err:
     rc = close(new_fd);
     if (rc) {
-        fprintf(stderr, "%s: close %d rc %d %s\n", __func__, new_fd, errno, strerror(errno));
+        fprintf(stderr, "%s: close %d rc %d %s\n", __func__, new_fd, errno,
+                strerror(errno));
     }
 }
 
-
-static void sbuf_is_ready(netinfo_type *netinfo_ptr, SBUF2 *sb) {
+static void sbuf_is_ready(netinfo_type *netinfo_ptr, SBUF2 *sb)
+{
     uint8_t firstbyte;
     connect_and_accept_t *ca;
     struct sockaddr_in cliaddr;
@@ -5682,12 +5686,11 @@ static void sbuf_is_ready(netinfo_type *netinfo_ptr, SBUF2 *sb) {
     watchlist_node_type *watchlist_node;
     pthread_t tid;
 
-
     rc = read_stream(netinfo_ptr, NULL, sb, &firstbyte, 1);
     if (rc != 1) {
         findpeer(new_fd, paddr, sizeof(paddr));
         logmsg(LOGMSG_ERROR, "%s: read_stream failed for = %s\n", __func__,
-                paddr);
+               paddr);
         sbuf2close(sb);
         return;
     }
@@ -5696,7 +5699,7 @@ static void sbuf_is_ready(netinfo_type *netinfo_ptr, SBUF2 *sb) {
     if (firstbyte > 0) {
         if (firstbyte != sbuf2ungetc(firstbyte, sb)) {
             logmsg(LOGMSG_ERROR, "sbuf2ungetc failed %s:%d\n", __FILE__,
-                    __LINE__);
+                   __LINE__);
             sbuf2close(sb);
             return;
         }
@@ -5707,7 +5710,7 @@ static void sbuf_is_ready(netinfo_type *netinfo_ptr, SBUF2 *sb) {
             watchlist_node = calloc(1, sizeof(watchlist_node_type));
             if (!watchlist_node) {
                 logmsg(LOGMSG_ERROR, "%s: malloc watchlist_node failed\n",
-                        __func__);
+                       __func__);
                 sbuf2close(sb);
                 return;
             }
@@ -5742,16 +5745,15 @@ static void sbuf_is_ready(netinfo_type *netinfo_ptr, SBUF2 *sb) {
 
     /* connect and accept- this might be replaced with a threadpool later */
     rc = pthread_create(&tid, &(netinfo_ptr->pthread_attr_detach),
-            connect_and_accept, ca);
+                        connect_and_accept, ca);
 
     if (rc != 0) {
         logmsg(LOGMSG_ERROR, "%s:pthread_create error: %s\n", __func__,
-                strerror(errno));
+               strerror(errno));
         free(ca);
         sbuf2close(sb);
         return;
     }
-
 }
 
 static void *accept_thread(void *arg)
@@ -5910,14 +5912,15 @@ static void *accept_thread(void *arg)
         if (netinfo_ptr->notifier) {
             rc = ready_notifier_add(netinfo_ptr->notifier, new_fd);
             if (rc)
-                logmsg(LOGMSG_ERROR, "%s: can't add connection fd %d\n", __func__, new_fd);
+                logmsg(LOGMSG_ERROR, "%s: can't add connection fd %d\n",
+                       __func__, new_fd);
             continue;
-        }
-        else
+        } else
             handle_connection_inline(netinfo_ptr, new_fd);
     }
 
     close(listenfd);
+    ready_notifier_shutdown(netinfo_ptr->notifier);
 
 #ifdef NOTREACHED
     if (netinfo_ptr->stop_thread_callback)
@@ -6377,11 +6380,11 @@ int net_init(netinfo_type *netinfo_ptr)
     sighold(SIGPIPE);
 
     /* do nothing if we have a fake netinfo */
-    if (netinfo_ptr->fake)
-        return 0;
+    if (netinfo_ptr->fake) return 0;
 
     if (strcmp(netinfo_ptr->service, "replication") == 0)
-        netinfo_ptr->notifier = ready_notifier_create(netinfo_ptr, connection_is_ready, 100);
+        netinfo_ptr->notifier =
+            ready_notifier_create(netinfo_ptr, connection_is_ready, 100);
 
     /* add everything we have at this point to the sanctioned list */
     for (host_node_ptr = netinfo_ptr->head; host_node_ptr != NULL;
