@@ -98,6 +98,8 @@
 #include "mem_override.h"
 #include <bdb_net.h>
 
+#include "readynotify.h"
+
 #include "debug_switches.h"
 
 #define TYPE_DECOM -1
@@ -5598,8 +5600,9 @@ static SBUF2* setup_sbuf_for_fd(netinfo_type *netinfo_ptr, int new_fd) {
     return sb;
 }
 
-void connection_is_ready(netinfo_type *netinfo_ptr, int fd) {
+void connection_is_ready(void *p, int fd) {
     SBUF2 *sb;
+    netinfo_type *netinfo_ptr  = (netinfo_type*) p;
 
     sb = setup_sbuf_for_fd(netinfo_ptr, fd);
     if (sb == NULL) {
@@ -5904,7 +5907,14 @@ static void *accept_thread(void *arg)
         }
 #endif
 
-        handle_connection_inline(netinfo_ptr, new_fd);
+        if (netinfo_ptr->notifier) {
+            rc = ready_notifier_add(netinfo_ptr->notifier, new_fd);
+            if (rc)
+                logmsg(LOGMSG_ERROR, "%s: can't add connection fd %d\n", __func__, new_fd);
+            continue;
+        }
+        else
+            handle_connection_inline(netinfo_ptr, new_fd);
     }
 
     close(listenfd);
@@ -6369,6 +6379,9 @@ int net_init(netinfo_type *netinfo_ptr)
     /* do nothing if we have a fake netinfo */
     if (netinfo_ptr->fake)
         return 0;
+
+    if (strcmp(netinfo_ptr->service, "replication") == 0)
+        netinfo_ptr->notifier = ready_notifier_create(netinfo_ptr, connection_is_ready, 100);
 
     /* add everything we have at this point to the sanctioned list */
     for (host_node_ptr = netinfo_ptr->head; host_node_ptr != NULL;

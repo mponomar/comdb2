@@ -33,6 +33,8 @@
 #include "net_types.h"
 #include "cdb2_constants.h"
 #include "logmsg.h"
+#include "net.h"
+#include "readynotify.h"
 
 enum {
     /* Flags for write_list() */
@@ -319,6 +321,7 @@ struct netinfo_struct {
 
     int use_getservbyname;
     int hellofd;
+    struct ready_notifier *notifier;
 };
 
 typedef struct ack_state_struct {

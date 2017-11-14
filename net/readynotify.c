@@ -89,7 +89,7 @@ static void* ready_notifier_thread(void *p) {
                             fprintf(stderr, "%s: can't allocate memory for %d file descriptors\n", __func__, n->allocedfds * 2 + 10);
                             rc = close(fd);
                             if (rc)
-                                fprintf(stderr, "%s:%d close(%d) rc %d %s\n", __func__, __LINE__, errno, strerror(errno));
+                                fprintf(stderr, "%s:%d close(%d) rc %d %s\n", __func__, __LINE__, fd, errno, strerror(errno));
                             delfd(n, i--);
                             continue;
                         }
@@ -98,8 +98,9 @@ static void* ready_notifier_thread(void *p) {
                             fprintf(stderr, "%s: can't allocate memory for %d wait times\n", __func__, n->allocedfds * 2 + 10);
                             rc = close(fd);
                             if (rc)
-                                fprintf(stderr, "%s:%d close(%d) rc %d %s\n", __func__, __LINE__, errno, strerror(errno));
+                                fprintf(stderr, "%s:%d close(%d) rc %d %s\n", __func__, __LINE__, fd, errno, strerror(errno));
                             delfd(n, i--);
+
                             continue;
                         }
                         n->fds = fds;
@@ -122,7 +123,7 @@ static void* ready_notifier_thread(void *p) {
                 rc = close(fd);
                 if (rc) {
                     /* uh oh */
-                    fprintf(stderr, "%s:%d close(%d) rc %d %s\n", __func__, __LINE__, errno, strerror(errno));
+                    fprintf(stderr, "%s:%d close(%d) rc %d %s\n", __func__, __LINE__, fd, errno, strerror(errno));
                 }
                 delfd(n, i--);
             }
@@ -133,7 +134,7 @@ static void* ready_notifier_thread(void *p) {
                         // printf("timing out conn fd %d\n", n->fds[i].fd);
                         rc = close(n->fds[i].fd);
                         if (rc)
-                            fprintf(stderr, "%s:%d close(%d) rc %d %s\n", __func__, __LINE__, errno, strerror(errno));
+                            fprintf(stderr, "%s:%d close(%d) rc %d %s\n", __func__, __LINE__, fd, errno, strerror(errno));
                         delfd(n, i--);
                     }
                 }
