@@ -86,11 +86,8 @@ static void *ready_notifier_thread(void *p)
                     /* this is how we're signalled to exit */
                     if (fd == -1) goto done;
 
-                    fprintf(stderr, "numfds %d allocedfds %d\n", n->numfds, n->allocedfds);
-
                     if (n->numfds >= n->allocedfds) {
                         struct pollfd *fds;
-                        fprintf(stderr, "realloc\n");
                         fds = realloc(n->fds,
                                       (n->allocedfds * 2 + 10) *
                                           sizeof(struct pollfd));
