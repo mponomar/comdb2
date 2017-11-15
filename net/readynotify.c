@@ -30,13 +30,13 @@ static void delfd(struct ready_notifier *n, int slot)
         return;
     }
     n->numfds--;
-    n->fds[n->numfds].fd = -1;
-    n->fds[n->numfds].events = 0;
-    n->fds[n->numfds].revents = 0;
     if (slot != n->numfds) {
         n->fds[slot] = n->fds[n->numfds];
         n->starttime[slot] = n->starttime[n->numfds];
     }
+    n->fds[n->numfds].fd = -1;
+    n->fds[n->numfds].events = 0;
+    n->fds[n->numfds].revents = 0;
 }
 
 static int64_t gettime(void)
@@ -86,8 +86,11 @@ static void *ready_notifier_thread(void *p)
                     /* this is how we're signalled to exit */
                     if (fd == -1) goto done;
 
-                    if (n->numfds == n->allocedfds) {
+                    fprintf(stderr, "numfds %d allocedfds %d\n", n->numfds, n->allocedfds);
+
+                    if (n->numfds >= n->allocedfds) {
                         struct pollfd *fds;
+                        fprintf(stderr, "realloc\n");
                         fds = realloc(n->fds,
                                       (n->allocedfds * 2 + 10) *
                                           sizeof(struct pollfd));
@@ -121,6 +124,8 @@ static void *ready_notifier_thread(void *p)
                             continue;
                         }
                         n->fds = fds;
+                        n->starttime = starttime;
+                        n->allocedfds = n->allocedfds * 2 + 10;
                     }
                     n->fds[n->numfds].fd = fd;
                     n->fds[n->numfds].events = POLLIN | POLLERR;
