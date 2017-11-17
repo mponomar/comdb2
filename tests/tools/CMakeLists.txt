@@ -4,7 +4,13 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/comdb2rle
   ${PROJECT_SOURCE_DIR}/datetime
   ${PROJECT_SOURCE_DIR}/mem
+  ${PROJECT_SOURCE_DIR}/protobuf
+  ${PROJECT_BINARY_DIR}/protobuf
+  ${PROJECT_SOURCE_DIR}/bb
+  ${PROJECT_SOURCE_DIR}/bbinc
+  ${OPENSSL_INCLUDE_DIR}
 )
+
 add_executable(blob blob.c)
 add_executable(bound bound.cpp)
 add_executable(cdb2_client cdb2_client.c)
@@ -30,9 +36,37 @@ add_executable(utf8 utf8.c)
 add_executable(insert insert.c nemesis.c testutil.c)
 add_executable(register register.c nemesis.c testutil.c)
 add_executable(breakloop breakloop.c nemesis.c testutil.c)
+
+set(slowconnect_src 
+  slowconnect.c 
+  cdb2api_patched.c 
+  ${PROJECT_SOURCE_DIR}/bb/sbuf2.c
+  ${PROJECT_BINARY_DIR}/protobuf/sqlquery.pb-c.c
+  ${PROJECT_BINARY_DIR}/protobuf/sqlresponse.pb-c.c
+)
+set_source_files_properties(
+  ${PROJECT_BINARY_DIR}/protobuf/sqlquery.pb-c.c
+  ${PROJECT_BINARY_DIR}/protobuf/sqlresponse.pb-c.c
+  PROPERTIES GENERATED TRUE
+)
+if(WITH_SSL)
+  list(APPEND slowconnect_src ${PROJECT_SOURCE_DIR}/bb/ssl_support.c)
+endif()
+
+add_executable(slowconnect ${slowconnect_src})
+
 foreach(executable blob bound cdb2api_caller cdb2bind comdb2_blobtest insert_lots_mt leakcheck localrep overflow_blobtest selectv serial sicountbug sirace simple_ssl utf8 insert register breakloop)
   target_link_libraries(${executable} cdb2api ${OPENSSL_LIBRARIES} ${PROTOBUF_C_LIBRARY} ${ZLIB_LIBRARIES} ${CMAKE_DL_LIBS})
 endforeach()
+
+# slowconnect works with a patched cdb2api 
+target_link_libraries(slowconnect ${OPENSSL_LIBRARIES} ${PROTOBUF_C_LIBRARY} ${ZLIB_LIBRARIES} ${CMAKE_DL_LIBS})
+add_definitions(-DSBUF2_SERVER=0)
+add_custom_command(
+   OUTPUT cdb2api_patched.c
+   DEPENDS ${CMAKE_SOURCE_DIR}/cdb2api/cdb2api.c
+   COMMAND sed 's!.*DEBUG-HOOK: slowconnect.*!poll\(NULL, 0, (rand() % 2 == 0) ? 50 : 1\)\;!' ${CMAKE_SOURCE_DIR}/cdb2api/cdb2api.c > cdb2api_patched.c
+)
 
 # cdb2api shared object
 target_link_libraries(cdb2_client cdb2api_shared ${OPENSSL_LIBRARIES} ${PROTOBUF_C_LIBRARY} ${ZLIB_LIBRARIES} ${CMAKE_DL_LIBS})

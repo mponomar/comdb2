@@ -1525,6 +1525,8 @@ retry_newsql_connect:
             close(fd);
             return -1;
         }
+
+        /* DEBUG-HOOK: slowconnect */
         sbuf2printf(sb, "newsql\n");
         sbuf2flush(sb);
     } else {

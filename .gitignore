@@ -50,6 +50,7 @@ tests/tools/utf8
 tests/tools/breakloop
 tests/tools/insert
 tests/tools/register
+tests/tools/slowconnect
 
 
 tests/test_*

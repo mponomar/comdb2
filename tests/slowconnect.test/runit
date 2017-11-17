@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+bash -n "$0" | exit 1
+
+set -e
+set -x
+
+if [[ $# -ne 1 ]]; then
+    echo "Expected database name"
+    exit 1
+fi
+
+# The slowconnect program links with a copy of the API that injects either 1ms or 50ms of extra 
+# wait time between connecting and sending the connection string.  If the database waits for
+# connections in parallel, the average run time of queries is going to be ~25ms since half
+# of them are instant, and half take 50ms.  If the database waits for connections serially,
+# the average is going to be closer to 50ms since fast connections tend to wait on slow connections
+
+dbname=$1
+
+# run 100 batches of 100 connections at the same time
+sum=0
+count=0
+
+for runtime in $(${TESTSROOTDIR}/tools/slowconnect $dbname 100 100); do
+    echo $runtime
+    sum=$(($sum + $runtime))
+    count=$(($count+1))
+done
+
+if [[ $sum -eq 0 ]]; then
+    echo "Didn't find any valid runtimes"
+    exit 1
+fi
+
+avg=$(($sum/$count))
+echo "avg runtime $avg"
+
+if [[ $avg -gt 35 ]]; then
+    exit 1
+fi
+
+exit 0
