@@ -1317,5 +1317,10 @@ REGISTER_TUNABLE("always_send_cnonce",
                  "Always send cnonce to master. (Default: off)",
                  TUNABLE_BOOLEAN, &gbl_always_send_cnonce, NOARG, NULL, NULL,
                  NULL, NULL);
+REGISTER_TUNABLE("stats_flush_freq",
+                 "How often to send statistics counters (Default: 10 sec)",
+                 TUNABLE_INTEGER, &gbl_stat_flush_interval, 0, NULL, NULL,
+                 NULL, NULL);
+
 
 #endif /* _DB_TUNABLES_H */

@@ -67,5 +67,8 @@ contrib/docker/volumes
 *.swp
 /tags
 
-#cscope files
+# cscope files
 cscope.*
+
+# misc generated project files
+compile_commands.json 

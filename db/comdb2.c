@@ -136,6 +136,8 @@ void berk_memp_sync_alarm_ms(int);
 #include <cdb2_constants.h>
 #include <bb_oscompat.h>
 #include <schemachange.h>
+#include <tcputil.h>
+
 
 #define tokdup strndup
 
@@ -770,10 +772,13 @@ extern int gbl_random_get_curtran_failures;
 extern int gbl_abort_invalid_query_info_key;
 extern int gbl_random_blkseq_replays;
 extern int gbl_disable_cnonce_blkseq;
+extern int gbl_stat_flush_interval;
 
 int gbl_early_verify = 1;
 
 int gbl_bbenv;
+
+char *gbl_stats_file = "socket://localhost:5000";
 
 comdb2_tunables *gbl_tunables; /* All registered tunables */
 int init_gbl_tunables();
@@ -4098,19 +4103,58 @@ int cpu_throttle_threshold = 100000;
 #if 0
 void *pq_thread(void *);
 #endif
+int gbl_stat_flush_interval = 10;
+
+static pthread_mutex_t seen_sql_lk = PTHREAD_MUTEX_INITIALIZER;
+static hash_t *seen_sql = NULL;
+
+struct fingerprint_track {
+    unsigned char fingerprint[FINGERPRINTSZ];
+    int64_t count;
+};
+
+void stats_seen_sql(unsigned char fingerprint[FINGERPRINTSZ]) {
+    pthread_mutex_lock(&seen_sql_lk); 
+    if (seen_sql == NULL)
+        seen_sql = hash_init(FINGERPRINTSZ);
+    struct fingerprint_track *t;
+    t = hash_find(seen_sql, fingerprint);
+    if (t == NULL) {
+        t = malloc(sizeof(struct fingerprint_track));
+        memcpy(t->fingerprint, fingerprint, FINGERPRINTSZ);
+        t->count = 0;
+        hash_add(seen_sql, t);
+    }
+    t->count++;
+    pthread_mutex_unlock(&seen_sql_lk);
+}
+
+static int dump_fingerprint_count(void *obj, void *arg) {
+    struct fingerprint_track *t = (struct fingerprint_track*) obj;
+    FILE *f = (FILE*) arg;
+    char fp[FINGERPRINTSZ*2+1];
+    static const char *hex = "0123456789abcdef";
+    for (int i = 0; i < FINGERPRINTSZ; i++) {
+        fp[i*2] = hex[(t->fingerprint[i] & 0xf0) >> 4];
+        fp[i*2+1] = hex[(t->fingerprint[i] & 0x0f)];
+    }
+    fp[FINGERPRINTSZ*2] = 0;
+    fprintf(f, " fp %s %lld ", fp, (long long) t->count);
+    return 0;
+}
 
 void *statthd(void *p)
 {
     struct dbenv *dbenv;
-    int nqtrap;
-    int nfstrap;
-    int nsql;
-    long long nsql_steps;
-    int ncommits;
+    int64_t nqtrap;
+    int64_t nfstrap;
+    int64_t nsql;
+    int64_t  nsql_steps;
+    int64_t ncommits;
     double ncommit_time;
-    int newsql;
-    long long newsql_steps;
-    int nretries;
+    int64_t newsql;
+    int64_t newsql_steps;
+    int64_t nretries;
     int64_t ndeadlocks = 0, nlockwaits = 0;
     int64_t vreplays;
 
@@ -4174,6 +4218,8 @@ void *statthd(void *p)
     char hdr_fmt[] = "DIFF REQUEST STATS FOR DB %d '%s'\n";
     int have_scon_header = 0;
     int have_scon_stats = 0;
+
+    FILE *stats = NULL;
 
     dbenv = p;
 
@@ -4495,6 +4541,45 @@ void *statthd(void *p)
 
                 osql_comm_diffstat(statlogger, NULL);
                 strbuf_free(logstr);
+            }
+
+            if (gbl_stat_flush_interval && count % gbl_stat_flush_interval == 0) {
+                if (gbl_stats_file && stats == NULL) {
+                    int fd = tcpconnecth("localhost", 5000, 0);
+                    printf("fd %d\n", fd);
+                    if (fd == -1) {
+                        logmsg(LOGMSG_ERROR, "can't connect to stat socket\n");
+                    }
+                    else {
+                        stats = fdopen(fd, "w");
+                        setvbuf(stats, NULL, _IOLBF, 1024);
+                        if (stats != NULL) {
+                            int rc = fprintf(stats, "%s\n", thedb->envname);
+                            if (rc > 0)
+                                rc = fflush(stats);
+                            if (rc < 0) {
+                                fclose(stats);
+                                stats = NULL;
+                            }
+                        }
+                    }
+                }
+                if (stats) {
+                    fprintf(stats, "ops %lld sql %lld steps %lld commits %lld retries %lld deadlocks %lld chits %llu cmisses %llu", 
+                            (long long) nfstrap, 
+                            (long long) (nsql + newsql),
+                            (long long) (nsql_steps + newsql_steps),
+                            (long long) (ncommits),
+                            (long long) (nretries),
+                            (long long) (ndeadlocks),
+                            (unsigned long long) bpool_hits,
+                            (unsigned long long) bpool_misses);
+                    pthread_mutex_lock(&seen_sql_lk);
+                    if (seen_sql)
+                        hash_for(seen_sql, dump_fingerprint_count, stats);
+                    pthread_mutex_unlock(&seen_sql_lk);
+                    fprintf(stats, "\n");
+                }
             }
 
             if (count % 60 == 0) {

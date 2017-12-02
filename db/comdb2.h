@@ -3632,6 +3632,9 @@ int set_rowlocks(void *trans, int enable);
    1: Return conversion error instead */
 extern int gbl_upd_null_cstr_return_conv_err;
 
+extern int gbl_stat_flush_interval;
+char *gbl_stats_file;
+
 /* High availability getter & setter */
 int get_high_availability(struct sqlclntstate *clnt);
 void set_high_availability(struct sqlclntstate *clnt, int val);

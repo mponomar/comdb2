@@ -4150,6 +4150,7 @@ static int get_prepared_stmt_int(struct sqlthdstate *thd,
         unsigned char fingerprint[FINGERPRINTSZ];
         sqlite3_fingerprint(thd->sqldb, (char *)fingerprint);
         reqlog_set_fingerprint(thd->logger, (char *)fingerprint);
+        stats_seen_sql(fingerprint);
     }
     if (rc) {
         _prepare_error(thd, clnt, rec, rc, err);

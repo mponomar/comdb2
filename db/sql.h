@@ -854,4 +854,6 @@ void put_prepared_stmt(struct sqlthdstate *, struct sqlclntstate *,
                        struct sql_state *, int outrc);
 void sqlengine_thd_start(struct thdpool *, struct sqlthdstate *, enum thrtype);
 void sqlengine_thd_end(struct thdpool *, struct sqlthdstate *);
+void stats_seen_sql(unsigned char fingerprint[FINGERPRINTSZ]);
+
 #endif
