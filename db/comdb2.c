@@ -4139,7 +4139,9 @@ static int dump_fingerprint_count(void *obj, void *arg) {
         fp[i*2+1] = hex[(t->fingerprint[i] & 0x0f)];
     }
     fp[FINGERPRINTSZ*2] = 0;
-    fprintf(f, " fp %s %lld ", fp, (long long) t->count);
+    int rc = fprintf(f, " fp %s count %lld endfp", fp, (long long) t->count);
+    if (rc < 0)
+        return rc;
     return 0;
 }
 
@@ -4544,9 +4546,10 @@ void *statthd(void *p)
             }
 
             if (gbl_stat_flush_interval && count % gbl_stat_flush_interval == 0) {
+                int rc = 0;
+
                 if (gbl_stats_file && stats == NULL) {
                     int fd = tcpconnecth("localhost", 5000, 0);
-                    printf("fd %d\n", fd);
                     if (fd == -1) {
                         logmsg(LOGMSG_ERROR, "can't connect to stat socket\n");
                     }
@@ -4565,7 +4568,7 @@ void *statthd(void *p)
                     }
                 }
                 if (stats) {
-                    fprintf(stats, "ops %lld sql %lld steps %lld commits %lld retries %lld deadlocks %lld chits %llu cmisses %llu", 
+                    rc = fprintf(stats, "ops %lld sql %lld steps %lld commits %lld retries %lld deadlocks %lld chits %llu cmisses %llu", 
                             (long long) nfstrap, 
                             (long long) (nsql + newsql),
                             (long long) (nsql_steps + newsql_steps),
@@ -4574,11 +4577,28 @@ void *statthd(void *p)
                             (long long) (ndeadlocks),
                             (unsigned long long) bpool_hits,
                             (unsigned long long) bpool_misses);
+                    if (rc < 0)
+                        goto errstats;
                     pthread_mutex_lock(&seen_sql_lk);
-                    if (seen_sql)
-                        hash_for(seen_sql, dump_fingerprint_count, stats);
+                    if (seen_sql) {
+                        rc = hash_for(seen_sql, dump_fingerprint_count, stats);
+                        if (rc)
+                            goto errstats;
+                    }
                     pthread_mutex_unlock(&seen_sql_lk);
-                    fprintf(stats, "\n");
+                    rc = fprintf(stats, "\n");
+                    if (rc < 0)
+                        goto errstats;
+                    rc = fflush(stats);
+                    if (rc < 0)
+                        goto errstats;
+                    rc = 0;
+                }
+errstats:
+                if (rc) {
+                    fclose(stats);
+                    stats = NULL;
+                    logmsg(LOGMSG_WARN, "Lost connection to stat reader\n");
                 }
             }
 
