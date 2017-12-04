@@ -1591,6 +1591,10 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
     if (clnt->saved_rc)
         reqlog_set_error(logger, clnt->saved_errstr, clnt->saved_rc);
 
+    if (gbl_fingerprint_queries && clnt->query_stats) {
+        stats_seen_sql((unsigned char*) clnt->fingerprint, clnt->query_stats->cost, reqlog_current_us(logger));
+    }
+
     reqlog_set_rows(logger, clnt->nrows);
     reqlog_end_request(logger, stmt_rc, __func__, __LINE__);
 
@@ -4146,12 +4150,6 @@ static int get_prepared_stmt_int(struct sqlthdstate *thd,
         // No stmt and no error -> Empty sql string or just comment.
         rc = FSQL_PREPARE;
     }
-    if (gbl_fingerprint_queries) {
-        unsigned char fingerprint[FINGERPRINTSZ];
-        sqlite3_fingerprint(thd->sqldb, (char *)fingerprint);
-        reqlog_set_fingerprint(thd->logger, (char *)fingerprint);
-        stats_seen_sql(fingerprint);
-    }
     if (rc) {
         _prepare_error(thd, clnt, rec, rc, err);
     } else {
@@ -4161,6 +4159,13 @@ static int get_prepared_stmt_int(struct sqlthdstate *thd,
         logmsg(LOGMSG_INFO,
                "TRAILING CHARACTERS AFTER QUERY TERMINATION: \"%s\"\n", tail);
     }
+
+    if (gbl_fingerprint_queries) {
+        unsigned char fingerprint[FINGERPRINTSZ];
+        sqlite3_fingerprint(thd->sqldb, (char *)clnt->fingerprint);
+        reqlog_set_fingerprint(thd->logger, (char *)clnt->fingerprint);
+    }
+
     return rc;
 }
 

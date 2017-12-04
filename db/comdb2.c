@@ -4111,9 +4111,11 @@ static hash_t *seen_sql = NULL;
 struct fingerprint_track {
     unsigned char fingerprint[FINGERPRINTSZ];
     int64_t count;
+    int64_t cost;
+    int64_t time;
 };
 
-void stats_seen_sql(unsigned char fingerprint[FINGERPRINTSZ]) {
+void stats_seen_sql(unsigned char fingerprint[FINGERPRINTSZ], int cost, int64_t time) {
     pthread_mutex_lock(&seen_sql_lk); 
     if (seen_sql == NULL)
         seen_sql = hash_init(FINGERPRINTSZ);
@@ -4126,6 +4128,8 @@ void stats_seen_sql(unsigned char fingerprint[FINGERPRINTSZ]) {
         hash_add(seen_sql, t);
     }
     t->count++;
+    t->cost += cost;
+    t->time += time;
     pthread_mutex_unlock(&seen_sql_lk);
 }
 
@@ -4139,9 +4143,13 @@ static int dump_fingerprint_count(void *obj, void *arg) {
         fp[i*2+1] = hex[(t->fingerprint[i] & 0x0f)];
     }
     fp[FINGERPRINTSZ*2] = 0;
-    int rc = fprintf(f, " fp %s count %lld endfp", fp, (long long) t->count);
-    if (rc < 0)
-        return rc;
+    if (t->count) {
+        int rc = fprintf(f, " fp %s count %lld cost %lld time %lld endfp", fp, (long long) t->count, 
+                (long long) t->cost, (long long) t->time);
+        t->count = 0;
+        if (rc < 0)
+            return rc;
+    }
     return 0;
 }
 
@@ -4222,6 +4230,10 @@ void *statthd(void *p)
     int have_scon_stats = 0;
 
     FILE *stats = NULL;
+
+    int64_t last_sent_traps=0, last_sent_sql=0, last_sent_steps=0, last_sent_commits=0, 
+            last_sent_retries=0, last_sent_deadlocks=0, last_sent_hits=0, last_sent_misses=0,
+            last_sent_preads=0, last_sent_pwrites=0, last_sent_lockwaits=0 ;
 
     dbenv = p;
 
@@ -4568,15 +4580,26 @@ void *statthd(void *p)
                     }
                 }
                 if (stats) {
-                    rc = fprintf(stats, "ops %lld sql %lld steps %lld commits %lld retries %lld deadlocks %lld chits %llu cmisses %llu", 
-                            (long long) nfstrap, 
-                            (long long) (nsql + newsql),
-                            (long long) (nsql_steps + newsql_steps),
-                            (long long) (ncommits),
-                            (long long) (nretries),
-                            (long long) (ndeadlocks),
-                            (unsigned long long) bpool_hits,
-                            (unsigned long long) bpool_misses);
+                    rc = fprintf(stats, "ops %lld sql %lld steps %lld commits %lld retries %lld deadlocks %lld chits %llu cmisses %llu preads %llu pwrites %llu lockwaits %llu", 
+                            (long long) (nfstrap - last_sent_traps), 
+                            (long long) ((nsql + newsql) - last_sent_sql ),
+                            (long long) ((nsql_steps + newsql_steps) - last_sent_steps),
+                            (long long) (ncommits - last_sent_commits),
+                            (long long) (nretries - last_sent_retries),
+                            (long long) (ndeadlocks - last_sent_deadlocks),
+                            (unsigned long long) (bpool_hits - last_sent_hits),
+                            (unsigned long long) (bpool_misses - last_sent_misses),
+                            (long long) (cur_bdb_stats.n_pwrites - last_sent_pwrites),
+                            (long long) (cur_bdb_stats.n_preads - last_sent_preads),
+                            (long long) (nlockwaits - last_sent_lockwaits));
+                    last_sent_traps = nfstrap;
+                    last_sent_sql = nsql + newsql;
+                    last_sent_steps = nsql_steps + newsql_steps;
+                    last_sent_commits = ncommits;
+                    last_sent_retries = nretries;
+                    last_sent_deadlocks = ndeadlocks;
+                    last_sent_hits = bpool_hits;
+                    last_sent_misses = bpool_misses;
                     if (rc < 0)
                         goto errstats;
                     pthread_mutex_lock(&seen_sql_lk);
