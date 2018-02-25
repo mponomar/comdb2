@@ -80,9 +80,6 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("blocksql_grace",
                  "being killed (and returning an error). (Default: 10sec)",
                  TUNABLE_INTEGER, &gbl_blocksql_grace, gbl_blocksql_grace, 0, NULL, NULL, NULL,
                  NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("blocksql_over_sockets", NULL, TUNABLE_BOOLEAN,
-                 &gbl_upgrade_blocksql_to_socksql, gbl_upgrade_blocksql_to_socksql, READONLY | NOARG, NULL, NULL,
-                 NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("blocksql_throttle", NULL, TUNABLE_INTEGER,
                  &g_osql_blocksql_parallel_max, g_osql_blocksql_parallel_max, READONLY, NULL, NULL, NULL, 
                  NULL);
@@ -166,8 +163,6 @@ REGISTER_TUNABLE("dir",
                  "Database directory. (Default: $COMDB2_ROOT/var/cdb2/$DBNAME)",
                  TUNABLE_STRING, &db->basedir, READONLY, NULL, NULL, NULL,
                  NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("disable_bbipc", NULL, TUNABLE_BOOLEAN, &gbl_use_bbipc, gbl_use_bbipc,
-                 INVERSE_VALUE | READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("disable_cache_internal_nodes",
                  "Disables 'enable_cache_internal_nodes'. B-tree leaf nodes "
                  "are treated same as internal nodes.",
@@ -234,9 +229,6 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("disable_rowlock_locking", NULL, TUNABLE_BOOLE
 REGISTER_TUNABLE_WITH_INT_DEFAULT("disable_skip_rows", NULL, TUNABLE_BOOLEAN,
                  &gbl_disable_skip_rows, gbl_disable_skip_rows, READONLY | NOARG, NULL, NULL, NULL,
                  NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("disable_sock_fstsnd", "Disables 'enable_sock_fstsnd'",
-                 TUNABLE_BOOLEAN, &gbl_enable_sock_fstsnd, gbl_enable_sock_fstsnd,
-                 INVERSE_VALUE | READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("disable_sparse_lockerid_map",
                  "Disables 'enable_sparse_lockerid_map'", TUNABLE_BOOLEAN,
                  &gbl_sparse_lockerid_map, gbl_sparse_lockerid_map, INVERSE_VALUE | READONLY | NOARG,
@@ -295,9 +287,6 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("dont_sort_nulls_with_header",
                  "Disables 'sort_nulls_with_header'", TUNABLE_BOOLEAN,
                  &gbl_sort_nulls_correctly, gbl_sort_nulls_correctly, INVERSE_VALUE | READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("dont_use_bbipc_fastseed", "Disable 'use_bbipc_fastseed'",
-                 TUNABLE_BOOLEAN, &gbl_use_bbipc_global_fastseed, gbl_use_bbipc_global_fastseed,
-                 INVERSE_VALUE | READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("dtastripe", NULL, TUNABLE_INTEGER, &gbl_dtastripe, gbl_dtastripe,
                  READONLY | NOZERO, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("early",
@@ -310,9 +299,6 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("early",
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_berkdb_retry_deadlock_bias", NULL, TUNABLE_BOOLEAN,
                  &gbl_enable_berkdb_retry_deadlock_bias, gbl_enable_berkdb_retry_deadlock_bias, READONLY | NOARG, NULL,
                  NULL, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_blockoffload", NULL, TUNABLE_INTEGER,
-                 &gbl_enable_block_offload, gbl_enable_block_offload, READONLY | NOARG, NULL, NULL, NULL,
-                 NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "enable_cache_internal_nodes",
     "B-tree internal nodes have a higher cache priority. (Default: on)",
@@ -377,10 +363,6 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "If set, allows partial index definitions in table schema. (Default: off)",
     TUNABLE_BOOLEAN, &gbl_partial_indexes, gbl_partial_indexes, READONLY | NOARG, NULL, NULL, NULL,
     NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_position_apis",
-                 "Enables support for position APIs. (Default: off)",
-                 TUNABLE_BOOLEAN, &gbl_enable_position_apis, gbl_enable_position_apis, READONLY | NOARG,
-                 NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_prefault_udp",
                  "Send lossy prefault requests to replicants. (Default: off)",
                  TUNABLE_BOOLEAN, &gbl_prefault_udp, gbl_prefault_udp, NOARG, NULL, NULL, NULL,
@@ -401,9 +383,6 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_snapshot_isolation",
                  TUNABLE_BOOLEAN, &gbl_snapisol, gbl_snapisol, READONLY, NULL, NULL, NULL,
                  NULL);
 */
-REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_sock_fstsnd", NULL, TUNABLE_BOOLEAN,
-                 &gbl_enable_sock_fstsnd, gbl_enable_sock_fstsnd, READONLY | NOARG | NOARG, NULL, NULL,
-                 NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_sparse_lockerid_map",
                  "If set, allocates a sparse map of lockers for deadlock "
                  "resolution. (Default: on)",
@@ -414,7 +393,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_sp_strict_assignments", NULL, TUNABLE_
                  NULL);
 REGISTER_TUNABLE_WITH_DEFAULT("enable_sql_stmt_caching",
                  "Enable caching of query plans. If followed by \"all\" will "
-                 "cache all queries, including those without parameters. "
+                 "cache all queries, including those without parameters. ",
                  TUNABLE_ENUM, &gbl_enable_sql_stmt_caching, "NONE", READONLY | NOARG,
                  enable_sql_stmt_caching_value, NULL,
                  enable_sql_stmt_caching_update, NULL);
@@ -430,9 +409,6 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_upgrade_ahead",
                  NULL, NULL, enable_upgrade_ahead_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enque_flush_interval", NULL, TUNABLE_INTEGER,
                  &gbl_enque_flush_interval, gbl_enque_flush_interval, READONLY, NULL, NULL, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("enque_flush_interval_signal", NULL, TUNABLE_INTEGER,
-                 &gbl_enque_flush_interval_signal, gbl_enque_flush_interval_signal, READONLY, NULL, NULL, NULL,
-                 NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enque_reorder_lookahead", NULL, TUNABLE_INTEGER,
                  &gbl_enque_reorder_lookahead, gbl_enque_reorder_lookahead, READONLY, NULL, NULL, NULL,
                  NULL);
@@ -459,9 +435,6 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("fdbdebg", NULL, TUNABLE_INTEGER, &gbl_fdb_tra
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("fdbtrackhints", NULL, TUNABLE_INTEGER, &gbl_fdb_track_hints, gbl_fdb_track_hints,
                  READONLY, NULL, NULL, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("fkrcode", "Enable foreign-key violation return code.",
-                 TUNABLE_BOOLEAN, &gbl_fkrcode, gbl_fkrcode, READONLY, NULL, NULL, NULL,
-                 NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("forbid_ulonglong", "Disallow u_longlong. (Default: on)",
                  TUNABLE_BOOLEAN, &gbl_forbid_ulonglong, gbl_forbid_ulonglong,
                  READONLY | NOARG | READEARLY, NULL, NULL, NULL, NULL);
@@ -696,11 +669,6 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("netbufsz", "Size of the network buffer (per "
                              "(Default: 1MB)",
                  TUNABLE_INTEGER, &gbl_netbufsz, gbl_netbufsz, READONLY | NOZERO, NULL, NULL,
                  NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("netbufsz_signal", "Size of the network buffer "
-                                    "(per node) for the signal "
-                                    "network. (Default: 65536)",
-                 TUNABLE_INTEGER, &gbl_netbufsz_signal, gbl_netbufsz_signal, READONLY | NOZERO, NULL,
-                 NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "net_explicit_flush_trace",
     "Produce a stack dump for long network flushes. (Default: off)",
@@ -718,11 +686,6 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("net_max_queue",
                  "before dropping (per replicant). (Default: 25000)",
                  TUNABLE_INTEGER, &gbl_net_max_queue, gbl_net_max_queue, READONLY, NULL, NULL,
                  NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("net_max_queue_signal",
-                 "Maximum number of items to keep on the signal network queue "
-                 "before dropping (per replicant). (Default: 100)",
-                 TUNABLE_INTEGER, &gbl_net_max_queue_signal, gbl_net_max_queue_signal, READONLY, NULL,
-                 NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("net_poll",
                  "Allow a connection to linger for this many milliseconds "
                  "before identifying itself. Connections that take longer are "
@@ -743,9 +706,6 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("nice", "If set, nice() will be called with th
 REGISTER_TUNABLE_WITH_INT_DEFAULT("noblobstripe", "Disables 'blobstripe'", TUNABLE_BOOLEAN,
                  &gbl_blobstripe, gbl_blobstripe, INVERSE_VALUE | READONLY | NOARG, NULL, NULL,
                  NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("noblocksql_over_sockets", "Disables 'blocksql_over_sockets'",
-                 TUNABLE_BOOLEAN, &gbl_upgrade_blocksql_to_socksql, gbl_upgrade_blocksql_to_socksql,
-                 INVERSE_VALUE | READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("no_compress_page_compact_log",
                  "Disables 'compress_page_compact_log'", TUNABLE_BOOLEAN,
                  &gbl_compress_page_compact_log, gbl_compress_page_compact_log,
@@ -1014,9 +974,6 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("sbuftimeout", NULL, TUNABLE_INTEGER, &gbl_sbu
 REGISTER_TUNABLE_WITH_INT_DEFAULT("sc_del_unused_files_threshold", NULL, TUNABLE_INTEGER,
                  &gbl_sc_del_unused_files_threshold_ms, gbl_sc_del_unused_files_threshold_ms, READONLY | NOZERO, NULL,
                  NULL, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("signal_net_portmux_register_interval", NULL, TUNABLE_INTEGER,
-                 &gbl_signal_net_portmux_register_interval, gbl_signal_net_portmux_register_interval, READONLY, NULL,
-                 NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("simulate_rowlock_deadlock", NULL, TUNABLE_INTEGER,
                  &gbl_simulate_rowlock_deadlock_interval, gbl_simulate_rowlock_deadlock_interval, 0, NULL, NULL,
                  simulate_rowlock_deadlock_update, NULL);
@@ -1140,9 +1097,6 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("upd_null_cstr_return_conv_err", NULL, TUNABLE
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("use_appsock_as_sqlthread", NULL, TUNABLE_INTEGER,
                  &gbl_use_appsock_as_sqlthread, gbl_use_appsock_as_sqlthread, READONLY | NOARG, NULL, NULL,
-                 NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("use_bbipc_fastseed", NULL, TUNABLE_BOOLEAN,
-                 &gbl_use_bbipc_global_fastseed, gbl_use_bbipc_global_fastseed, READONLY | NOARG, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("use_live_schema_change", NULL, TUNABLE_INTEGER,
                  &gbl_default_livesc, gbl_default_livesc, READONLY | NOARG, NULL, NULL, NULL, NULL);
