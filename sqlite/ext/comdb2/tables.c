@@ -26,6 +26,7 @@
 #include "comdb2systbl.h"
 #include "comdb2systblInt.h"
 #include "sql.h"
+#include "perf.h"
 
 /* systbl_tables_cursor is a subclass of sqlite3_vtab_cursor which serves
 ** as the underlying cursor to enumerate the rows in this vtable. The 
@@ -255,6 +256,8 @@ int comdb2SystblInit(
     rc = sqlite3_create_module(db, "comdb2_timepartshards", &systblTimepartShardsModule, 0);
   if (rc == SQLITE_OK)
     rc = sqlite3_create_module(db, "comdb2_timepartevents", &systblTimepartEventsModule, 0);
+  if (rc == SQLITE_OK)
+    rc = sqlite3_create_module(db, "comdb2_timeseries", &systblTimeseriesModule, 0);
 #endif
   return rc;
 }

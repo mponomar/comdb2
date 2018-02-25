@@ -109,6 +109,7 @@ int thdpool_get_maxqueueoverride(struct thdpool *pool);
 int thdpool_get_maxqueueagems(struct thdpool *pool);
 int thdpool_get_exit_on_create_fail(struct thdpool *pool);
 int thdpool_get_dump_on_full(struct thdpool *pool);
+int thdpool_get_queue_depth(struct thdpool *pool);
 void thdpool_list_pools(void);
 void thdpool_command_to_all(char *line, int lline, int st);
 void thdpool_set_dump_on_full(struct thdpool *pool, int onoff);

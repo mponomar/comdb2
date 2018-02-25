@@ -106,6 +106,7 @@ typedef long long tranid_t;
 #include "comdb2_legacy.h"
 #include "machclass.h"
 #include "tunables.h"
+#include "perf.h"
 
 #ifndef LUASP
 #include <mem_uncategorized.h>
@@ -1046,6 +1047,11 @@ struct dbenv {
     /* locking for the queue system */
     pthread_mutex_t dbqueue_admin_lk;
     int dbqueue_admin_running;
+
+    struct time_metric* service_time;
+    struct time_metric* queue_depth;
+    struct time_metric* concurrent_queries;
+    struct time_metric* connections;
 };
 
 extern struct dbenv *thedb;

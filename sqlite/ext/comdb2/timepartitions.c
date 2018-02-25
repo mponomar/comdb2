@@ -223,7 +223,6 @@ static int timepartShardsColumn(
   return SQLITE_OK;
 };
 
-
 const sqlite3_module systblTimepartShardsModule = {
   0,                    /* iVersion */
   0,                    /* xCreate */

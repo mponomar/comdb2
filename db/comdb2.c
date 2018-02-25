@@ -119,6 +119,7 @@ void berk_memp_sync_alarm_ms(int);
 #include "debug_switches.h"
 #include "eventlog.h"
 #include "config.h"
+#include "perf.h"
 
 #include "views.h"
 
@@ -2439,6 +2440,16 @@ static struct dbenv *newdbenv(char *dbname, char *lrlname)
     listc_init(&dbenv->sqlhist, offsetof(struct sql_hist, lnk));
     dbenv->master = NULL; /*no known master at this point.*/
     dbenv->errstaton = 1; /* ON */
+
+    dbenv->service_time = time_metric_new("service_time");
+    dbenv->queue_depth = time_metric_new("queue_depth");
+    dbenv->concurrent_queries = time_metric_new("concurrent_queries");
+    dbenv->connections = time_metric_new("connections");
+
+    time_metric_add(dbenv->service_time, 0);
+    time_metric_add(dbenv->queue_depth, 0);
+    time_metric_add(dbenv->concurrent_queries, 0);
+    time_metric_add(dbenv->connections, 0);
 
     return dbenv;
 }
