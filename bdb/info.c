@@ -65,6 +65,7 @@ void bdb_show_reptimes(bdb_state_type *bdb_state);
 void bdb_lc_cache_trap(bdb_state_type *bdb_state, char *line, int lline);
 
 extern int osql_process_message_decom(char *host);
+extern bdb_state_type *gbl_bdb_state;
 
 int __lock_dump_region __P((DB_ENV *, const char *, FILE *));
 int __latch_dump_region __P((DB_ENV *, FILE *));
@@ -649,6 +650,38 @@ static void fill_ssl_info(CDB2DBINFORESPONSE *dbinfo_response)
 #define fill_ssl_info(arg)
 #endif
 
+char *bdb_coherent_state_string(char *host) {
+    char *coherent_state;
+    bdb_state_type *bdb_state = gbl_bdb_state;
+    int iammaster = bdb_state->repinfo->myhost == bdb_state->repinfo->master_host;
+
+    switch (bdb_state->coherent_state[nodeix(host)]) {
+        case STATE_COHERENT:
+            coherent_state = "";
+            break;
+
+        case STATE_INCOHERENT:
+            coherent_state = "INCOHERENT";
+            break;
+
+        case STATE_INCOHERENT_SLOW:
+            coherent_state = "INCOHERENT_SLOW";
+            break;
+
+            /* Incoherent local is only meaningful on the master */
+        case STATE_INCOHERENT_WAIT:
+            if(iammaster)
+                coherent_state = "INCOHERENT_WAIT";
+            else
+                coherent_state = "";
+            break;
+
+        default:
+            coherent_state = "???";
+    }
+    return coherent_state;
+}
+
 void fill_dbinfo(void *p_response, bdb_state_type *bdb_state)
 {
     CDB2DBINFORESPONSE *dbinfo_response = p_response;
@@ -786,30 +819,7 @@ static void netinfo_dump(FILE *out, bdb_state_type *bdb_state)
 
         lsnp = &bdb_state->seqnum_info->seqnums[nodeix(nodes[ii].host)].lsn;
 
-        switch (bdb_state->coherent_state[nodeix(nodes[ii].host)]) {
-        case STATE_COHERENT:
-            coherent_state = "";
-            break;
-
-        case STATE_INCOHERENT:
-            coherent_state = "INCOHERENT";
-            break;
-
-        case STATE_INCOHERENT_SLOW:
-            coherent_state = "INCOHERENT_SLOW";
-            break;
-
-        /* Incoherent local is only meaningful on the master */
-        case STATE_INCOHERENT_WAIT:
-            if (iammaster)
-                coherent_state = "INCOHERENT_WAIT";
-            else
-                coherent_state = "";
-            break;
-
-        default:
-            coherent_state = "???";
-        }
+        coherent_state = bdb_coherent_state_string(nodes[ii].host);
 
         logmsgf(LOGMSG_USER, out, "%16s:%d %-6s %-1s fd %-3d lsn %s f %d %s\n",
                 nodes[ii].host, nodes[ii].port, status_mstr, status,
@@ -996,6 +1006,28 @@ void bdb_dump_active_locks(bdb_state_type *bdb_state, FILE *out)
     fprintf(out, "Replication locker: %x\n", gbl_rep_lockid);
 #endif
     __lock_dump_region_int(bdb_state->dbenv, "o", out, 1);
+}
+
+int bdb_fill_cluster_info(void **data, int *num_nodes) {
+    struct cluster_info *info;
+    bdb_state_type *bdb_state = gbl_bdb_state;
+
+    struct host_node_info nodes[REPMAX];
+    *num_nodes = net_get_nodes_info(bdb_state->repinfo->netinfo,
+            REPMAX, nodes);
+    info = malloc(sizeof(struct cluster_info) * *num_nodes);
+    if (info == NULL)
+        return -1;
+    for (int i = 0; i < *num_nodes; i++) {
+        info[i].host = strdup(nodes[i].host);
+        info[i].port = nodes[i].port;
+        info[i].is_master = (nodes[i].host == gbl_bdb_state->repinfo->master_host) ? "Y" : "N";
+        info[i].coherent_state = bdb_coherent_state_string(nodes[i].host);
+        if (info[i].coherent_state[0] == 0)
+            info[i].coherent_state = "coherent";
+    }
+    *data = info;
+    return 0;
 }
 
 void bdb_lock_stats_me(bdb_state_type *bdb_state, FILE *out)
