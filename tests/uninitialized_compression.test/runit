@@ -1,0 +1,100 @@
+#!/bin/bash
+
+dbname=$1
+
+if [[ -z "$dbname" ]]; then
+    echo "Usage: dbname" >&2
+    exit 1
+fi
+
+testsize=10000
+errors=0
+
+for t in t1 t2 t3 t4; do
+    cdb2sql ${CDB2_OPTIONS} $dbname default "drop $t" 2>/dev/null
+done
+
+set -e
+
+for t in t1 t2 t3 t4; do
+    cdb2sql ${CDB2_OPTIONS} $dbname default "create table $t {$(cat ${t}.csc2)}"
+done
+
+
+for n in $(seq 1 5); do
+    echo $n
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "insert into t1 values(1, 'kWtTxEo2tvX2hiOFfiaLP71FfkK0+kpYUJuMo2/ORWrp7dbNDOQdDAeR0gK9HCw3uHMX4/sG2UU693mi3FfqwvBNPVmL6X9EQvmKb08pYkEp7nOskVrhPVdD', 'kWtTxEo2tvX2hiOFfiaLP71FfkK0+kpYUJuMo2/ORWrp7dbNDOQdDAeR0gK9HCw3uHMX4/sG2UU693mi3FfqwvBNPVmL6X9EQvmKb08pYkEp7nOskVrhPVdD')" >/dev/null
+    cdb2sql  ${CDB2_OPTIONS} $dbname default  "insert into t1 select value, '1', '2' from generate_series(2, $testsize)" >/dev/null
+    cdb2sql  -tabs ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('flush')" >/dev/null
+    before=$(cdb2sql -tabs  ${CDB2_OPTIONS} $dbname default  "select bytes from comdb2_tablesizes where tablename='t1'")
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('rebuild t1')" >/dev/null
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('flush')" >/dev/null
+    after=$(cdb2sql -tabs  ${CDB2_OPTIONS} $dbname default  "select bytes from comdb2_tablesizes where tablename='t1'")
+    if [[ $after -gt $before ]]; then
+        echo "vutf8 (1) table grew after schema change: before $before after $after"
+        errors=1
+    else
+        echo "vutf8 rebuild (1) ok"
+    fi
+
+    # exactly the same, but we apparently allow byte array->vutf8 conversion - test that as well
+    cdb2sql  ${CDB2_OPTIONS} $dbname default  "insert into t1 values(1, x'6b57745478456f327476583268694f466669614c50373146666b4b302b6b7059554a754d6f322f4f525772703764624e444f51644441655230674b394843773375484d58342f73473255553639336d0a', x'6b57745478456f327476583268694f466669614c50373146666b4b302b6b7059554a754d6f322f4f525772703764624e444f51644441655230674b394843773375484d58342f73473255553639336d0a')" >/dev/null
+    cdb2sql  ${CDB2_OPTIONS} $dbname default  "insert into t1 select value, '1', '2' from generate_series(2, $testsize)" >/dev/null
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('flush')" >/dev/null
+    before=$(cdb2sql -tabs  ${CDB2_OPTIONS} $dbname default  "select bytes from comdb2_tablesizes where tablename='t1'")
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('rebuild t1')" >/dev/null
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('flush')" >/dev/null
+    after=$(cdb2sql -tabs  ${CDB2_OPTIONS} $dbname default  "select bytes from comdb2_tablesizes where tablename='t1'")
+    if [[ $after -gt $before ]]; then
+        echo "vutf8 (2) table grew after schema change: before $before after $after"
+        errors=1
+    else
+        echo "vutf8 rebuild (2) ok"
+    fi
+
+
+    cdb2sql  ${CDB2_OPTIONS} $dbname default  "insert into t2 values(1, x'8e35f7249991bfb91e9a83638b1305611934aa9eeba4b811c788dc6cc4ada067593106a626eb59ef342e58666a4a86f314716ff46d6d5112b4f45745798e08abbc214b246730485d2e15e2b8d3d4a2d08735f672fb3e56d47f08', x'8e35f7249991bfb91e9a83638b1305611934aa9eeba4b811c788dc6cc4ada067593106a626eb59ef342e58666a4a86f314716ff46d6d5112b4f45745798e08abbc214b246730485d2e15e2b8d3d4a2d08735f672fb3e56d47f08')" >/dev/null
+    cdb2sql  ${CDB2_OPTIONS} $dbname default  "insert into t2 select value, x'', x'' from generate_series(2, $testsize)" >/dev/null
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('flush')" >/dev/null
+    before=$(cdb2sql -tabs  ${CDB2_OPTIONS} $dbname default  "select bytes from comdb2_tablesizes where tablename='t2'")
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('rebuild t2')" >/dev/null
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('flush')" >/dev/null
+    after=$(cdb2sql -tabs  ${CDB2_OPTIONS} $dbname default  "select bytes from comdb2_tablesizes where tablename='t2'")
+    if [[ $after -gt $before ]]; then
+        echo "blob table grew after schema change: before $before after $after"
+        errors=1
+    else
+        echo "blob rebuild ok"
+    fi
+
+    cdb2sql ${CDB2_OPTIONS} $dbname default "insert into t3 values(1, 'P71FfkK0+kpYUJuMo2/ORWrp7dbNDOQdDAeR0gK9HCw3uHMX4/sG2UU693mi3FfqwvBNPVmL6X9EQvmKb08pYkEp7nOskVrhPVdD')" >/dev/null
+    cdb2sql ${CDB2_OPTIONS} $dbname default "insert into t3 select value, '' from generate_series(1, $testsize)" >/dev/null
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('flush')" >/dev/null
+    before=$(cdb2sql -tabs ${CDB2_OPTIONS} $dbname default "select bytes from comdb2_tablesizes where tablename='t3'")
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('rebuild t3')" >/dev/null
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('flush')" >/dev/null
+    after=$(cdb2sql -tabs ${CDB2_OPTIONS} $dbname default "select bytes from comdb2_tablesizes where tablename='t3'")
+    if [[ $after -gt $before ]]; then
+        echo "cstring table grew after schema change: before $before after $after"
+        errors=1
+    else
+        echo "cstring rebuild ok"
+    fi
+
+
+    cdb2sql ${CDB2_OPTIONS} $dbname default "insert into t4 select value from generate_series(1, $testsize)" >/dev/null
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('flush')" >/dev/null
+    before=$(cdb2sql -tabs ${CDB2_OPTIONS} $dbname default "select bytes from comdb2_tablesizes where tablename='t4'")
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('rebuild t4')" >/dev/null
+    cdb2sql  ${CDB2_OPTIONS} $dbname default "exec procedure sys.cmd.send('flush')" >/dev/null
+    after=$(cdb2sql -tabs ${CDB2_OPTIONS} $dbname default "select bytes from comdb2_tablesizes where tablename='t4'")
+    if [[ $after -gt $before ]]; then
+        echo "int table grew after schema change: before $before after $after"
+        errors=1
+    else
+        echo "int rebuild ok"
+    fi
+    n=$(($n+1))
+done
+
+exit $errors

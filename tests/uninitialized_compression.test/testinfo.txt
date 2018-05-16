@@ -1,0 +1,2 @@
+testname: uninitialized_compression
+version: r000005

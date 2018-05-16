@@ -3787,6 +3787,8 @@ static TYPES_INLINE int vutf8_convert(int len, const void *in, int in_len,
             return -1;
 
         memcpy(out, in, len);
+        if (len < out_len)
+            memset(out + len, 0, out_len - len);
         *outdtsz += len;
 
         if (outblob) {
@@ -5087,6 +5089,8 @@ TYPES_INLINE int CLIENT_INT_to_SERVER_UINT(
         } else {
             return -1;
         }
+        if (outlen - inlen - BLOB_ON_DISK_LEN > 0)
+            memset( ((char*) out) + BLOB_ON_DISK_LEN + inlen, 0, outlen - inlen - BLOB_ON_DISK_LEN );
     }
 
     switch (outlen) {
@@ -5564,6 +5568,8 @@ TYPES_INLINE int CLIENT_BYTEARRAY_to_SERVER_BLOB2(
             memcpy(cout + BLOB_ON_DISK_LEN, in, inlen);
             *outdtsz += inlen;
         }
+        if (outlen - inlen - BLOB_ON_DISK_LEN > 0)
+            memset( ((char*) out) + BLOB_ON_DISK_LEN + inlen, 0, outlen - inlen - BLOB_ON_DISK_LEN );
     } else if (outblob) {
         if (inlen > gbl_blob_sz_thresh_bytes)
             outblob->data = comdb2_bmalloc(blobmem, inlen);
@@ -5623,6 +5629,9 @@ TYPES_INLINE int CLIENT_BYTEARRAY_to_SERVER_VUTF8(
             memcpy(cout + VUTF8_ON_DISK_LEN, in, inlen - 1);
             cout[VUTF8_ON_DISK_LEN + inlen - 1] = '\0';
             *outdtsz += inlen;
+        }
+        if (outlen - inlen - VUTF8_ON_DISK_LEN > 0) {
+            memset((char*) out + BLOB_ON_DISK_LEN + inlen, 0, outlen - inlen - BLOB_ON_DISK_LEN);
         }
     } else if (outblob) {
         if (inlen <= 0) {
@@ -6224,7 +6233,7 @@ TYPES_INLINE int SERVER_BCSTR_to_SERVER_BCSTR(
     len = cstrlenlim((char *)in + 1, inlen - 1);
     if (len > outlen - 1)
         return -1;
-    memset(out, 0, outlen);
+    memset(out + len + 1, 0, outlen - len - 1);
     memcpy(out, in, len + 1);
     return 0;
 }
@@ -6495,6 +6504,8 @@ static TYPES_INLINE int blob2_convert(int len, const void *in, int in_len,
         }
 
         memcpy(out, in, len);
+        if (out_len - len > 0)
+            memset(((char*) out) + len, 0, out_len - len);
         *outdtsz += len;
 
         if (outblob) {
@@ -6543,6 +6554,8 @@ static TYPES_INLINE int blob2_convert(int len, const void *in, int in_len,
             }
 
             memcpy(out, inblob->data, len);
+            if (out_len - len)
+                memset(((char*) out) + len, 0, out_len - len);
             *outdtsz += len;
 
             free(inblob->data);
