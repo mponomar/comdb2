@@ -149,34 +149,38 @@ static int systblTunablesColumn(sqlite3_vtab_cursor *cur, sqlite3_context *ctx,
         break;
     case TUNABLES_COLUMN_VALUE:
         switch (tunable->type) {
+            char s[20];
         case TUNABLE_INTEGER: {
             int val;
             val = (tunable->value) ? *(int *)tunable->value(tunable)
                                    : *(int *)tunable->var;
-            sqlite3_result_int(ctx, val);
+            sprintf(s, "%d", val);
+            sqlite3_result_text(ctx, s, -1, NULL);
             break;
         }
         case TUNABLE_LLONG: {
             int64_t val;
             val = (tunable->value) ? *(int64_t *)tunable->value(tunable)
                                    : *(int64_t *)tunable->var;
-            sqlite3_result_int64(ctx, val);
+            sprintf(s, "%lld", (long long) val);
+            sqlite3_result_text(ctx, s, -1, NULL);
             break;
         }
         case TUNABLE_SIZET: {
             size_t val;
             val = (tunable->value) ? *(size_t *)tunable->value(tunable)
                                    : *(size_t *)tunable->var;
-            sqlite3_result_int64(ctx, (int64_t) val);
+            sprintf(s, "%lld", (long long) val);
+            sqlite3_result_text(ctx, s, -1, NULL);
             break;
         }
-
 
         case TUNABLE_DOUBLE: {
             double val;
             val = (tunable->value) ? *(double *)tunable->value(tunable)
                                    : *(double *)tunable->var;
-            sqlite3_result_double(ctx, val);
+            sprintf(s, "%.3f", val);
+            sqlite3_result_text(ctx, s, -1, NULL);
             break;
         }
         case TUNABLE_BOOLEAN: {
