@@ -203,13 +203,19 @@ typedef struct {
 #define REGISTER_TUNABLE_WITH_DEFAULT(NAME, DESCR, TYPE, VAR_PTR, DEFAULT,     \
                          FLAGS, VALUE_FN, VERIFY_FN, UPDATE_FN, DESTROY_FN)    \
     do {                                                                       \
-        char *s = DEFAULT ? DEFAULT : "<none>";                                \
+        char *s;                                                               \
         comdb2_tunable t = {.name = NAME, .descr = DESCR, .type = TYPE,        \
                              .var = VAR_PTR,                                   \
                              .default_tunable_value = s,                       \
                              .flags = FLAGS, .value = VALUE_FN,                \
                              .verify = VERIFY_FN, .update = UPDATE_FN,         \
                              .destroy = DESTROY_FN};                           \
+        if (VALUE_FN)                                                          \
+            s = (char*) ((void*(*)(void*)) VALUE_FN)(&t);                      \
+        else                                                                   \
+            s = VAR_PTR;                                                       \
+        if (s)                                                                 \
+            s = strdup(s);                                                     \
         register_tunable(t);                                                   \
     } while (0)
 
