@@ -144,6 +144,6 @@ __dbenv_attr_init(dbenv)
 #define BERK_DEF_ATTR(option, description, type, default_value)                \
     dbenv->attr.option = default_value;                                        \
     REGISTER_TUNABLE_WITH_INT_DEFAULT(#option, description, berkdb_to_tunable_type(type),       \
-                     &dbenv->attr.option, &dbenv->attr.option, 0, NULL, NULL, NULL, NULL);
+                     &dbenv->attr.option, dbenv->attr.option, 0, NULL, NULL, NULL, NULL);
 #include "dbinc/db_attr.h"
 }

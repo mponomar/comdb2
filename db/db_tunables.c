@@ -957,7 +957,10 @@ oom_err:
 const char *tunable_type(comdb2_tunable_type type)
 {
     switch (type) {
-    case TUNABLE_INTEGER: return "INTEGER";
+    case TUNABLE_INTEGER: 
+    case TUNABLE_LLONG: 
+    case TUNABLE_SIZET: 
+        return "INTEGER";
     case TUNABLE_DOUBLE: return "DOUBLE";
     case TUNABLE_BOOLEAN: return "BOOLEAN";
     case TUNABLE_STRING: return "STRING";
@@ -1357,7 +1360,7 @@ comdb2_tunable_err handle_lrl_tunable(char *name, int name_len, char *value,
           set for the tunable, in which case its ok.
         */
         if (((t->flags & NOARG) != 0) &&
-            ((t->type == TUNABLE_INTEGER) || (t->type == TUNABLE_BOOLEAN))) {
+            ((t->type == TUNABLE_INTEGER) || (t->type == TUNABLE_BOOLEAN) || (t->type == TUNABLE_LLONG) || (t->type == TUNABLE_SIZET))) {
 
             strcpy(buf, "1");
 

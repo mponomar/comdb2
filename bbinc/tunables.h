@@ -102,6 +102,9 @@ typedef enum {
     TUNABLE_ENUM,
     TUNABLE_COMPOSITE,
 
+    TUNABLE_LLONG,
+    TUNABLE_SIZET,
+
     /* Must always be the last. */
     TUNABLE_INVALID,
 } comdb2_tunable_type;
@@ -180,12 +183,30 @@ typedef struct {
     pthread_mutex_t mu;
 } comdb2_tunables;
 
+/* TODO: define one macro for all int types */
+
+#define REGISTER_TUNABLE_WITH_SIZET_DEFAULT(NAME, DESCR, TYPE, VAR_PTR, DEFAULT, \
+                         FLAGS, VALUE_FN, VERIFY_FN, UPDATE_FN, DESTROY_FN)    \
+    do {                                                                       \
+        char s[20];                                                            \
+        snprintf(s, 20, "%zd", DEFAULT);                                       \
+        comdb2_tunable t = {.name = NAME, .descr = DESCR, .type = TYPE,        \
+                             .var = VAR_PTR,                                   \
+                             .default_tunable_value = s,                       \
+                             .flags = FLAGS, .value = VALUE_FN,                \
+                             .verify = VERIFY_FN, .update = UPDATE_FN,         \
+                             .destroy = DESTROY_FN};                           \
+        register_tunable(t);                                                   \
+    } while (0)
+
+
 #define REGISTER_TUNABLE_WITH_DEFAULT(NAME, DESCR, TYPE, VAR_PTR, DEFAULT,     \
                          FLAGS, VALUE_FN, VERIFY_FN, UPDATE_FN, DESTROY_FN)    \
     do {                                                                       \
+        char *s = DEFAULT ? DEFAULT : "<none>";                                \
         comdb2_tunable t = {.name = NAME, .descr = DESCR, .type = TYPE,        \
                              .var = VAR_PTR,                                   \
-                             .default_tunable_value = strdup(DEFAULT),         \
+                             .default_tunable_value = s,                       \
                              .flags = FLAGS, .value = VALUE_FN,                \
                              .verify = VERIFY_FN, .update = UPDATE_FN,         \
                              .destroy = DESTROY_FN};                           \
@@ -206,11 +227,26 @@ typedef struct {
         register_tunable(t);                                                   \
     } while (0)
 
+#define REGISTER_TUNABLE_WITH_LLONG_DEFAULT(NAME, DESCR, TYPE, VAR_PTR, DEFAULT, \
+                         FLAGS, VALUE_FN, VERIFY_FN, UPDATE_FN, DESTROY_FN)    \
+    do {                                                                       \
+        char s[20];                                                            \
+        snprintf(s, 20, "%lld", DEFAULT);                                      \
+        comdb2_tunable t = {.name = NAME, .descr = DESCR, .type = TYPE,        \
+                             .var = VAR_PTR,                                   \
+                             .default_tunable_value = s,                       \
+                             .flags = FLAGS, .value = VALUE_FN,                \
+                             .verify = VERIFY_FN, .update = UPDATE_FN,         \
+                             .destroy = DESTROY_FN};                           \
+        register_tunable(t);                                                   \
+    } while (0)
+
+
 #define REGISTER_TUNABLE_WITH_DOUBLE_DEFAULT(NAME, DESCR, TYPE, VAR_PTR, DEFAULT, \
                          FLAGS, VALUE_FN, VERIFY_FN, UPDATE_FN, DESTROY_FN)    \
     do {                                                                       \
         char s[20];                                                            \
-        snprintf(s, 20, "%.3f", DEFAULT);                                      \
+        snprintf(s, 20, "%.3f", DEFAULT);                                        \
         comdb2_tunable t = {.name = NAME, .descr = DESCR, .type = TYPE,        \
                              .var = VAR_PTR,                                   \
                              .default_tunable_value = s,                       \

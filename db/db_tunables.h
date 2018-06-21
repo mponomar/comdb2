@@ -35,7 +35,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("allow_lua_print", "Enable to allow stored "
 REGISTER_TUNABLE_WITH_INT_DEFAULT("allow_lua_dynamic_libs",
                  "Enable to allow use of dynamic "
                  "libraries (Default: off)",
-                 TUNABLE_BOOLEAN, &gbl_allow_lua_dynamic_libs, READONLY | NOARG,
+                 TUNABLE_BOOLEAN, &gbl_allow_lua_dynamic_libs, gbl_allow_lua_dynamic_libs, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("allow_portmux_route", NULL, TUNABLE_BOOLEAN,
                  &gbl_pmux_route_enabled, gbl_pmux_route_enabled, READONLY | NOARG | READEARLY, NULL,
@@ -49,10 +49,10 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("analyze_comp_threads",
                  "computing index statistics. (Default: 10)",
                  TUNABLE_INTEGER, &analyze_max_comp_threads, analyze_max_comp_threads, READONLY, NULL,
                  NULL, analyze_set_max_sampling_threads, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("analyze_comp_threshold",
+REGISTER_TUNABLE_WITH_LLONG_DEFAULT("analyze_comp_threshold",
                  "Index file size above which we'll do sampling, rather than "
                  "scan the entire index. (Default: 104857600)",
-                 TUNABLE_INTEGER, &sampling_threshold, sampling_threshold, READONLY, NULL, NULL,
+                 TUNABLE_LLONG, &sampling_threshold, sampling_threshold, READONLY, NULL, NULL,
                  analyze_set_sampling_threshold, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("analyze_tbl_threads",
                  "Number of threads to go through generated samples when "
@@ -63,10 +63,10 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("badwrite_intvl", NULL, TUNABLE_INTEGER,
                  &gbl_test_badwrite_intvl, gbl_test_badwrite_intvl, READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("bbenv", NULL, TUNABLE_BOOLEAN, &gbl_bbenv, gbl_bbenv,
                  DEPRECATED | READONLY | NOARG, NULL, NULL, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("blob_mem_mb", "Blob allocator: Sets the max "
+REGISTER_TUNABLE_WITH_SIZET_DEFAULT("blob_mem_mb", "Blob allocator: Sets the max "
                                 "memory limit to allow for blob "
                                 "values (in MB). (Default: 0)",
-                 TUNABLE_INTEGER, &gbl_blobmem_cap, gbl_blobmem_cap, READONLY, NULL, NULL,
+                 TUNABLE_SIZET, &gbl_blobmem_cap, gbl_blobmem_cap, READONLY, NULL, NULL,
                  blob_mem_mb_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("blobmem_sz_thresh_kb",
                  "Sets the threshold (in KB) above which blobs are allocated "
@@ -129,7 +129,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("crc32c",
                  "different checksums) for page checksums. (Default: on)",
                  TUNABLE_BOOLEAN, &gbl_crc32c, gbl_crc32c, READONLY | NOARG, NULL, NULL,
                  NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("crypto", NULL, TUNABLE_STRING, &gbl_crypto, gbl_crypto, READONLY, NULL,
+REGISTER_TUNABLE_WITH_DEFAULT("crypto", NULL, TUNABLE_STRING, gbl_crypto, gbl_crypto, READONLY, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("ctrace_dbdir",
                  "If set, debug trace files will go to the data directory "
@@ -145,8 +145,6 @@ REGISTER_TUNABLE(
 REGISTER_TUNABLE_WITH_INT_DEFAULT("deadlock_policy_override", NULL, TUNABLE_INTEGER,
                  &gbl_deadlock_policy_override, gbl_deadlock_policy_override, READONLY, NULL, NULL,
                  deadlock_policy_override_update, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("debug_rowlocks", NULL, TUNABLE_BOOLEAN, &gbl_debug_rowlocks, gbl_debug_rowlocks,
-                 NOARG, NULL, NULL, NULL, NULL);
 /*
 REGISTER_TUNABLE("decimal_rounding", NULL, TUNABLE_INTEGER,
                  &gbl_decimal_rounding, READONLY, NULL, NULL, NULL, NULL);
@@ -417,9 +415,9 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("env_messages", NULL, TUNABLE_BOOLEAN, &gbl_no
 REGISTER_TUNABLE_WITH_INT_DEFAULT("epochms_repts", NULL, TUNABLE_BOOLEAN,
                  &gbl_berkdb_epochms_repts, gbl_berkdb_epochms_repts, READONLY | NOARG, NULL, NULL, NULL,
                  NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("erroff", "Disables 'erron'", TUNABLE_BOOLEAN, &db->errstaton, db,
+REGISTER_TUNABLE_WITH_INT_DEFAULT("erroff", "Disables 'erron'", TUNABLE_BOOLEAN, &db->errstaton, db->errstaton,
                  INVERSE_VALUE | READONLY | NOARG, NULL, NULL, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("erron", NULL, TUNABLE_BOOLEAN, &db->errstaton, db,
+REGISTER_TUNABLE_WITH_INT_DEFAULT("erron", NULL, TUNABLE_BOOLEAN, &db->errstaton, db->errstaton,
                  READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "exclusive_blockop_qconsume",
@@ -537,13 +535,13 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("largepages", "Enables large pages. (Default: 
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("lclpooledbufs", NULL, TUNABLE_INTEGER, &gbl_lclpooled_buffers, gbl_lclpooled_buffers,
                  READONLY, NULL, NULL, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("lk_hash", NULL, TUNABLE_INTEGER, &gbl_lk_hash, gbl_lk_hash,
+REGISTER_TUNABLE_WITH_SIZET_DEFAULT("lk_hash", NULL, TUNABLE_SIZET, &gbl_lk_hash, gbl_lk_hash,
                  READONLY | READEARLY, NULL, lk_verify, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("lk_part", NULL, TUNABLE_INTEGER, &gbl_lk_parts, gbl_lk_parts,
+REGISTER_TUNABLE_WITH_SIZET_DEFAULT("lk_part", NULL, TUNABLE_SIZET, &gbl_lk_parts, gbl_lk_parts,
                  READONLY | READEARLY, NULL, lk_verify, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("lkr_hash", NULL, TUNABLE_INTEGER, &gbl_lkr_hash, gbl_lkr_hash,
+REGISTER_TUNABLE_WITH_SIZET_DEFAULT("lkr_hash", NULL, TUNABLE_SIZET, &gbl_lkr_hash, gbl_lkr_hash,
                  READONLY | READEARLY, NULL, lk_verify, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("lkr_part", NULL, TUNABLE_INTEGER, &gbl_lkr_parts, gbl_lkr_parts,
+REGISTER_TUNABLE_WITH_SIZET_DEFAULT("lkr_part", NULL, TUNABLE_SIZET, &gbl_lkr_parts, gbl_lkr_parts,
                  READONLY | READEARLY, NULL, lk_verify, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("lock_conflict_trace",
                  "Dump count of lock conflicts every second. (Default: off)",
@@ -792,7 +790,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("nullsort", NULL, TUNABLE_ENUM,
 */
 REGISTER_TUNABLE_WITH_INT_DEFAULT("num_contexts", NULL, TUNABLE_INTEGER, &gbl_num_contexts, gbl_num_contexts,
                  READONLY | NOZERO, NULL, NULL, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("num_qdbs", NULL, TUNABLE_INTEGER, &db->num_qdbs, NULL, READONLY,
+REGISTER_TUNABLE_WITH_INT_DEFAULT("num_qdbs", NULL, TUNABLE_INTEGER, &db->num_qdbs, db->num_qdbs, READONLY,
                  NULL, NULL, num_qdbs_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("num_record_converts",
                  "During schema changes, pack this many records into a "
@@ -998,17 +996,13 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("sort_nulls_with_header",
                  "Using record headers in key sorting. (Default: on)",
                  TUNABLE_BOOLEAN, &gbl_sort_nulls_correctly, gbl_sort_nulls_correctly, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("spfile", NULL, TUNABLE_STRING, &gbl_spfile_name, gbl_spfile_name, READONLY,
+REGISTER_TUNABLE_WITH_DEFAULT("spfile", NULL, TUNABLE_STRING, &gbl_spfile_name, gbl_spfile_name, READONLY,
                  NULL, NULL, spfile_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("sqlflush", "Force flushing the current record "
                              "stream to client every specified "
                              "number of records. (Default: 0)",
                  TUNABLE_INTEGER, &gbl_sqlflush_freq, gbl_sqlflush_freq, READONLY, NULL, NULL,
                  NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT(
-    "sqlrdtimeout",
-    "Set timeout for reading from an SQL connection. (Default: 100000ms)",
-    TUNABLE_INTEGER, &gbl_sqlrdtimeoutms, gbl_sqlrdtimeoutms, READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("sqlreadahead", NULL, TUNABLE_INTEGER, &gbl_sqlreadahead, gbl_sqlreadahead,
                  READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("sqlreadaheadthresh", NULL, TUNABLE_INTEGER,
@@ -1137,11 +1131,11 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("ctrace_nlogs",
                  "(Default: 7)",
                  TUNABLE_INTEGER, &nlogs, nlogs, READONLY | NOZERO, NULL, NULL, NULL,
                  NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("ctrace_rollat",
+REGISTER_TUNABLE_WITH_LLONG_DEFAULT("ctrace_rollat",
                  "Roll database debug trace file "
                  "($COMDB2_ROOT/var/log/cdb2/$dbname.trc.c) at specified size. "
                  "Set to 0 (default) to never roll.",
-                 TUNABLE_INTEGER, &rollat, rollat, READONLY | NOZERO, NULL, NULL,
+                 TUNABLE_LLONG, &rollat, (long long) rollat, READONLY | NOZERO, NULL, NULL,
                  ctrace_set_rollat, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "debugthreads",

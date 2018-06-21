@@ -156,6 +156,22 @@ static int systblTunablesColumn(sqlite3_vtab_cursor *cur, sqlite3_context *ctx,
             sqlite3_result_int(ctx, val);
             break;
         }
+        case TUNABLE_LLONG: {
+            int64_t val;
+            val = (tunable->value) ? *(int64_t *)tunable->value(tunable)
+                                   : *(int64_t *)tunable->var;
+            sqlite3_result_int64(ctx, val);
+            break;
+        }
+        case TUNABLE_SIZET: {
+            size_t val;
+            val = (tunable->value) ? *(size_t *)tunable->value(tunable)
+                                   : *(size_t *)tunable->var;
+            sqlite3_result_int64(ctx, (int64_t) val);
+            break;
+        }
+
+
         case TUNABLE_DOUBLE: {
             double val;
             val = (tunable->value) ? *(double *)tunable->value(tunable)
