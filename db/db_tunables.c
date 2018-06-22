@@ -336,10 +336,7 @@ static void *enable_sql_stmt_caching_value(void *context)
     for (int i = 0; i < (sizeof(enable_sql_stmt_caching_vals) /
                          sizeof(struct enable_sql_stmt_caching_st));
          i++) {
-        if (enable_sql_stmt_caching_vals[i].code == *(int *)tunable->var) {
-            printf("-> %s\n", enable_sql_stmt_caching_vals[i].name);
-            return (void *)enable_sql_stmt_caching_vals[i].name;
-        }
+        return (void *)enable_sql_stmt_caching_vals[i].name;
     }
     return "unknown";
 }

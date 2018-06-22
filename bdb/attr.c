@@ -280,6 +280,8 @@ void *bdb_attr_create(void)
     int val = dflt;                                                            \
     char str[20];                                                              \
     sprintf(str, "%d", val);                                                   \
+    if(bdb_to_tunable_type(BDB_ATTRTYPE_##type) == TUNABLE_BOOLEAN)            \
+        sprintf(str, "%s", dflt ? "ON" : "OFF");                               \
     REGISTER_TUNABLE_WITH_DEFAULT(#NAME, desc,                                 \
                      bdb_to_tunable_type(BDB_ATTRTYPE_##type),                 \
                      &bdb_attr->name, str,                                     \

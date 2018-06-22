@@ -203,19 +203,19 @@ typedef struct {
 #define REGISTER_TUNABLE_WITH_DEFAULT(NAME, DESCR, TYPE, VAR_PTR, DEFAULT,     \
                          FLAGS, VALUE_FN, VERIFY_FN, UPDATE_FN, DESTROY_FN)    \
     do {                                                                       \
-        char *s;                                                               \
+        char *s = NULL;                                                        \
         comdb2_tunable t = {.name = NAME, .descr = DESCR, .type = TYPE,        \
                              .var = VAR_PTR,                                   \
-                             .default_tunable_value = s,                       \
                              .flags = FLAGS, .value = VALUE_FN,                \
                              .verify = VERIFY_FN, .update = UPDATE_FN,         \
                              .destroy = DESTROY_FN};                           \
         if (VALUE_FN)                                                          \
             s = (char*) ((void*(*)(void*)) VALUE_FN)(&t);                      \
-        else                                                                   \
-            s = VAR_PTR;                                                       \
+        else\
+            s = DEFAULT;\
         if (s)                                                                 \
             s = strdup(s);                                                     \
+        t.default_tunable_value = s;                                           \
         register_tunable(t);                                                   \
     } while (0)
 
@@ -230,6 +230,12 @@ typedef struct {
                              .flags = FLAGS, .value = VALUE_FN,                \
                              .verify = VERIFY_FN, .update = UPDATE_FN,         \
                              .destroy = DESTROY_FN};                           \
+        if (t.type == TUNABLE_BOOLEAN) {                                       \
+            if (t.flags & INVERSE_VALUE)                                       \
+                t.default_tunable_value = DEFAULT ? "OFF" : "ON";              \
+            else                                                               \
+                t.default_tunable_value = DEFAULT ? "ON" : "OFF";              \
+        }                                                                      \
         register_tunable(t);                                                   \
     } while (0)
 
@@ -244,6 +250,12 @@ typedef struct {
                              .flags = FLAGS, .value = VALUE_FN,                \
                              .verify = VERIFY_FN, .update = UPDATE_FN,         \
                              .destroy = DESTROY_FN};                           \
+        if (t.type == TUNABLE_BOOLEAN) {                                       \
+            if (t.flags & INVERSE_VALUE)                                       \
+                t.default_tunable_value = DEFAULT ? "OFF" : "ON";              \
+            else                                                               \
+                t.default_tunable_value = DEFAULT ? "ON" : "OFF";              \
+        }                                                                      \
         register_tunable(t);                                                   \
     } while (0)
 
@@ -252,13 +264,19 @@ typedef struct {
                          FLAGS, VALUE_FN, VERIFY_FN, UPDATE_FN, DESTROY_FN)    \
     do {                                                                       \
         char s[20];                                                            \
-        snprintf(s, 20, "%.3f", DEFAULT);                                        \
+        snprintf(s, 20, "%.3f", DEFAULT);                                      \
         comdb2_tunable t = {.name = NAME, .descr = DESCR, .type = TYPE,        \
                              .var = VAR_PTR,                                   \
                              .default_tunable_value = s,                       \
                              .flags = FLAGS, .value = VALUE_FN,                \
                              .verify = VERIFY_FN, .update = UPDATE_FN,         \
                              .destroy = DESTROY_FN};                           \
+        if (t.type == TUNABLE_BOOLEAN) {                                       \
+            if (t.flags & INVERSE_VALUE)                                       \
+                t.default_tunable_value = DEFAULT ? "OFF" : "ON";              \
+            else                                                               \
+                t.default_tunable_value = DEFAULT ? "ON" : "OFF";              \
+        }                                                                      \
         register_tunable(t);                                                   \
     } while (0)
 

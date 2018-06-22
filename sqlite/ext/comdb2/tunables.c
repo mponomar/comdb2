@@ -149,13 +149,13 @@ static int systblTunablesColumn(sqlite3_vtab_cursor *cur, sqlite3_context *ctx,
         break;
     case TUNABLES_COLUMN_VALUE:
         switch (tunable->type) {
-            char s[20];
+            char s[40];
         case TUNABLE_INTEGER: {
             int val;
             val = (tunable->value) ? *(int *)tunable->value(tunable)
                                    : *(int *)tunable->var;
             sprintf(s, "%d", val);
-            sqlite3_result_text(ctx, s, -1, NULL);
+            sqlite3_result_text(ctx, strdup(s), -1, free);
             break;
         }
         case TUNABLE_LLONG: {
@@ -163,7 +163,7 @@ static int systblTunablesColumn(sqlite3_vtab_cursor *cur, sqlite3_context *ctx,
             val = (tunable->value) ? *(int64_t *)tunable->value(tunable)
                                    : *(int64_t *)tunable->var;
             sprintf(s, "%lld", (long long) val);
-            sqlite3_result_text(ctx, s, -1, NULL);
+            sqlite3_result_text(ctx, strdup(s), -1, free);
             break;
         }
         case TUNABLE_SIZET: {
@@ -171,7 +171,7 @@ static int systblTunablesColumn(sqlite3_vtab_cursor *cur, sqlite3_context *ctx,
             val = (tunable->value) ? *(size_t *)tunable->value(tunable)
                                    : *(size_t *)tunable->var;
             sprintf(s, "%lld", (long long) val);
-            sqlite3_result_text(ctx, s, -1, NULL);
+            sqlite3_result_text(ctx, strdup(s), -1, free);
             break;
         }
 
@@ -180,7 +180,7 @@ static int systblTunablesColumn(sqlite3_vtab_cursor *cur, sqlite3_context *ctx,
             val = (tunable->value) ? *(double *)tunable->value(tunable)
                                    : *(double *)tunable->var;
             sprintf(s, "%.3f", val);
-            sqlite3_result_text(ctx, s, -1, NULL);
+            sqlite3_result_text(ctx, strdup(s), -1, free);
             break;
         }
         case TUNABLE_BOOLEAN: {
@@ -220,17 +220,7 @@ static int systblTunablesColumn(sqlite3_vtab_cursor *cur, sqlite3_context *ctx,
 
     case TUNABLES_COLUMN_DEFAULT_VALUE:
         if (tunable->default_tunable_value) {
-            if (tunable->type == TUNABLE_BOOLEAN) {
-                int val;
-                val = (tunable->value) ? *(int *)tunable->value(tunable)
-                    : *(int *)tunable->var;
-                if ((tunable->flags & INVERSE_VALUE) != 0) {
-                    val = (val == 0) ? 1 : 0;
-                }
-                sqlite3_result_text(ctx, (val) ? "ON" : "OFF", -1, NULL);
-            }
-            else
-                sqlite3_result_text(ctx, tunable->default_tunable_value, -1, NULL);
+            sqlite3_result_text(ctx, tunable->default_tunable_value, -1, NULL);
         }
         else
             sqlite3_result_null(ctx);

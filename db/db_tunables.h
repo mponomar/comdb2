@@ -129,7 +129,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("crc32c",
                  "different checksums) for page checksums. (Default: on)",
                  TUNABLE_BOOLEAN, &gbl_crc32c, gbl_crc32c, READONLY | NOARG, NULL, NULL,
                  NULL, NULL);
-REGISTER_TUNABLE_WITH_DEFAULT("crypto", NULL, TUNABLE_STRING, gbl_crypto, gbl_crypto, READONLY, NULL,
+REGISTER_TUNABLE_WITH_DEFAULT("crypto", NULL, TUNABLE_STRING, &gbl_crypto, gbl_crypto, READONLY, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("ctrace_dbdir",
                  "If set, debug trace files will go to the data directory "
@@ -415,9 +415,9 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("env_messages", NULL, TUNABLE_BOOLEAN, &gbl_no
 REGISTER_TUNABLE_WITH_INT_DEFAULT("epochms_repts", NULL, TUNABLE_BOOLEAN,
                  &gbl_berkdb_epochms_repts, gbl_berkdb_epochms_repts, READONLY | NOARG, NULL, NULL, NULL,
                  NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("erroff", "Disables 'erron'", TUNABLE_BOOLEAN, &db->errstaton, db->errstaton,
+REGISTER_TUNABLE_WITH_INT_DEFAULT("erroff", "Disables 'erron'", TUNABLE_BOOLEAN, &db->errstaton, 1,
                  INVERSE_VALUE | READONLY | NOARG, NULL, NULL, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("erron", NULL, TUNABLE_BOOLEAN, &db->errstaton, db->errstaton,
+REGISTER_TUNABLE_WITH_INT_DEFAULT("erron", NULL, TUNABLE_BOOLEAN, &db->errstaton, 1,
                  READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "exclusive_blockop_qconsume",
