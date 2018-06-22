@@ -445,7 +445,7 @@ DEF_ATTR(PLANNER_SHOW_SCANSTATS, planner_show_scanstats, BOOLEAN, 0, NULL)
 DEF_ATTR(PLANNER_WARN_ON_DISCREPANCY, planner_warn_on_discrepancy, BOOLEAN, 0,
          NULL)
 DEF_ATTR(PLANNER_EFFORT, planner_effort, QUANTITY, 1,
-         "Planner effort (try harder) levels. (Default: 1)")
+         "Planner effort (try harder) levels.")
 DEF_ATTR(SHOW_COST_IN_LONGREQ, show_cost_in_longreq, BOOLEAN, 1,
          "Show query cost in the database long requests log.")
 DEF_ATTR(SC_RESTART_SEC, sc_restart_sec, QUANTITY, 0,

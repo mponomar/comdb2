@@ -29,34 +29,34 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("accept_osql_mismatch", NULL, TUNABLE_BOOLEAN,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("allow_lua_print", "Enable to allow stored "
                                     "procedures to print trace on "
-                                    "DB's stdout. (Default: off)",
+                                    "DB's stdout.",
                  TUNABLE_BOOLEAN, &gbl_allow_lua_print, gbl_allow_lua_print, READONLY | NOARG, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("allow_lua_dynamic_libs",
                  "Enable to allow use of dynamic "
-                 "libraries (Default: off)",
+                 "libraries.",
                  TUNABLE_BOOLEAN, &gbl_allow_lua_dynamic_libs, gbl_allow_lua_dynamic_libs, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("allow_portmux_route", NULL, TUNABLE_BOOLEAN,
                  &gbl_pmux_route_enabled, gbl_pmux_route_enabled, READONLY | NOARG | READEARLY, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("allow_user_schema",
-                 "Enable to allow per-user schemas. (Default: off)",
+                 "Enable to allow per-user schemas.",
                  TUNABLE_BOOLEAN, &gbl_allow_user_schema, gbl_allow_user_schema, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("analyze_comp_threads",
                  "Number of thread to use when generating samples for "
-                 "computing index statistics. (Default: 10)",
+                 "computing index statistics.",
                  TUNABLE_INTEGER, &analyze_max_comp_threads, analyze_max_comp_threads, READONLY, NULL,
                  NULL, analyze_set_max_sampling_threads, NULL);
 REGISTER_TUNABLE_WITH_LLONG_DEFAULT("analyze_comp_threshold",
                  "Index file size above which we'll do sampling, rather than "
-                 "scan the entire index. (Default: 104857600)",
+                 "scan the entire index.",
                  TUNABLE_LLONG, &sampling_threshold, sampling_threshold, READONLY, NULL, NULL,
                  analyze_set_sampling_threshold, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("analyze_tbl_threads",
                  "Number of threads to go through generated samples when "
-                 "generating index statistics. (Default: 5)",
+                 "generating index statistics.",
                  TUNABLE_INTEGER, &analyze_max_table_threads, analyze_max_table_threads, READONLY, NULL,
                  NULL, analyze_set_max_table_threads, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("badwrite_intvl", NULL, TUNABLE_INTEGER,
@@ -65,19 +65,19 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("bbenv", NULL, TUNABLE_BOOLEAN, &gbl_bbenv, gb
                  DEPRECATED | READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_SIZET_DEFAULT("blob_mem_mb", "Blob allocator: Sets the max "
                                 "memory limit to allow for blob "
-                                "values (in MB). (Default: 0)",
+                                "values (in MB).",
                  TUNABLE_SIZET, &gbl_blobmem_cap, gbl_blobmem_cap, READONLY, NULL, NULL,
                  blob_mem_mb_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("blobmem_sz_thresh_kb",
                  "Sets the threshold (in KB) above which blobs are allocated "
-                 "by the blob allocator. (Default: 0)",
+                 "by the blob allocator.",
                  TUNABLE_INTEGER, &gbl_blob_sz_thresh_bytes, gbl_blob_sz_thresh_bytes, READONLY, NULL,
                  NULL, blobmem_sz_thresh_kb_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("blobstripe", NULL, TUNABLE_BOOLEAN, &gbl_blobstripe, gbl_blobstripe,
                  READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("blocksql_grace",
                  "Let block transactions run this long if db is exiting before "
-                 "being killed (and returning an error). (Default: 10sec)",
+                 "being killed (and returning an error).",
                  TUNABLE_INTEGER, &gbl_blocksql_grace, gbl_blocksql_grace, 0, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("blocksql_throttle", NULL, TUNABLE_INTEGER,
@@ -107,8 +107,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("cachekbmin", NULL, TUNABLE_INTEGER, &db->cach
 REGISTER_TUNABLE_WITH_DEFAULT("checkctags", NULL, TUNABLE_ENUM, &gbl_check_client_tags, "FULL",
                  READONLY, checkctags_value, NULL, checkctags_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("chkpoint_alarm_time",
-                 "Warn if checkpoints are taking more than this many seconds. "
-                 "(Default: 60 secs)",
+                 "Warn if checkpoints are taking more than this many seconds. ",
                  TUNABLE_INTEGER, &gbl_chkpoint_alarm_time, gbl_chkpoint_alarm_time, READONLY, NULL,
                  NULL, NULL, NULL);
 /* Generate the value of 'cluster' on fly (define value()). */
@@ -126,21 +125,21 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("convflush", NULL, TUNABLE_INTEGER, &gbl_conv_
                  READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("crc32c",
                  "Use crc32c (alternate faster implementation of CRC32, "
-                 "different checksums) for page checksums. (Default: on)",
+                 "different checksums) for page checksums.",
                  TUNABLE_BOOLEAN, &gbl_crc32c, gbl_crc32c, READONLY | NOARG, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_DEFAULT("crypto", NULL, TUNABLE_STRING, &gbl_crypto, gbl_crypto, READONLY, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("ctrace_dbdir",
                  "If set, debug trace files will go to the data directory "
-                 "instead of `$COMDB2_ROOT/var/log/cdb2/). (Default: off)",
+                 "instead of `$COMDB2_ROOT/var/log/cdb2/).",
                  TUNABLE_BOOLEAN, &gbl_ctrace_dbdir, gbl_ctrace_dbdir, READONLY | NOARG, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("ctrace_gzip", NULL, TUNABLE_INTEGER, &ctrace_gzip, ctrace_gzip,
                  DEPRECATED | READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE(
     "ddl_cascade_drop",
-    "On DROP, also drop the dependent keys/constraints. (Default: 1)",
+    "On DROP, also drop the dependent keys/constraints.",
     TUNABLE_BOOLEAN, &gbl_ddl_cascade_drop, READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("deadlock_policy_override", NULL, TUNABLE_INTEGER,
                  &gbl_deadlock_policy_override, gbl_deadlock_policy_override, READONLY, NULL, NULL,
@@ -149,7 +148,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("deadlock_policy_override", NULL, TUNABLE_INTE
 REGISTER_TUNABLE("decimal_rounding", NULL, TUNABLE_INTEGER,
                  &gbl_decimal_rounding, READONLY, NULL, NULL, NULL, NULL);
                  */
-REGISTER_TUNABLE_WITH_INT_DEFAULT("decom_time", "Decomission time. (Default: 0)",
+REGISTER_TUNABLE_WITH_INT_DEFAULT("decom_time", "Decomission time.",
                  TUNABLE_INTEGER, &gbl_decom, gbl_decom, READONLY | NOZERO, NULL, NULL,
                  NULL, NULL);
 /*
@@ -158,7 +157,7 @@ REGISTER_TUNABLE("default_datetime_precision", NULL,
                  NULL, NULL);
 */
 REGISTER_TUNABLE("dir",
-                 "Database directory. (Default: $COMDB2_ROOT/var/cdb2/$DBNAME)",
+                 "Database directory.",
                  TUNABLE_STRING, &db->basedir, READONLY, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("disable_cache_internal_nodes",
@@ -234,7 +233,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("disable_sparse_lockerid_map",
 REGISTER_TUNABLE_WITH_INT_DEFAULT("disable_sql_dlmalloc",
                  "If set, will use default system malloc for SQL state "
                  "machines. By default, each thread running SQL gets a "
-                 "dedicated memory pool. (Default: off)",
+                 "dedicated memory pool.",
                  TUNABLE_BOOLEAN, &gbl_disable_sql_dlmalloc, gbl_disable_sql_dlmalloc, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("disable_tagged_api", "Disables 'enable_tagged_api'",
@@ -291,7 +290,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("early",
                  "When set, replicants will ack a transaction as soon as they "
                  "acquire locks - not that replication must succeed at that "
                  "point, and reads on that node will either see the records or "
-                 "block. (Default: on)",
+                 "block.",
                  TUNABLE_BOOLEAN, &gbl_early, gbl_early, READONLY | NOARG, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_berkdb_retry_deadlock_bias", NULL, TUNABLE_BOOLEAN,
@@ -299,7 +298,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_berkdb_retry_deadlock_bias", NULL, TUN
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "enable_cache_internal_nodes",
-    "B-tree internal nodes have a higher cache priority. (Default: on)",
+    "B-tree internal nodes have a higher cache priority.",
     TUNABLE_BOOLEAN, &gbl_enable_cache_internal_nodes, gbl_enable_cache_internal_nodes, READONLY | NOARG, NULL,
     NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_datetime_ms_us_sc", NULL, TUNABLE_BOOLEAN,
@@ -314,17 +313,17 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_datetime_truncation", NULL, TUNABLE_BO
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_inplace_blob_optimization",
                  "Enables inplace blob updates (blobs are updated in place in "
                  "their b-tree when possible, not deleted/added) Note: This "
-                 "changes the data-format. (Default: on)",
+                 "changes the data-format.",
                  TUNABLE_BOOLEAN, &gbl_inplace_blob_optimization, gbl_inplace_blob_optimization,
                  READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "enable_inplace_blobs",
-    "Do not update the rowid of a blob entry on an update. (Default: on)",
+    "Do not update the rowid of a blob entry on an update.",
     TUNABLE_BOOLEAN, &gbl_inplace_blobs, gbl_inplace_blobs, READONLY | NOARG, NULL, NULL, NULL,
     NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_lowpri_snapisol",
                  "Give lower priority to locks acquired when updating snapshot "
-                 "state. (Default: off)",
+                 "state.",
                  TUNABLE_BOOLEAN, &gbl_lowpri_snapisol_sessions, gbl_lowpri_snapisol_sessions,
                  READONLY | NOARG, NULL, NULL, NULL, NULL);
 /*
@@ -344,13 +343,12 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_new_snapshot_logging",
 */
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_osql_blob_optimization",
                  "Replicant tracks which columns are modified in a transaction "
-                 "to allow blob updates to be ommitted if possible. (Default: "
-                 "on)",
+                 "to allow blob updates to be ommitted if possible.",
                  TUNABLE_BOOLEAN, &gbl_osql_blob_optimization, gbl_osql_blob_optimization, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_overflow_page_trace",
                  "If set, warn when a page order table scan encounters an "
-                 "overflow page. (Default: off)",
+                 "overflow page.",
                  TUNABLE_BOOLEAN, &gbl_disable_overflow_page_trace, gbl_disable_overflow_page_trace,
                  INVERSE_VALUE | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_page_compact_backward_scan", NULL, TUNABLE_INTEGER,
@@ -358,16 +356,16 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_page_compact_backward_scan", NULL, TUN
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "enable_partial_indexes",
-    "If set, allows partial index definitions in table schema. (Default: off)",
+    "If set, allows partial index definitions in table schema.",
     TUNABLE_BOOLEAN, &gbl_partial_indexes, gbl_partial_indexes, READONLY | NOARG, NULL, NULL, NULL,
     NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_prefault_udp",
-                 "Send lossy prefault requests to replicants. (Default: off)",
+                 "Send lossy prefault requests to replicants.",
                  TUNABLE_BOOLEAN, &gbl_prefault_udp, gbl_prefault_udp, NOARG, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_selectv_range_check",
                  "If set, SELECTV will send ranges for verification, not every "
-                 "touched record. (Default: off)",
+                 "touched record.",
                  TUNABLE_BOOLEAN, &gbl_selectv_rangechk, gbl_selectv_rangechk, NOARG, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("disable_selectv_range_check",
@@ -383,7 +381,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_snapshot_isolation",
 */
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_sparse_lockerid_map",
                  "If set, allocates a sparse map of lockers for deadlock "
-                 "resolution. (Default: on)",
+                 "resolution.",
                  TUNABLE_BOOLEAN, &gbl_sparse_lockerid_map, gbl_sparse_lockerid_map, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_sp_strict_assignments", NULL, TUNABLE_INTEGER,
@@ -396,13 +394,12 @@ REGISTER_TUNABLE_WITH_DEFAULT("enable_sql_stmt_caching",
                  enable_sql_stmt_caching_value, NULL,
                  enable_sql_stmt_caching_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_tagged_api",
-                 "Enables tagged api requests. (Default: on)", TUNABLE_BOOLEAN,
+                 "Enables tagged api requests.", TUNABLE_BOOLEAN,
                  &gbl_disable_tagged_api, gbl_disable_tagged_api, INVERSE_VALUE | NOARG, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_upgrade_ahead",
                  "Occasionally update read records to the newest schema "
-                 "version (saves some processing when reading them later). "
-                 "(Default: off)",
+                 "version (saves some processing when reading them later).",
                  TUNABLE_INTEGER, &gbl_num_record_upgrades, gbl_num_record_upgrades, READONLY | NOARG,
                  NULL, NULL, enable_upgrade_ahead_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("enque_flush_interval", NULL, TUNABLE_INTEGER,
@@ -421,7 +418,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("erron", NULL, TUNABLE_BOOLEAN, &db->errstaton
                  READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "exclusive_blockop_qconsume",
-    "Enables serialization of blockops and queue consumes. (Default: off)",
+    "Enables serialization of blockops and queue consumes.",
     TUNABLE_BOOLEAN, &gbl_exclusive_blockop_qconsume, gbl_exclusive_blockop_qconsume, READONLY | NOARG, NULL,
     NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("exitalarmsec", NULL, TUNABLE_INTEGER, &gbl_exit_alarm_sec, gbl_exit_alarm_sec,
@@ -433,7 +430,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("fdbdebg", NULL, TUNABLE_INTEGER, &gbl_fdb_tra
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("fdbtrackhints", NULL, TUNABLE_INTEGER, &gbl_fdb_track_hints, gbl_fdb_track_hints,
                  READONLY, NULL, NULL, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("forbid_ulonglong", "Disallow u_longlong. (Default: on)",
+REGISTER_TUNABLE_WITH_INT_DEFAULT("forbid_ulonglong", "Disallow u_longlong.",
                  TUNABLE_BOOLEAN, &gbl_forbid_ulonglong, gbl_forbid_ulonglong,
                  READONLY | NOARG | READEARLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("force_highslot", NULL, TUNABLE_BOOLEAN, &gbl_force_highslot, gbl_force_highslot,
@@ -446,13 +443,13 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("foreign_db_resolve_local", NULL, TUNABLE_BOOL
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("fullrecovery", "Attempt to run database "
                                  "recovery from the beginning of "
-                                 "available logs. (Default : off)",
+                                 "available logs.",
                  TUNABLE_BOOLEAN, &gbl_fullrecovery, gbl_fullrecovery, READONLY | NOARG, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("gbl_exit_on_pthread_create_fail",
                  "If set, database will exit if thread pools aren't able to "
-                 "create threads. (Default: 0)",
-                 TUNABLE_INTEGER, &gbl_exit_on_pthread_create_fail, gbl_exit_on_pthread_create_fail, READONLY,
+                 "create threads.",
+                 TUNABLE_BOOLEAN, &gbl_exit_on_pthread_create_fail, gbl_exit_on_pthread_create_fail, READONLY,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("goslow", NULL, TUNABLE_BOOLEAN, &gbl_goslow, gbl_goslow, NOARG, NULL,
                  NULL, NULL, NULL);
@@ -460,11 +457,11 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("gofast", NULL, TUNABLE_BOOLEAN, &gbl_goslow, 
                  INVERSE_VALUE | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("heartbeat_check_time",
                  "Raise an error if no heartbeat for this amount of time (in "
-                 "secs). (Default: 10 secs)",
-                 TUNABLE_INTEGER, &gbl_heartbeat_check, gbl_heartbeat_check, READONLY | NOZERO, NULL,
+                 "secs).",
+                 TUNABLE_INTEGER, &gbl_heartbeat_check, 10, READONLY | NOZERO, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("heartbeat_send_time",
-                 "Send heartbeats this often. (Default: 5secs)",
+                 "Send heartbeats this often (in secs).",
                  TUNABLE_INTEGER, &gbl_heartbeat_send, gbl_heartbeat_send, READONLY | NOZERO, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE("hostname", NULL, TUNABLE_STRING, &gbl_mynode,
@@ -485,11 +482,11 @@ REGISTER_TUNABLE_WITH_DEFAULT("init_with_compr_blobs", NULL, TUNABLE_ENUM,
                  &gbl_init_with_compr_blobs, "lz4", READONLY, init_with_compr_value,
                  NULL, init_with_compr_blobs_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("init_with_genid48",
-                 "Enables Genid48 for the database. (Default: off)",
-                 TUNABLE_INTEGER, &gbl_init_with_genid48, gbl_init_with_genid48, READONLY | NOARG,
+                 "Enables Genid48 for the database.",
+                 TUNABLE_BOOLEAN, &gbl_init_with_genid48, gbl_init_with_genid48, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("init_with_inplace_updates",
-                 "Initialize tables with inplace-update support. (Default: on)",
+                 "Initialize tables with inplace-update support.",
                  TUNABLE_BOOLEAN, &gbl_init_with_ipu, gbl_init_with_ipu, READONLY | NOARG, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("init_with_instant_schema_change",
@@ -497,16 +494,16 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("init_with_instant_schema_change",
                  &gbl_init_with_instant_sc, gbl_init_with_instant_sc, READONLY | NOARG, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("init_with_ondisk_header",
-                 "Initialize tables with on-disk header. (Default: on)",
+                 "Initialize tables with on-disk header.",
                  TUNABLE_BOOLEAN, &gbl_init_with_odh, gbl_init_with_odh, READONLY | NOARG, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("init_with_rowlocks",
-                 "Enables row-locks for the database. (Default: 0)",
+                 "Enables row-locks for the database.",
                  TUNABLE_INTEGER, &gbl_init_with_rowlocks, gbl_init_with_rowlocks, READONLY | NOARG,
                  NULL, NULL, init_with_rowlocks_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "init_with_rowlocks_master_only",
-    "Enables row-locks for the database (master-only). (Default: 0)",
+    "Enables row-locks for the database (master-only).",
     TUNABLE_INTEGER, &gbl_init_with_rowlocks, gbl_init_with_rowlocks, READONLY | NOARG, NULL, NULL,
     init_with_rowlocks_master_only_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("init_with_time_based_genids", "Enables time-based GENIDs",
@@ -514,15 +511,15 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("init_with_time_based_genids", "Enables time-b
                  INVERSE_VALUE | READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("instant_schema_change",
                  "When possible (eg: when just adding fields) schema change "
-                 "will not rebuild the underlying tables. (Default: on)",
+                 "will not rebuild the underlying tables.",
                  TUNABLE_BOOLEAN, &gbl_init_with_instant_sc, gbl_init_with_instant_sc, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("ioqueue",
-                 "Maximum depth of the I/O prefaulting queue. (Default: 0)",
+                 "Maximum depth of the I/O prefaulting queue.",
                  TUNABLE_INTEGER, &gbl_ioqueue, gbl_ioqueue, READONLY, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("iothreads",
-                 "Number of threads to use for I/O prefaulting. (Default: 0)",
+                 "Number of threads to use for I/O prefaulting.",
                  TUNABLE_INTEGER, &gbl_iothreads, gbl_iothreads, READONLY, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("keycompr",
@@ -530,7 +527,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("keycompr",
                  "pages, rebuild table to force for all pages.",
                  TUNABLE_BOOLEAN, &gbl_keycompr, gbl_keycompr, READONLY | NOARG, NULL, NULL,
                  NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("largepages", "Enables large pages. (Default: off)",
+REGISTER_TUNABLE_WITH_INT_DEFAULT("largepages", "Enables large pages.",
                  TUNABLE_BOOLEAN, &gbl_largepages, gbl_largepages, READONLY | NOARG, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("lclpooledbufs", NULL, TUNABLE_INTEGER, &gbl_lclpooled_buffers, gbl_lclpooled_buffers,
@@ -544,23 +541,23 @@ REGISTER_TUNABLE_WITH_SIZET_DEFAULT("lkr_hash", NULL, TUNABLE_SIZET, &gbl_lkr_ha
 REGISTER_TUNABLE_WITH_SIZET_DEFAULT("lkr_part", NULL, TUNABLE_SIZET, &gbl_lkr_parts, gbl_lkr_parts,
                  READONLY | READEARLY, NULL, lk_verify, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("lock_conflict_trace",
-                 "Dump count of lock conflicts every second. (Default: off)",
+                 "Dump count of lock conflicts every second.",
                  TUNABLE_BOOLEAN, &gbl_lock_conflict_trace, gbl_lock_conflict_trace, NOARG, NULL, NULL,
                  NULL, NULL);
 /* TODO(Nirbhay): Merge the following 3 into a single (enum?) tunable. */
 REGISTER_TUNABLE_WITH_INT_DEFAULT("log_delete_after_backup",
                  "Set log deletion policy to disable log deletion (can be set "
-                 "by backups). (Default: off)",
+                 "by backups).",
                  TUNABLE_INTEGER, &db->log_delete_age, 0, READONLY, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("log_delete_before_startup",
                  "Set log deletion policy to disable logs older than database "
-                 "startup time. (Default: off)",
+                 "startup time.",
                  TUNABLE_INTEGER, &db->log_delete_age, 0, READONLY | NOARG, NULL,
                  NULL, log_delete_before_startup_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "log_delete_now",
-    "Set log deletion policy to delete logs as soon as possible. (Default: 0)",
+    "Set log deletion policy to delete logs as soon as possible.",
     TUNABLE_INTEGER, &db->log_delete_age, 0, READONLY | NOARG | INVERSE_VALUE,
     NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("loghist", NULL, TUNABLE_INTEGER, &gbl_loghist, gbl_loghist,
@@ -577,12 +574,12 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("mallocregions", NULL, TUNABLE_INTEGER,
 */
 REGISTER_TUNABLE_WITH_INT_DEFAULT("master_retry_poll_ms",
                  "Have a node wait this long after a master swing before "
-                 "retrying a transaction. (Default: 100ms)",
+                 "retrying a transaction.",
                  TUNABLE_INTEGER, &gbl_master_retry_poll_ms, gbl_master_retry_poll_ms, READONLY, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("master_swing_osql_verbose",
                  "Produce verbose trace for SQL handlers detecting a master "
-                 "change. (Default: off)",
+                 "change.",
                  TUNABLE_BOOLEAN, &gbl_master_swing_osql_verbose, gbl_master_swing_osql_verbose,
                  READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("master_swing_osql_verbose_off",
@@ -599,14 +596,14 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("maxblockops", NULL, TUNABLE_INTEGER, &gbl_max
                  READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("maxcolumns",
                  "Raise the maximum permitted number of columns per table. "
-                 "There is a hard limit of 1024. (Default: 255)",
+                 "There is a hard limit of 1024.",
                  TUNABLE_INTEGER, &gbl_max_columns_soft_limit, gbl_max_columns_soft_limit, READONLY, NULL,
                  maxcolumns_verify, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("maxcontextskips", NULL, TUNABLE_INTEGER, &gbl_maxcontextskips, gbl_maxcontextskips,
                  READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("maxosqltransfer",
                  "Maximum number of record modifications allowed per "
-                 "transaction. (Default: 50000)",
+                 "transaction.",
                  TUNABLE_INTEGER, &g_osql_max_trans, g_osql_max_trans, READONLY, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("maxthrottletime", NULL, TUNABLE_INTEGER,
@@ -615,34 +612,34 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("max_incoherent_nodes", NULL, TUNABLE_INTEGER,
                  &gbl_max_incoherent_nodes, gbl_max_incoherent_nodes, READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("max_lua_instructions",
                  "Maximum lua opcodes to execute before we assume the stored "
-                 "procedure is looping and kill it. (Default: 10000)",
+                 "procedure is looping and kill it.",
                  TUNABLE_INTEGER, &gbl_max_lua_instructions, gbl_max_lua_instructions, READONLY, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("max_num_compact_pages_per_txn", NULL, TUNABLE_INTEGER,
                  &gbl_max_num_compact_pages_per_txn, gbl_max_num_compact_pages_per_txn, 0, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("maxq",
-                 "Maximum queue depth for write requests. (Default: 192)",
+                 "Maximum queue depth for write requests.",
                  TUNABLE_INTEGER, &gbl_maxqueue, gbl_maxqueue, READONLY, NULL, NULL,
                  maxq_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("maxretries", "Maximum number of times a "
                                "transactions will be retried on a "
-                               "deadlock. (Default: 500)",
+                               "deadlock.",
                  TUNABLE_INTEGER, &gbl_maxretries, gbl_maxretries, READONLY, NULL,
                  maxretries_verify, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "max_sqlcache_hints",
-    "Maximum number of \"hinted\" query plans to keep (global). (Default: 100)",
+    "Maximum number of \"hinted\" query plans to keep (global).",
     TUNABLE_INTEGER, &gbl_max_sql_hint_cache, gbl_max_sql_hint_cache, READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("max_sqlcache_per_thread",
                  "Maximum number of plans to cache per sql thread (statement "
-                 "cache is per-thread). (Default: 10)",
+                 "cache is per-thread).",
                  TUNABLE_INTEGER, &gbl_max_sqlcache, gbl_max_sqlcache, READONLY, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("maxt", NULL, TUNABLE_INTEGER, &gbl_maxthreads, gbl_maxthreads,
                  READONLY | NOZERO, NULL, NULL, maxt_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "maxwt",
-    "Maximum number of threads processing write requests. (Default: 8)",
+    "Maximum number of threads processing write requests.",
     TUNABLE_INTEGER, &gbl_maxwthreads, gbl_maxwthreads, READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("memnice", NULL, TUNABLE_INTEGER, &gbl_mem_nice, gbl_mem_nice,
                  READONLY | NOARG, NULL, NULL, memnice_update, NULL);
@@ -651,7 +648,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("mempget_timeout", NULL, TUNABLE_INTEGER,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("memstat_autoreport_freq",
                  "Dump memory usage to trace files at this frequency (in "
-                 "secs). (Default: 180 secs)",
+                 "secs).",
                  TUNABLE_INTEGER, &gbl_memstat_freq, gbl_memstat_freq, READONLY, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("morecolumns", NULL, TUNABLE_BOOLEAN, &gbl_morecolumns, gbl_morecolumns,
@@ -663,36 +660,35 @@ REGISTER_TUNABLE("name", NULL, TUNABLE_STRING, &name, DEPRECATED | READONLY,
 REGISTER_TUNABLE_WITH_INT_DEFAULT("natural_types", "Same as 'nosurprise'", TUNABLE_BOOLEAN,
                  &gbl_surprise, gbl_surprise, INVERSE_VALUE | READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("netbufsz", "Size of the network buffer (per "
-                             "node) for the replication network. "
-                             "(Default: 1MB)",
+                             "node) for the replication network. ",
                  TUNABLE_INTEGER, &gbl_netbufsz, gbl_netbufsz, READONLY | NOZERO, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "net_explicit_flush_trace",
-    "Produce a stack dump for long network flushes. (Default: off)",
+    "Produce a stack dump for long network flushes.",
     TUNABLE_BOOLEAN, &explicit_flush_trace, explicit_flush_trace, READONLY | NOARG, NULL, NULL, NULL,
     NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("net_lmt_upd_incoherent_nodes", NULL, TUNABLE_INTEGER,
                  &gbl_net_lmt_upd_incoherent_nodes, gbl_net_lmt_upd_incoherent_nodes, 0, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("net_max_mem",
                  "Maximum size (in MB) of items keep on replication network "
-                 "queue before dropping (per replicant). (Default: 0)",
+                 "queue before dropping (per replicant).",
                  TUNABLE_INTEGER, &gbl_net_max_mem, gbl_net_max_mem, READONLY, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("net_max_queue",
                  "Maximum number of items to keep on replication network queue "
-                 "before dropping (per replicant). (Default: 25000)",
+                 "before dropping (per replicant).",
                  TUNABLE_INTEGER, &gbl_net_max_queue, gbl_net_max_queue, READONLY, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("net_poll",
                  "Allow a connection to linger for this many milliseconds "
                  "before identifying itself. Connections that take longer are "
-                 "shut down. (Default: 100ms)",
+                 "shut down.",
                  TUNABLE_INTEGER, &gbl_net_poll, gbl_net_poll, READONLY, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("net_portmux_register_interval",
                  "Check on this interval if our port is correctly registered "
-                 "with pmux for the replication net. (Default: 600ms)",
+                 "with pmux for the replication net.",
                  TUNABLE_INTEGER, &gbl_net_portmux_register_interval, gbl_net_portmux_register_interval, READONLY,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("net_throttle_percent", NULL, TUNABLE_INTEGER,
@@ -759,7 +755,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("no_static_tag_blob_fix", NULL, TUNABLE_BOOLEA
                  INVERSE_VALUE | READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("nosurprise", NULL, TUNABLE_BOOLEAN, &gbl_surprise, gbl_surprise,
                  INVERSE_VALUE | READONLY | NOARG, NULL, NULL, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("notimeout", "Turns off SQL timeouts. (Default: off)",
+REGISTER_TUNABLE_WITH_INT_DEFAULT("notimeout", "Turns off SQL timeouts.",
                  TUNABLE_BOOLEAN, &gbl_notimeouts, gbl_notimeouts, NOARG, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("no_toblock_net_throttle", "Disables 'toblock_net_throttle'",
@@ -773,7 +769,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("no_update_delete_limit", NULL, TUNABLE_BOOLEA
 REGISTER_TUNABLE_WITH_INT_DEFAULT("nowatch", "Disable watchdog. Watchdog aborts "
                             "the database if basic things like "
                             "creating threads, allocating memory, "
-                            "etc. doesn't work. (Default: off)",
+                            "etc. doesn't work.",
                  TUNABLE_BOOLEAN, &gbl_watchdog_disable_at_start, gbl_watchdog_disable_at_start,
                  READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("null_blob_fix", NULL, TUNABLE_BOOLEAN,
@@ -781,7 +777,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("null_blob_fix", NULL, TUNABLE_BOOLEAN,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "nullfkey",
-    "Do not enforce foreign key constraints for null keys. (Default: off)",
+    "Do not enforce foreign key constraints for null keys.",
     TUNABLE_BOOLEAN, &gbl_nullfkey, gbl_nullfkey, READONLY | NOARG | READEARLY, NULL, NULL,
     NULL, NULL);
 /*
@@ -794,7 +790,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("num_qdbs", NULL, TUNABLE_INTEGER, &db->num_qd
                  NULL, NULL, num_qdbs_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("num_record_converts",
                  "During schema changes, pack this many records into a "
-                 "transaction. (Default: 100)",
+                 "transaction.",
                  TUNABLE_INTEGER, &gbl_num_record_converts, gbl_num_record_converts, READONLY | NOZERO,
                  NULL, NULL, NULL, NULL);
 /* Backwards compatibility: This tunable DOES expect an argument. */
@@ -802,7 +798,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("oldrangexlim", NULL, TUNABLE_BOOLEAN,
                  &gbl_honor_rangextunit_for_old_apis, gbl_honor_rangextunit_for_old_apis, READONLY, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("optimize_repdb_truncate",
-                 "Enables use of optimized repdb truncate code. (Default: on)",
+                 "Enables use of optimized repdb truncate code.",
                  TUNABLE_BOOLEAN, &gbl_optimize_truncate_repdb, gbl_optimize_truncate_repdb,
                  READONLY | NOARG | READEARLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("osql_bkoff_netsend", NULL, TUNABLE_INTEGER,
@@ -822,26 +818,25 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("osql_max_queue", NULL, TUNABLE_INTEGER, &gbl_
                  READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("osql_net_poll",
                  "Like net_sql, but for the offload network (used by write "
-                 "transactions on replicants to send work to the master) "
-                 "(Default: 100ms)",
+                 "transactions on replicants to send work to the master) ",
                  TUNABLE_INTEGER, &gbl_osql_net_poll, gbl_osql_net_poll, READONLY, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("osql_net_portmux_register_interval", NULL, TUNABLE_INTEGER,
                  &gbl_osql_net_portmux_register_interval, gbl_osql_net_portmux_register_interval, READONLY, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("osqlprefaultthreads",
-                 "If set, send prefaulting hints to nodes. (Default: 0)",
+                 "If set, send prefaulting hints to nodes.",
                  TUNABLE_INTEGER, &gbl_osqlpfault_threads, gbl_osqlpfault_threads, READONLY, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("osql_verify_ext_chk",
                  "For block transaction mode only - after this many verify "
                  "errors, check if transaction is non-commitable (see default "
-                 "isolation level). (Default: on)",
+                 "isolation level).",
                  TUNABLE_INTEGER, &gbl_osql_verify_ext_chk, gbl_osql_verify_ext_chk, READONLY, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("osql_verify_retry_max",
                  "Retry a transaction on a verify error this many times (see "
-                 "optimistic concurrency control). (Default: 499)",
+                 "optimistic concurrency control).",
                  TUNABLE_INTEGER, &gbl_osql_verify_retries_max, gbl_osql_verify_retries_max, READONLY, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("override_cachekb", NULL, TUNABLE_INTEGER,
@@ -856,7 +851,7 @@ REGISTER_TUNABLE_WITH_DOUBLE_DEFAULT("page_compact_thresh_ff", NULL, TUNABLE_DOU
                  page_compact_thresh_ff_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("page_latches",
                  "If set, in rowlocks mode, will acquire fast latches on pages "
-                 "instead of full locks. (Default: off)",
+                 "instead of full locks.",
                  TUNABLE_BOOLEAN, &gbl_page_latches, gbl_page_latches, READONLY | NOARG, NULL,
                  NULL, NULL, NULL);
 /*
@@ -883,16 +878,16 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("prefaulthelper_sqlreadahead", NULL, TUNABLE_I
                  &gbl_prefaulthelper_sqlreadahead, gbl_prefaulthelper_sqlreadahead, READONLY, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("prefaulthelperthreads",
-                 "Max number of prefault helper threads. (Default: 0)",
+                 "Max number of prefault helper threads.",
                  TUNABLE_INTEGER, &gbl_prefaulthelperthreads, gbl_prefaulthelperthreads, READONLY, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("print_syntax_err",
-                 "Trace all SQL with syntax errors. (Default: off)",
+                 "Trace all SQL with syntax errors.",
                  TUNABLE_BOOLEAN, &gbl_print_syntax_err, gbl_print_syntax_err, READONLY | NOARG, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("queuepoll", "Occasionally wake up and poll "
                               "consumer queues even when no "
-                              "events require it. (Default: 5secs)",
+                              "events require it.",
                  TUNABLE_INTEGER, &gbl_queue_sleeptime, gbl_queue_sleeptime, READONLY, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("random_lock_release_interval", NULL, TUNABLE_INTEGER,
@@ -901,29 +896,29 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("random_lock_release_interval", NULL, TUNABLE_
 REGISTER_TUNABLE_WITH_INT_DEFAULT("rangextlim", NULL, TUNABLE_INTEGER, &gbl_rangextunit, gbl_rangextunit,
                  READONLY | NOZERO, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
-    "rcache", "Keep a lookaside cache of root pages for B-trees. (Default: on)",
+    "rcache", "Keep a lookaside cache of root pages for B-trees.",
     TUNABLE_BOOLEAN, &gbl_rcache, gbl_rcache, READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("reallearly",
                  "Acknowledge as soon as a commit record is seen by the "
                  "replicant (before it's applied). This effectively makes "
                  "replication asynchronous, so reads may not see the effects "
-                 "of a committed transaction yet. (Default: off)",
+                 "of a committed transaction yet.",
                  TUNABLE_BOOLEAN, &gbl_reallyearly, gbl_reallyearly, READONLY | NOARG, NULL,
                  NULL, NULL, NULL);
-REGISTER_TUNABLE_WITH_INT_DEFAULT("reject_osql_mismatch", "(Default: on)", TUNABLE_BOOLEAN,
+REGISTER_TUNABLE_WITH_INT_DEFAULT("reject_osql_mismatch", "", TUNABLE_BOOLEAN,
                  &gbl_reject_osql_mismatch, gbl_reject_osql_mismatch, READONLY | NOARG, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("repchecksum",
                  "Enable to perform additional checksumming of replication "
                  "stream. Note: Log records in replication stream already have "
-                 "checksums. (Default: off)",
+                 "checksums.",
                  TUNABLE_BOOLEAN, &gbl_repchecksum, gbl_repchecksum, READONLY | NOARG, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("repdebug", "Enables replication debug messages.",
                  TUNABLE_BOOLEAN, &gbl_repdebug, gbl_repdebug, READONLY | NOARG, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("replicant_latches",
-                 "Also acquire latches on replicants. (Default: off)",
+                 "Also acquire latches on replicants.",
                  TUNABLE_BOOLEAN, &gbl_replicant_latches, gbl_replicant_latches, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("replicate_local",
@@ -931,15 +926,14 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("replicate_local",
                  "table. This can be used to set clusters/instances that are "
                  "fed data from a database cluster. Alternate ways of doing "
                  "this are being planned, so enabling this option should not "
-                 "be needed in the near future. (Default: off)",
+                 "be needed in the near future.",
                  TUNABLE_BOOLEAN, &gbl_replicate_local, gbl_replicate_local, READONLY | NOARG, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("replicate_local_concurrent", NULL, TUNABLE_BOOLEAN,
                  &gbl_replicate_local_concurrent, gbl_replicate_local_concurrent, READONLY | NOARG, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("report_deadlock_verbose",
-                 "If set, dump the current thread's stack for every deadlock. "
-                 "(Default: off)",
+                 "If set, dump the current thread's stack for every deadlock.",
                  TUNABLE_BOOLEAN, &gbl_disable_deadlock_trace, gbl_disable_deadlock_trace, NOARG, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("deadlkon", "Same as 'report_deadlock_verbose'",
@@ -950,7 +944,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("deadlkoff", "Disables 'report_deadlock_verbos
                  INVERSE_VALUE | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("rep_process_txn_trace",
                  "If set, report processing time on replicant for all "
-                 "transactions. (Default: off)",
+                 "transactions.",
                  TUNABLE_BOOLEAN, &gbl_rep_process_txn_time, gbl_rep_process_txn_time, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("reqldiffstat", NULL, TUNABLE_INTEGER, &diffstat_thresh, diffstat_thresh,
@@ -961,7 +955,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("retry", NULL, TUNABLE_INTEGER, &db->retry, 10
                  NULL, retry_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("round_robin_stripes",
                  "Alternate to which table stripe new records are written. The "
-                 "default is to keep stripe affinity by writer. (Default: off)",
+                 "default is to keep stripe affinity by writer.",
                  TUNABLE_BOOLEAN, &gbl_round_robin_stripes, gbl_round_robin_stripes, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("rr_enable_count_changes", NULL, TUNABLE_BOOLEAN,
@@ -993,14 +987,14 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("slow_rep_process_txn_maxms", NULL, TUNABLE_IN
 REGISTER_TUNABLE_WITH_INT_DEFAULT("slowwrite", NULL, TUNABLE_INTEGER, &__slow_write_ns, __slow_write_ns, READONLY,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("sort_nulls_with_header",
-                 "Using record headers in key sorting. (Default: on)",
+                 "Using record headers in key sorting.",
                  TUNABLE_BOOLEAN, &gbl_sort_nulls_correctly, gbl_sort_nulls_correctly, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_DEFAULT("spfile", NULL, TUNABLE_STRING, &gbl_spfile_name, gbl_spfile_name, READONLY,
                  NULL, NULL, spfile_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("sqlflush", "Force flushing the current record "
                              "stream to client every specified "
-                             "number of records. (Default: 0)",
+                             "number of records.",
                  TUNABLE_INTEGER, &gbl_sqlflush_freq, gbl_sqlflush_freq, READONLY, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("sqlreadahead", NULL, TUNABLE_INTEGER, &gbl_sqlreadahead, gbl_sqlreadahead,
@@ -1008,15 +1002,14 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("sqlreadahead", NULL, TUNABLE_INTEGER, &gbl_sq
 REGISTER_TUNABLE_WITH_INT_DEFAULT("sqlreadaheadthresh", NULL, TUNABLE_INTEGER,
                  &gbl_sqlreadaheadthresh, gbl_sqlreadaheadthresh, READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("sqlsortermem", "Maximum amount of memory to be "
-                                 "allocated to the sqlite sorter. "
-                                 "(Default: 314572800)",
+                                 "allocated to the sqlite sorter.",
                  TUNABLE_INTEGER, &gbl_sqlite_sorter_mem, gbl_sqlite_sorter_mem, READONLY, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("sqlsortermult", NULL, TUNABLE_INTEGER, &gbl_sqlite_sortermult, gbl_sqlite_sortermult,
                  READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("sql_time_threshold",
                  "Sets the threshold time in ms after which queries are "
-                 "reported as running a long time. (Default: 5000 ms)",
+                 "reported as running a long time.",
                  TUNABLE_INTEGER, &gbl_sql_time_threshold, gbl_sql_time_threshold, READONLY, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE("sql_tranlevel_default",
@@ -1026,7 +1019,7 @@ REGISTER_TUNABLE("sql_tranlevel_default",
                  sql_tranlevel_default_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "sqlwrtimeout",
-    "Set timeout for writing to an SQL connection. (Default: 10000ms)",
+    "Set timeout for writing to an SQL connection.",
     TUNABLE_INTEGER, &gbl_sqlwrtimeoutms, gbl_sqlwrtimeoutms, READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("static_tag_blob_fix", NULL, TUNABLE_BOOLEAN,
                  &gbl_force_notnull_static_tag_blobs, gbl_force_notnull_static_tag_blobs, READONLY | NOARG, NULL,
@@ -1039,12 +1032,12 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("surprise", NULL, TUNABLE_BOOLEAN, &gbl_surpri
 */
 REGISTER_TUNABLE_WITH_INT_DEFAULT("survive_n_master_swings",
                  "Have a node retry applying a transaction against a new "
-                 "master this many times before giving up. (Default: 600)",
+                 "master this many times before giving up.",
                  TUNABLE_INTEGER, &gbl_survive_n_master_swings, gbl_survive_n_master_swings, READONLY, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("temptable_limit",
                  "Set the maximum number of temporary tables the database can "
-                 "create. (Default: 8192)",
+                 "create.",
                  TUNABLE_INTEGER, &gbl_temptable_pool_capacity, gbl_temptable_pool_capacity, READONLY, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("test_blob_race", NULL, TUNABLE_INTEGER, &gbl_test_blob_race, gbl_test_blob_race,
@@ -1059,11 +1052,11 @@ REGISTER_TUNABLE("test_sc_resume_race",
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("throttlesqloverlog",
                  "On a full queue of SQL requests, dump the current thread "
-                 "pool this often (in secs). (Default: 5sec)",
+                 "pool this often (in secs).",
                  TUNABLE_INTEGER, &gbl_throttle_sql_overload_dump_sec, gbl_throttle_sql_overload_dump_sec, READONLY,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("toblock_net_throttle",
-                 "Throttle writes in apply_changes. (Default: off)",
+                 "Throttle writes in apply_changes.",
                  TUNABLE_BOOLEAN, &gbl_toblock_net_throttle, gbl_toblock_net_throttle, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("track_berk_locks", NULL, TUNABLE_INTEGER,
@@ -1078,12 +1071,12 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("update_delete_limit", NULL, TUNABLE_BOOLEAN,
                  &gbl_update_delete_limit, gbl_update_delete_limit, READONLY | NOARG, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("updategenids",
-                 "Enable use of update genid scheme. (Default: off)",
+                 "Enable use of update genid scheme.",
                  TUNABLE_BOOLEAN, &gbl_updategenids, gbl_updategenids, READONLY | NOARG, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("update_shadows_interval",
                  "Set to higher than 0 to update snaphots on every Nth "
-                 "operation. (Default: 0, update on for every operation)",
+                 "operation.",
                  TUNABLE_INTEGER, &gbl_update_shadows_interval, gbl_update_shadows_interval, 0, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("upd_null_cstr_return_conv_err", NULL, TUNABLE_INTEGER,
@@ -1102,7 +1095,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("usenames", NULL, TUNABLE_BOOLEAN, &gbl_noname
                  INVERSE_VALUE | READONLY | NOARG | READEARLY, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("use_node_priority",
-                 "Sets node priority for the db. (Default: off)",
+                 "Sets node priority for the db.",
                  TUNABLE_BOOLEAN, &gbl_use_node_pri, gbl_use_node_pri, READONLY | NOARG, NULL,
                  NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("use_nondedicated_network", NULL, TUNABLE_BOOLEAN | NOARG,
@@ -1119,16 +1112,15 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT(
 REGISTER_TUNABLE_WITH_INT_DEFAULT("use_planned_schema_change",
                  "Only change entities that need to change on a schema change. "
                  "Disable to always rebuild all data files and indices for the "
-                 "changing table. (Default: 1)",
-                 TUNABLE_INTEGER, &gbl_default_plannedsc, gbl_default_plannedsc, READONLY | NOARG,
+                 "changing table.",
+                 TUNABLE_BOOLEAN, &gbl_default_plannedsc, gbl_default_plannedsc, READONLY | NOARG,
                  NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("watchthreshold", NULL, TUNABLE_INTEGER,
                  &gbl_watchdog_watch_threshold, gbl_watchdog_watch_threshold, READONLY, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("ctrace_nlogs",
                  "When rolling trace files, keep this many. The older files "
-                 "will have incrementing number suffixes (.1, .2, etc.). "
-                 "(Default: 7)",
+                 "will have incrementing number suffixes (.1, .2, etc.). ",
                  TUNABLE_INTEGER, &nlogs, nlogs, READONLY | NOZERO, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_LLONG_DEFAULT("ctrace_rollat",
@@ -1139,11 +1131,11 @@ REGISTER_TUNABLE_WITH_LLONG_DEFAULT("ctrace_rollat",
                  ctrace_set_rollat, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "debugthreads",
-    "If set to 'on' enables trace on thread events. (Default: off)",
+    "If set to 'on' enables trace on thread events.",
     TUNABLE_BOOLEAN, &thread_debug, thread_debug, READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
     "dumpthreadonexit",
-    "If set to 'on' dump resources held by a thread on exit. (Default: off)",
+    "If set to 'on' dump resources held by a thread on exit.",
     TUNABLE_BOOLEAN, &dump_resources_on_thread_exit, dump_resources_on_thread_exit, READONLY, NULL, NULL, NULL,
     NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("stack_disable", NULL, TUNABLE_BOOLEAN, &gbl_walkback_enabled, gbl_walkback_enabled,
@@ -1153,7 +1145,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("stack_enable", NULL, TUNABLE_BOOLEAN, &gbl_wa
 REGISTER_TUNABLE_WITH_INT_DEFAULT("stack_warn_threshold", NULL, TUNABLE_INTEGER, &gbl_warnthresh, gbl_warnthresh,
                  READONLY | NOZERO, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("ack_trace",
-                 "Every second, produce trace for ack messages. (Default: off)",
+                 "Every second, produce trace for ack messages.",
                  TUNABLE_BOOLEAN, &gbl_ack_trace, gbl_ack_trace, READONLY | NOARG, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("no_ack_trace", "Disables 'ack_trace'", TUNABLE_BOOLEAN,
@@ -1249,10 +1241,10 @@ REGISTER_TUNABLE("max_wr_rows_per_txn",
                  "Set the max written rows per transaction.", TUNABLE_INTEGER,
                  &gbl_max_wr_rows_per_txn, 0, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("print_deadlock_cycles",
-                 "Print all deadlock cycles. (Default: off)", TUNABLE_BOOLEAN,
+                 "Print all deadlock cycles.", TUNABLE_BOOLEAN,
                  &gbl_print_deadlock_cycles, NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("always_send_cnonce",
-                 "Always send cnonce to master. (Default: on)", TUNABLE_BOOLEAN,
+                 "Always send cnonce to master.", TUNABLE_BOOLEAN,
                  &gbl_always_send_cnonce, NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("force_serial_on_writelock", "Disable parallel rep on "
                                               "upgrade.  (Default: on)",
@@ -1277,7 +1269,7 @@ REGISTER_TUNABLE("dump_full_netqueue", "Dump net-queue on full rcode. "
                  EXPERIMENTAL | INTERNAL, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE(
     "max_clientstats",
-    "Max number of client stats stored in comdb2_clientstats. (Default: 10000)",
+    "Max number of client stats stored in comdb2_clientstats.",
     TUNABLE_INTEGER, &gbl_max_clientstats_cache, DYNAMIC, NULL, NULL, NULL,
     NULL);
 REGISTER_TUNABLE("max_logput_queue",

@@ -293,7 +293,7 @@ int gbl_maxretries = 500;              /* thats a lotta retries */
 int gbl_maxblobretries =
     0; /* everyone assures me this can't happen unless the data is corrupt */
 int gbl_maxcontextskips = 10000; /* that's a whole whale of a lotta retries */
-int gbl_heartbeat_check = 0, gbl_heartbeat_send = 0, gbl_decom = 0;
+int gbl_heartbeat_check = 10, gbl_heartbeat_send = 5, gbl_decom = 0;
 int gbl_netbufsz = 1 * 1024 * 1024;
 int gbl_loghist = 0;
 int gbl_loghist_verbose = 0;
@@ -4843,7 +4843,7 @@ static void register_all_int_switches()
                         "Extend datetime range to meet mifid2 requirements",
                         &gbl_mifid2_datetime_range);
     register_int_switch("return_long_column_names",
-                        "Enables returning of long column names. (Default: ON)",
+                        "Enables returning of long column names.",
                         &gbl_return_long_column_names);
 }
 
