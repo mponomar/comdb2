@@ -32,8 +32,8 @@
 (name='analyze_comp_threads', description='Number of thread to use when generating samples for computing index statistics.', type='INTEGER', value='10', read_only='Y')
 (name='analyze_comp_threshold', description='Index file size above which we'll do sampling, rather than scan the entire index.', type='INTEGER', value='104857600', read_only='Y')
 (name='analyze_empty_tables', description='', type='BOOLEAN', value='OFF', read_only='N')
-(name='apply_queue_memory', description='Current memory usage of apply-queue.  (Default: 0)', type='INTEGER', value='0', read_only='Y')
 (name='analyze_tbl_threads', description='Number of threads to go through generated samples when generating index statistics.', type='INTEGER', value='5', read_only='Y')
+(name='apply_queue_memory', description='Current memory usage of apply-queue.', type='INTEGER', value='0', read_only='Y')
 (name='apprec_track_lsn_ranges', description='During recovery track lsn ranges', type='BOOLEAN', value='ON', read_only='N')
 (name='appsockpool.dump_on_full', description='Dump status on full queue.', type='BOOLEAN', value='OFF', read_only='N')
 (name='appsockpool.exit_on_error', description='Exit on pthread error.', type='BOOLEAN', value='ON', read_only='N')
@@ -336,12 +336,8 @@
 (name='init_with_rowlocks_master_only', description='Enables row-locks for the database (master-only).', type='INTEGER', value='0', read_only='Y')
 (name='init_with_time_based_genids', description='Enables time-based GENIDs', type='BOOLEAN', value='OFF', read_only='Y')
 (name='inline_mtraps', description='inline_mtraps', type='BOOLEAN', value='OFF', read_only='N')
-<<<<<<< HEAD
-(name='inmem_repdb_memory', description='Current memory usage of in-memory repdb.  (Default: 0)', type='INTEGER', value='0', read_only='Y')
-(name='instant_schema_change', description='When possible (eg: when just adding fields) schema change will not rebuild the underlying tables. (Default: on)', type='BOOLEAN', value='ON', read_only='Y')
-=======
+(name='inmem_repdb_memory', description='Current memory usage of in-memory repdb.', type='INTEGER', value='0', read_only='Y')
 (name='instant_schema_change', description='When possible (eg: when just adding fields) schema change will not rebuild the underlying tables.', type='BOOLEAN', value='ON', read_only='Y')
->>>>>>> Normalize tunables, fix up test cases.
 (name='iomap_enabled', description='Map file that tells comdb2ar to pause while we fsync', type='BOOLEAN', value='ON', read_only='N')
 (name='ioqueue', description='Maximum depth of the I/O prefaulting queue.', type='INTEGER', value='0', read_only='Y')
 (name='iothreads', description='Number of threads to use for I/O prefaulting.', type='INTEGER', value='0', read_only='Y')
@@ -405,11 +401,7 @@
 (name='master_swing_sock_restart_sleep', description='For testing: sleep in osql_sock_restart when master swings', type='INTEGER', value='0', read_only='Y')
 (name='max_backout_logs', description='Refuse to roll back replicant past this many log files', type='INTEGER', value='3', read_only='N')
 (name='max_backout_seconds', description='Refuse to roll back replicant past this many seconds', type='INTEGER', value='0', read_only='N')
-<<<<<<< HEAD
-(name='max_clientstats', description='Max number of client stats stored in comdb2_clientstats. (Default: 10000)', type='INTEGER', value='10000', read_only='N')
-=======
 (name='max_clientstats', description='Max number of client stats stored in comdb2_clientstats.', type='INTEGER', value='10000', read_only='N')
->>>>>>> Normalize tunables, fix up test cases.
 (name='max_incoherent_nodes', description='', type='INTEGER', value='1', read_only='Y')
 (name='max_latch', description='Size of latch array', type='INTEGER', value='200000', read_only='N')
 (name='max_latch_lockerid', description='Size of latch lockerid array', type='INTEGER', value='10000', read_only='N')

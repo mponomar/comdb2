@@ -1375,11 +1375,11 @@ REGISTER_TUNABLE("elect_priority_bias",
                  TUNABLE_INTEGER, &gbl_elect_priority_bias, 0, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE("apply_queue_memory",
-                 "Current memory usage of apply-queue.  (Default: 0)",
+                 "Current memory usage of apply-queue.",
                  TUNABLE_INTEGER, &gbl_apply_queue_memory, READONLY, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE("inmem_repdb_memory",
-                 "Current memory usage of in-memory repdb.  (Default: 0)",
+                 "Current memory usage of in-memory repdb.",
                  TUNABLE_INTEGER, &gbl_inmem_repdb_memory, READONLY, NULL, NULL,
                  NULL, NULL);
 
