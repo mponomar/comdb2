@@ -1,2 +1,2 @@
 SELECT COUNT(*) AS TUNABLES_COUNT FROM comdb2_tunables;
-SELECT name, description, type, CASE WHEN name IN ('dir', 'hostname', 'appsockpool.stacksz','i_am_master', 'directio') THEN '***' ELSE value END AS value, read_only FROM comdb2_tunables WHERE name NOT IN ('name') ORDER BY name;
+SELECT name, description, type, CASE WHEN name IN ('dir', 'hostname', 'appsockpool.stacksz','i_am_master', 'directio') THEN '***' ELSE value END as value, CASE WHEN name IN ('dir', 'hostname', 'appsockpool.stacksz','i_am_master', 'directio') THEN '***' ELSE default_value END AS default_value, read_only FROM comdb2_tunables WHERE name NOT IN ('name') ORDER BY name;
