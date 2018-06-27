@@ -1218,14 +1218,6 @@ static int read_lrl_option(struct dbenv *dbenv, char *line,
             gbl_sql_tranlevel_default = SQL_TDEF_SOCK;
         }
         gbl_sql_tranlevel_preserved = gbl_sql_tranlevel_default;
-    } else if (tokcmp(tok, ltok, "proxy") == 0) {
-        char *proxy_line;
-        tok = segline(line, len, &st, &ltok);
-        if (ltok > 0) {
-            proxy_line = tokdup(tok, ltok);
-            handle_proxy_lrl_line(proxy_line);
-            free(proxy_line);
-        }
     } else if (tokcmp(tok, ltok, "setsqlattr") == 0) {
         char *attrname = NULL;
         char *attrval = NULL;

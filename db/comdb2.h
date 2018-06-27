@@ -3246,9 +3246,6 @@ int query_limit_cmd(char *line, int llen, int toff);
 
 int is_valid_tablename(char *tbl);
 
-/* defined in toproxy.c */
-void reload_proxy_lrl_lines(char *lrlfile);
-
 /* defined in sqlglue.c */
 void set_throttle(int num);
 

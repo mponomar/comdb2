@@ -75,7 +75,6 @@ set(src
   thrman.c
   toblob.c
   toblock.c
-  toproxy.c
   trans.c
   translistener.c
   trigger.c

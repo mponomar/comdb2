@@ -107,7 +107,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("cachekbmin", NULL, TUNABLE_INTEGER, &db->cach
 REGISTER_TUNABLE_WITH_DEFAULT("checkctags", NULL, TUNABLE_ENUM, &gbl_check_client_tags, "FULL",
                  READONLY, checkctags_value, NULL, checkctags_update, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("chkpoint_alarm_time",
-                 "Warn if checkpoints are taking more than this many seconds. ",
+                 "Warn if checkpoints are taking more than this many seconds.",
                  TUNABLE_INTEGER, &gbl_chkpoint_alarm_time, gbl_chkpoint_alarm_time, READONLY, NULL,
                  NULL, NULL, NULL);
 /* Generate the value of 'cluster' on fly (define value()). */
@@ -389,7 +389,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("enable_sp_strict_assignments", NULL, TUNABLE_
                  NULL);
 REGISTER_TUNABLE_WITH_DEFAULT("enable_sql_stmt_caching",
                  "Enable caching of query plans. If followed by \"all\" will "
-                 "cache all queries, including those without parameters. ",
+                 "cache all queries, including those without parameters.",
                  TUNABLE_ENUM, &gbl_enable_sql_stmt_caching, "NONE", READONLY | NOARG,
                  enable_sql_stmt_caching_value, NULL,
                  enable_sql_stmt_caching_update, NULL);
@@ -660,7 +660,7 @@ REGISTER_TUNABLE("name", NULL, TUNABLE_STRING, &name, DEPRECATED | READONLY,
 REGISTER_TUNABLE_WITH_INT_DEFAULT("natural_types", "Same as 'nosurprise'", TUNABLE_BOOLEAN,
                  &gbl_surprise, gbl_surprise, INVERSE_VALUE | READONLY | NOARG, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("netbufsz", "Size of the network buffer (per "
-                             "node) for the replication network. ",
+                             "node) for the replication network.",
                  TUNABLE_INTEGER, &gbl_netbufsz, gbl_netbufsz, READONLY | NOZERO, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT(
@@ -818,7 +818,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("osql_max_queue", NULL, TUNABLE_INTEGER, &gbl_
                  READONLY, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("osql_net_poll",
                  "Like net_sql, but for the offload network (used by write "
-                 "transactions on replicants to send work to the master) ",
+                 "transactions on replicants to send work to the master)",
                  TUNABLE_INTEGER, &gbl_osql_net_poll, gbl_osql_net_poll, READONLY, NULL, NULL,
                  NULL, NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("osql_net_portmux_register_interval", NULL, TUNABLE_INTEGER,
@@ -1120,7 +1120,7 @@ REGISTER_TUNABLE_WITH_INT_DEFAULT("watchthreshold", NULL, TUNABLE_INTEGER,
                  NULL);
 REGISTER_TUNABLE_WITH_INT_DEFAULT("ctrace_nlogs",
                  "When rolling trace files, keep this many. The older files "
-                 "will have incrementing number suffixes (.1, .2, etc.). ",
+                 "will have incrementing number suffixes (.1, .2, etc.).",
                  TUNABLE_INTEGER, &nlogs, nlogs, READONLY | NOZERO, NULL, NULL, NULL,
                  NULL);
 REGISTER_TUNABLE_WITH_LLONG_DEFAULT("ctrace_rollat",
