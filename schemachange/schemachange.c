@@ -570,6 +570,8 @@ done:
         newdb->schema = NULL;
         freedb(newdb);
     }
+    else
+        csc2_free_all();
     return rc;
 }
 
