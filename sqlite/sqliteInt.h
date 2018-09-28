@@ -3581,9 +3581,7 @@ int sqlite3CantopenError(int);
 # define sqlite3Tolower(x)   tolower((unsigned char)(x))
 # define sqlite3Isquote(x)   ((x)=='"'||(x)=='\''||(x)=='['||(x)=='`')
 #endif
-#ifndef SQLITE_OMIT_COMPILEOPTION_DIAGS
 int sqlite3IsIdChar(u8);
-#endif
 
 /*
 ** Internal function prototypes
@@ -3711,7 +3709,7 @@ void sqlite3ErrorMsg(Parse*, const char*, ...);
 void sqlite3Dequote(char*);
 int sqlite3IsCorrectlyQuoted(char *);
 void sqlite3TokenInit(Token*,char*);
-int sqlite3KeywordCode(const unsigned char*, int);
+static int sqlite3KeywordCode(const unsigned char*, int);
 int sqlite3RunParser(Parse*, const char*, char **);
 void sqlite3FinishCoding(Parse*);
 int sqlite3GetTempReg(Parse*);
@@ -4596,5 +4594,61 @@ void sqlite3FingerprintDelete(sqlite3 *db, SrcList *pTabList, Expr *pWhere);
 void sqlite3FingerprintInsert(sqlite3 *db, SrcList *, Select *, IdList *, With *);
 void sqlite3FingerprintUpdate(sqlite3 *db, SrcList *pTabList, ExprList *pChanges, Expr *pWhere, int onError);
 void comdb2WriteTransaction(Parse*);
+const unsigned char aiClass[256];
+
+/* Character classes for tokenizing
+**
+** In the sqlite3GetToken() function, a switch() on aiClass[c] is implemented
+** using a lookup table, whereas a switch() directly on c uses a binary search.
+** The lookup table is much faster.  To maximize speed, and to ensure that
+** a lookup table is used, all of the classes need to be small integers and
+** all of them need to be used within the switch.
+*/
+#define CC_X          0    /* The letter 'x', or start of BLOB literal */
+#define CC_DIGIT      1    /* Digits */
+#define CC_KYWD       2    /* Alphabetics or '_'.  Usable in a keyword */
+#define CC_ID         3    /* unicode characters usable in IDs */
+#define CC_DOLLAR     4    /* '$' */
+#define CC_VARALPHA   5    /* '@', '#', ':'.  Alphabetic SQL variables */
+#define CC_VARNUM     6    /* '?'.  Numeric SQL variables */
+#define CC_SPACE      7    /* Space characters */
+#define CC_QUOTE      8    /* '"', '\'', or '`'.  String literals, quoted ids */
+#define CC_QUOTE2     9    /* '['.   [...] style quoted ids */
+#define CC_PIPE      10    /* '|'.   Bitwise OR or concatenate */
+#define CC_MINUS     11    /* '-'.  Minus or SQL-style comment */
+#define CC_LT        12    /* '<'.  Part of < or <= or <> */
+#define CC_GT        13    /* '>'.  Part of > or >= */
+#define CC_EQ        14    /* '='.  Part of = or == */
+#define CC_BANG      15    /* '!'.  Part of != */
+#define CC_SLASH     16    /* '/'.  / or c-style comment */
+#define CC_LP        17    /* '(' */
+#define CC_RP        18    /* ')' */
+#define CC_SEMI      19    /* ';' */
+#define CC_PLUS      20    /* '+' */
+#define CC_STAR      21    /* '*' */
+#define CC_PERCENT   22    /* '%' */
+#define CC_COMMA     23    /* ',' */
+#define CC_AND       24    /* '&' */
+#define CC_TILDA     25    /* '~' */
+#define CC_DOT       26    /* '.' */
+#define CC_LB        27    /* '{' */
+#define CC_RB        28    /* '}' */
+#define CC_ILLEGAL   29    /* Illegal character */
+
+/*
+** This is defined in tokenize.c.  We just have to import the definition.
+*/
+#ifndef SQLITE_AMALGAMATION
+#ifdef SQLITE_ASCII
+#define IdChar(C)  ((sqlite3CtypeMap[(unsigned char)C]&0x46)!=0)
+#endif
+#ifdef SQLITE_EBCDIC
+extern const char sqlite3IsEbcdicIdChar[];
+#define IdChar(C)  (((c=C)>=0x42 && sqlite3IsEbcdicIdChar[c-0x40]))
+#endif
+#endif /* SQLITE_AMALGAMATION */
+
+
+
 
 #endif /* _SQLITEINT_H_ */

@@ -20,20 +20,6 @@
 #ifndef SQLITE_OMIT_COMPLETE
 
 /*
-** This is defined in tokenize.c.  We just have to import the definition.
-*/
-#ifndef SQLITE_AMALGAMATION
-#ifdef SQLITE_ASCII
-#define IdChar(C)  ((sqlite3CtypeMap[(unsigned char)C]&0x46)!=0)
-#endif
-#ifdef SQLITE_EBCDIC
-extern const char sqlite3IsEbcdicIdChar[];
-#define IdChar(C)  (((c=C)>=0x42 && sqlite3IsEbcdicIdChar[c-0x40]))
-#endif
-#endif /* SQLITE_AMALGAMATION */
-
-
-/*
 ** Token types used by the sqlite3_complete() routine.  See the header
 ** comments on that procedure for additional information.
 */

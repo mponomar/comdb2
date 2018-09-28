@@ -18,46 +18,7 @@
 #include "sqliteInt.h"
 #include <stdlib.h>
 
-/* Character classes for tokenizing
-**
-** In the sqlite3GetToken() function, a switch() on aiClass[c] is implemented
-** using a lookup table, whereas a switch() directly on c uses a binary search.
-** The lookup table is much faster.  To maximize speed, and to ensure that
-** a lookup table is used, all of the classes need to be small integers and
-** all of them need to be used within the switch.
-*/
-#define CC_X          0    /* The letter 'x', or start of BLOB literal */
-#define CC_DIGIT      1    /* Digits */
-#define CC_KYWD       2    /* Alphabetics or '_'.  Usable in a keyword */
-#define CC_ID         3    /* unicode characters usable in IDs */
-#define CC_DOLLAR     4    /* '$' */
-#define CC_VARALPHA   5    /* '@', '#', ':'.  Alphabetic SQL variables */
-#define CC_VARNUM     6    /* '?'.  Numeric SQL variables */
-#define CC_SPACE      7    /* Space characters */
-#define CC_QUOTE      8    /* '"', '\'', or '`'.  String literals, quoted ids */
-#define CC_QUOTE2     9    /* '['.   [...] style quoted ids */
-#define CC_PIPE      10    /* '|'.   Bitwise OR or concatenate */
-#define CC_MINUS     11    /* '-'.  Minus or SQL-style comment */
-#define CC_LT        12    /* '<'.  Part of < or <= or <> */
-#define CC_GT        13    /* '>'.  Part of > or >= */
-#define CC_EQ        14    /* '='.  Part of = or == */
-#define CC_BANG      15    /* '!'.  Part of != */
-#define CC_SLASH     16    /* '/'.  / or c-style comment */
-#define CC_LP        17    /* '(' */
-#define CC_RP        18    /* ')' */
-#define CC_SEMI      19    /* ';' */
-#define CC_PLUS      20    /* '+' */
-#define CC_STAR      21    /* '*' */
-#define CC_PERCENT   22    /* '%' */
-#define CC_COMMA     23    /* ',' */
-#define CC_AND       24    /* '&' */
-#define CC_TILDA     25    /* '~' */
-#define CC_DOT       26    /* '.' */
-#define CC_LB        27    /* '{' */
-#define CC_RB        28    /* '}' */
-#define CC_ILLEGAL   29    /* Illegal character */
-
-static const unsigned char aiClass[] = {
+const unsigned char aiClass[] = {
 #ifdef SQLITE_ASCII
 /*         x0  x1  x2  x3  x4  x5  x6  x7  x8  x9  xa  xb  xc  xd  xe  xf */
 /* 0x */   29, 29, 29, 29, 29, 29, 29, 29, 29,  7,  7, 29,  7,  7, 29, 29,

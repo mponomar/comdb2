@@ -525,6 +525,9 @@ struct Vdbe {
   struct timespec tspec;  /* time of prepare, used for stable now() */
   u8 oe_flag;             /* ON CONFLICT action */
   u8 upsert_idx;          /* ON CONFLICT target */
+
+  /* COMDB2 MODIFICATION */
+  int prepFlags;
 };
 
 /*

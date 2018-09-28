@@ -3579,7 +3579,8 @@ SQLITE_API int sqlite3_prepare16_v2(
 
 /* COMDB2 MODIFICATION */
 enum {
-    SQLITE3_ENABLE_QUERY_PLAN = 1
+    SQLITE3_ENABLE_QUERY_PLAN = 1,
+    SQLITE3_PREPARE_NORMALIZE = 2
 };
 
 SQLITE_API int SQLITE_STDCALL sqlite3_prepare_flags(
@@ -10490,6 +10491,8 @@ SQLITE_API const char * SQLITE_STDCALL sqlite3_fingerprint(sqlite3*);
 SQLITE_API int SQLITE_STDCALL sqlite3_fingerprint_size(sqlite3*);
 SQLITE_API int SQLITE_STDCALL sqlite3_fingerprint_enable(sqlite3*);
 SQLITE_API int SQLITE_STDCALL sqlite3_fingerprint_disable(sqlite3*);
+
+int sqlite3_keyword_check(const char *, int);
 
 
 #ifdef __cplusplus

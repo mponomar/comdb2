@@ -526,6 +526,8 @@ int main(int argc, char **argv){
   printf("#ifndef INCLUDE_KEYWORDHASH_H \n");
   printf("#define INCLUDE_KEYWORDHASH_H \n"); 
   printf("%s", zHdr);
+  printf("#define charMap(X)   (0x20|(X))\n");
+
   printf("/* Hash score: %d */\n", bestCount);
   printf("static int keywordCode(const char *z, int n, int *pType){\n");
   printf("  /* zText[] encodes %d bytes of keywords in %d bytes */\n",
@@ -656,7 +658,7 @@ int main(int argc, char **argv){
   printf("  }\n");
   printf("  return n;\n");
   printf("}\n");
-  printf("int sqlite3KeywordCode(const unsigned char *z, int n){\n");
+  printf("static int sqlite3KeywordCode(const unsigned char *z, int n){\n");
   printf("  int id = TK_ID;\n");
   printf("  keywordCode((char*)z, n, &id);\n");
   printf("  return id;\n");

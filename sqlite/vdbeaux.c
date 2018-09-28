@@ -86,8 +86,8 @@ void sqlite3VdbeSetSql(Vdbe *p, const char *z, int n, int isPrepareV2){
   p->isPrepareV2 = (u8)isPrepareV2;
 #ifdef SQLITE_ENABLE_NORMALIZE
   assert( p->zNormSql==0 );
-  if( p->zSql && (prepFlags & SQLITE_PREPARE_NORMALIZE)!=0 ){
-    sqlite3Normalize(p, p->zSql, n, prepFlags);
+  if( p->zSql && (p->prepFlags & SQLITE3_PREPARE_NORMALIZE)!=0 ){
+    sqlite3Normalize(p, p->zSql, n, p->prepFlags);
     assert( p->zNormSql!=0 || p->db->mallocFailed );
   }
 #endif
