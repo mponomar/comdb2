@@ -296,6 +296,22 @@ static FuncDef *functionSearch(
   return 0;
 }
 
+#ifdef SQLITE_ENABLE_NORMALIZE
+FuncDef *sqlite3FunctionSearchN(
+  int h,               /* Hash of the name */
+  const char *zFunc,   /* Name of function */
+  int nFunc            /* Length of the name */
+){
+  FuncDef *p;
+  for(p=sqlite3BuiltinFunctions.a[h]; p; p=p->u.pHash){
+    if( sqlite3StrNICmp(p->zName, zFunc, nFunc)==0 ){
+      return p;
+    }
+  }
+  return 0;
+}
+#endif /* SQLITE_ENABLE_NORMALIZE */
+
 /*
 ** Insert a new FuncDef into a FuncDefHash hash table.
 */

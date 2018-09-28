@@ -135,6 +135,9 @@ static const char * const azCompileOpt[] = {
 #if SQLITE_ENABLE_MEMSYS5
   "ENABLE_MEMSYS5",
 #endif
+#if SQLITE_ENABLE_NORMALIZE
+  "ENABLE_NORMALIZE",
+#endif
 #if SQLITE_ENABLE_OVERSIZE_CELL_CHECK
   "ENABLE_OVERSIZE_CELL_CHECK",
 #endif

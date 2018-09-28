@@ -1234,6 +1234,8 @@ struct FuncDefHash {
   FuncDef *a[SQLITE_FUNC_HASH_SZ];       /* Hash table for functions */
 };
 
+#define SQLITE_FUNC_HASH(C,L) (((C)+(L))%SQLITE_FUNC_HASH_SZ)
+
 #ifdef SQLITE_USER_AUTHENTICATION
 /*
 ** Information held in the "sqlite3" database connection object and used
@@ -1868,6 +1870,9 @@ struct VTable {
 struct Table {
   char *zName;         /* Name of the table or view */
   Column *aCol;        /* Information about each column */
+#ifdef SQLITE_ENABLE_NORMALIZE
+  Hash *pColHash;      /* All columns indexed by name */
+#endif
   Index *pIndex;       /* List of SQL indexes on this table. */
   Select *pSelect;     /* NULL for tables.  Points to definition if a view. */
   FKey *pFKey;         /* Linked list of all foreign keys in this table */
@@ -2208,6 +2213,12 @@ struct IndexSample {
   tRowcnt *anLt;    /* Est. number of rows where key is less than this sample */
   tRowcnt *anDLt;   /* Est. number of distinct keys less than this sample */
 };
+
+/*
+** Possible values to use within the flags argument to sqlite3GetToken().
+*/
+#define SQLITE_TOKEN_QUOTED    0x1 /* Token is a quoted identifier. */
+#define SQLITE_TOKEN_KEYWORD   0x2 /* Token is a keyword. */
 
 /*
 ** Each token coming out of the lexer is an instance of
@@ -3928,6 +3939,9 @@ int sqlite3ExprIsInteger(Expr*, int*);
 int sqlite3ExprCanBeNull(const Expr*);
 int sqlite3ExprNeedsNoAffinityChange(const Expr*, char);
 int sqlite3IsRowid(const char*);
+#ifdef SQLITE_ENABLE_NORMALIZE
+int sqlite3IsRowidN(const char*, int);
+#endif
 void sqlite3GenerateRowDelete(
     Parse*,Table*,Trigger*,int,int,int,i16,u8,u8,u8,int);
 void sqlite3GenerateRowIndexDelete(Parse*, Table*, int, int, int*, int);
@@ -3949,6 +3963,9 @@ ExprList *sqlite3ExprListDup(sqlite3*,ExprList*,int);
 SrcList *sqlite3SrcListDup(sqlite3*,SrcList*,int);
 IdList *sqlite3IdListDup(sqlite3*,IdList*);
 Select *sqlite3SelectDup(sqlite3*,Select*,int);
+#ifdef SQLITE_ENABLE_NORMALIZE
+FuncDef *sqlite3FunctionSearchN(int,const char*,int);
+#endif
 #if SELECTTRACE_ENABLED
 void sqlite3SelectSetName(Select*,const char*);
 #else
@@ -4135,6 +4152,9 @@ void sqlite3Reindex(Parse*, Token*, Token*);
 void sqlite3AlterFunctions(void);
 void sqlite3AlterRenameTable(Parse*, Token*, Token*, int dryrun);
 int sqlite3GetToken(const unsigned char *, int *);
+#ifdef SQLITE_ENABLE_NORMALIZE
+int sqlite3GetTokenNormalized(const unsigned char *, int *, int *);
+#endif
 void sqlite3NestedParse(Parse*, const char*, ...);
 void sqlite3ExpirePreparedStatements(sqlite3*);
 int sqlite3CodeSubselect(Parse*, Expr *, int, int);
@@ -4289,6 +4309,9 @@ int sqlite3VdbeParameterIndex(Vdbe*, const char*, int);
 int sqlite3TransferBindings(sqlite3_stmt *, sqlite3_stmt *);
 void sqlite3ParserReset(Parse*);
 int sqlite3Reprepare(Vdbe*);
+#ifdef SQLITE_ENABLE_NORMALIZE
+void sqlite3Normalize(Vdbe*, const char*, int, u8);
+#endif
 void sqlite3ExprListCheckLength(Parse*, ExprList*, const char*);
 CollSeq *sqlite3BinaryCompareCollSeq(Parse *, Expr *, Expr *);
 int sqlite3TempInMemory(const sqlite3*);

@@ -84,6 +84,13 @@ void sqlite3VdbeSetSql(Vdbe *p, const char *z, int n, int isPrepareV2){
   assert( p->zSql==0 );
   p->zSql = sqlite3DbStrNDup(p->db, z, n);
   p->isPrepareV2 = (u8)isPrepareV2;
+#ifdef SQLITE_ENABLE_NORMALIZE
+  assert( p->zNormSql==0 );
+  if( p->zSql && (prepFlags & SQLITE_PREPARE_NORMALIZE)!=0 ){
+    sqlite3Normalize(p, p->zSql, n, prepFlags);
+    assert( p->zNormSql!=0 || p->db->mallocFailed );
+  }
+#endif
 }
 
 /*
@@ -111,6 +118,12 @@ void sqlite3VdbeSwap(Vdbe *pA, Vdbe *pB){
   iTmp = pA->updCols;
   pA->updCols = pB->updCols;
   pB->updCols = iTmp;
+#ifdef SQLITE_ENABLE_NORMALIZE
+  zTmp = pA->zNormSql;
+  pA->zNormSql = pB->zNormSql;
+  pB->zNormSql = zTmp;
+#endif
+
 
   pB->isPrepareV2 = pA->isPrepareV2;
 }
@@ -3109,6 +3122,9 @@ void sqlite3VdbeClearObject(sqlite3 *db, Vdbe *p){
   vdbeFreeOpArray(db, p->aOp, p->nOp);
   sqlite3DbFree(db, p->aColName);
   sqlite3DbFree(db, p->zSql);
+#ifdef SQLITE_ENABLE_NORMALIZE
+  sqlite3DbFree(db, p->zNormSql);
+#endif
 #ifdef SQLITE_ENABLE_STMT_SCANSTATUS
   for(i=0; i<p->nScan; i++){
     sqlite3DbFree(db, p->aScan[i].zName);
