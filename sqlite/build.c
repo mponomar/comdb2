@@ -28,6 +28,7 @@
 #include "pragma.h"
 
 /* COMDB2 MODIFICATION */
+#include "keywordhash.h"
 #include "logmsg.h"
 
 /* COMDB2 MODIFICATION */

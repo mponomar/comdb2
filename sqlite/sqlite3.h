@@ -10492,8 +10492,6 @@ SQLITE_API int SQLITE_STDCALL sqlite3_fingerprint_size(sqlite3*);
 SQLITE_API int SQLITE_STDCALL sqlite3_fingerprint_enable(sqlite3*);
 SQLITE_API int SQLITE_STDCALL sqlite3_fingerprint_disable(sqlite3*);
 
-int sqlite3_keyword_check(const char *, int);
-
 
 #ifdef __cplusplus
 }  /* end of the 'extern "C"' block */

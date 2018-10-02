@@ -682,7 +682,7 @@ static void add_steps(struct sqlclntstate *clnt, double steps)
 /* Save copy of sql statement and performance data.  If any other code
    should run after a sql statement is completed it should end up here. */
 static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
-                               struct sqlclntstate *clnt, int stmt_rc)
+                               struct sqlclntstate *clnt, struct sql_state *rec, int stmt_rc)
 {
     if (thd == NULL || clnt == NULL) {
         return;
@@ -723,6 +723,7 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
     h->time = comdb2_time_epochms() - thd->startms;
     h->when = thd->stime;
     h->txnid = rqid;
+    h->rows = clnt->nrows;
 
     time_metric_add(thedb->service_time, h->time);
 
@@ -742,6 +743,15 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
         reqlog_set_error(logger, clnt->saved_errstr, clnt->saved_rc);
 
     reqlog_set_rows(logger, clnt->nrows);
+    if (gbl_fingerprint_queries) {
+        const char *sql = sqlite3_normalized_sql(rec->stmt);
+        if (sql) {
+            char fingerprint[FINGERPRINTSZ];
+            normalized_sql_to_fingerprint(sql, fingerprint);
+            add_fingerprint(fingerprint, h->cost, h->time, h->rows, sql);
+        }
+    }
+
     reqlog_end_request(logger, stmt_rc, __func__, __LINE__);
 
     if (clnt->rawnodestats) {
@@ -1747,14 +1757,6 @@ static int add_stmt_table(struct sqlthdstate *thd, const char *sql,
     strcpy(entry->sql, sql); /* sql is at most MAX_HASH_SQL_LENGTH - 1 */
     entry->stmt = stmt;
 
-    if (gbl_fingerprint_queries) {
-        size_t fsz = sqlite3_fingerprint_size(thd->sqldb);
-        size_t min_fsz = (sizeof(entry->fingerprint) < fsz)
-                             ? sizeof(entry->fingerprint)
-                             : fsz;
-        memcpy(entry->fingerprint, sqlite3_fingerprint(thd->sqldb), min_fsz);
-    }
-
     if (actual_sql && gbl_debug_temptables)
         entry->query = strdup(actual_sql);
     else
@@ -2359,12 +2361,6 @@ static void query_stats_setup(struct sqlthdstate *thd,
     /* reqlog */
     setup_reqlog(thd, clnt);
 
-    /* fingerprint info */
-    if (gbl_fingerprint_queries)
-        sqlite3_fingerprint_enable(thd->sqldb);
-    else
-        sqlite3_fingerprint_disable(thd->sqldb);
-
     /* using case sensitive like? enable */
     if (clnt->using_case_insensitive_like)
         toggle_case_sensitive_like(thd->sqldb, 1);
@@ -2656,8 +2652,11 @@ static int get_prepared_stmt_int(struct sqlthdstate *thd,
 
     /* if we did not get a cached stmt, need to prepare it in sql engine */
     while (rec->stmt == NULL) {
+        int flags = 0;
+        if (gbl_fingerprint_queries)
+            flags |= SQLITE3_PREPARE_NORMALIZE;
         clnt->no_transaction = 1;
-        rc = sqlite3_prepare_v2(thd->sqldb, rec->sql, -1, &rec->stmt, &tail);
+        rc = sqlite3_prepare_flags(thd->sqldb, rec->sql, -1, &rec->stmt, &tail, flags);
         clnt->no_transaction = 0;
         if (rc == SQLITE_OK) {
             rc = sqlite3LockStmtTables(rec->stmt);
@@ -3238,7 +3237,7 @@ static void sqlite_done(struct sqlthdstate *thd, struct sqlclntstate *clnt,
 {
     sqlite3_stmt *stmt = rec->stmt;
 
-    sql_statement_done(thd->sqlthd, thd->logger, clnt, outrc);
+    sql_statement_done(thd->sqlthd, thd->logger, clnt, rec, outrc);
 
     if (stmt && !((Vdbe *)stmt)->explain && ((Vdbe *)stmt)->nScan > 1 &&
         (BDB_ATTR_GET(thedb->bdb_attr, PLANNER_WARN_ON_DISCREPANCY) == 1 ||
@@ -3296,14 +3295,6 @@ static inline void post_run_reqlog(struct sqlthdstate *thd,
     log_queue_time(thd->logger, clnt);
     if (rec->sql)
         reqlog_set_sql(thd->logger, rec->sql);
-    if (gbl_fingerprint_queries) {
-        if (rec->stmt_entry)
-            reqlog_set_fingerprint(thd->logger, rec->stmt_entry->fingerprint,
-                                   sizeof(rec->stmt_entry->fingerprint));
-        else
-            reqlog_set_fingerprint(thd->logger, sqlite3_fingerprint(thd->sqldb),
-                                   sqlite3_fingerprint_size(thd->sqldb));
-    }
 }
 
 static int handle_sqlite_requests(struct sqlthdstate *thd,

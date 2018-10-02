@@ -26,7 +26,8 @@
 #include "comdb2systbl.h"
 #include "comdb2systblInt.h"
 
-#define INCLUDE_KEYWORDHASH_H
+#include "sqliteInt.h"
+#include "parse.h"
 #include "keywordhash.h" /* SQLITE_N_KEYWORD */
 
 /*

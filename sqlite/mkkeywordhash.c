@@ -526,10 +526,12 @@ int main(int argc, char **argv){
   printf("#ifndef INCLUDE_KEYWORDHASH_H \n");
   printf("#define INCLUDE_KEYWORDHASH_H \n"); 
   printf("%s", zHdr);
+  printf("#ifndef charMap\n");
   printf("#define charMap(X)   (0x20|(X))\n");
+  printf("#endif\n");
+  printf("#define SQLITE_N_KEYWORD %d\n", nKeyword);
 
-  printf("/* Hash score: %d */\n", bestCount);
-  printf("static int keywordCode(const char *z, int n, int *pType){\n");
+
   printf("  /* zText[] encodes %d bytes of keywords in %d bytes */\n",
           totalLen + nKeyword, nChar+1 );
   for(i=j=k=0; i<nKeyword; i++){
@@ -632,6 +634,9 @@ int main(int argc, char **argv){
   }
   printf("%s  };\n", j==0 ? "" : "\n");
 
+
+  printf("/* Hash score: %d */\n", bestCount);
+  printf("static int keywordCode(const char *z, int n, int *pType){\n");
   printf("  int i, j;\n");
   printf("  const char *zKW;\n");
   printf("  if( n>=2 ){\n");
@@ -664,9 +669,17 @@ int main(int argc, char **argv){
   printf("  return id;\n");
   printf("}\n");
 
+  printf("static int sqlite3_keyword_name(int i,const char **pzName,int *pnName){\n");
+  printf("  if( i<0 || i>=SQLITE_N_KEYWORD ) return SQLITE_ERROR;\n");
+  printf("  *pzName = zText + aOffset[i];\n");
+  printf("  *pnName = aLen[i];\n");
+  printf("  return SQLITE_OK;\n");
+  printf("}\n");
+  printf("static int sqlite3_keyword_count(void){ return SQLITE_N_KEYWORD; }\n");
+  printf("static int sqlite3_keyword_check(const char *zName, int nName){\n");
+  printf("  return TK_ID!=sqlite3KeywordCode((const u8*)zName, nName);\n");
+  printf("}\n");
   printf("#endif // INCLUDE_KEYWORDHASH_H \n");
-
-  printf("#define SQLITE_N_KEYWORD %d\n", nKeyword);
 
   printf("#ifdef INCLUDE_FINALKEYWORD_H \n");
   

@@ -3709,7 +3709,6 @@ void sqlite3ErrorMsg(Parse*, const char*, ...);
 void sqlite3Dequote(char*);
 int sqlite3IsCorrectlyQuoted(char *);
 void sqlite3TokenInit(Token*,char*);
-static int sqlite3KeywordCode(const unsigned char*, int);
 int sqlite3RunParser(Parse*, const char*, char **);
 void sqlite3FinishCoding(Parse*);
 int sqlite3GetTempReg(Parse*);

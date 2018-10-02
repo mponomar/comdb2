@@ -53,6 +53,7 @@ add_library(sqlite
   ext/misc/json1.c
   ext/expert/sqlite3expert.c
   ext/misc/series.c
+  ext/comdb2/fingerprints.c
   fault.c
   func.c
   global.c

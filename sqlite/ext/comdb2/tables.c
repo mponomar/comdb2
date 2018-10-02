@@ -270,6 +270,8 @@ int comdb2SystblInit(
   if (rc == SQLITE_OK)
     rc = sqlite3_create_module(db, "comdb2_systables", &systblSystabsModule, 0);
   if (rc == SQLITE_OK)
+    rc = sqlite3_create_module(db, "comdb2_fingerprints", &systblFingerprintsModule, 0);
+  if (rc == SQLITE_OK)
     rc = systblTypeSamplesInit(db);
   if (rc == SQLITE_OK)
     rc = systblRepNetQueueStatInit(db);

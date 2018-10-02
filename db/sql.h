@@ -55,7 +55,7 @@ enum transaction_level {
  * of appsock threads with small stacks. */
 
 #define MAX_HASH_SQL_LENGTH 8192
-#define FINGERPRINTSZ 16
+#define FINGERPRINTSZ 20
 
 /* Static rootpages numbers. */
 enum { RTPAGE_SQLITE_MASTER = 1, RTPAGE_START = 2 };
@@ -838,6 +838,7 @@ struct sql_hist {
     double cost;
     int time;
     int when;
+    int rows;
     int64_t txnid;
     struct conninfo conn;
 };
@@ -1002,5 +1003,18 @@ struct query_stats {
     int64_t npwrites;
 };
 int get_query_stats(struct query_stats *stats);
+
+struct fingerprint_track {
+    unsigned char fingerprint[FINGERPRINTSZ];
+    int64_t count;
+    int64_t cost; /* Cumulative cost */
+    int64_t time; /* Cumulative execution time */
+    int64_t rows; /* Cummulative number of rows selected */
+    char *normalized_query;
+};  
+
+void normalized_sql_to_fingerprint(const char *sql, char fingerprint[FINGERPRINTSZ]);
+void add_fingerprint(unsigned char fingerprint[FINGERPRINTSZ], int64_t cost,
+                     int64_t time, int64_t nrows, const char *normalized_sql);
 
 #endif

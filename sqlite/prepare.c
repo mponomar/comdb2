@@ -742,17 +742,20 @@ static int sqlite3Prepare(
   }
 #endif
 
-  if( db->init.busy==0 ){
-    Vdbe *pVdbe = sParse.pVdbe;
-    sqlite3VdbeSetSql(pVdbe, zSql, (int)(sParse.zTail-zSql), saveSqlFlag);
-  }
   if( sParse.pVdbe && (rc!=SQLITE_OK || db->mallocFailed) ){
     sqlite3VdbeFinalize(sParse.pVdbe);
     assert(!(*ppStmt));
   }else{
     *ppStmt = (sqlite3_stmt*)sParse.pVdbe;
-    ((Vdbe*)(*ppStmt))->prepFlags = flags;
+    if (*ppStmt) {
+        ((Vdbe*)(*ppStmt))->prepFlags = flags;
+        if( db->init.busy==0 ){
+            Vdbe *pVdbe = sParse.pVdbe;
+            sqlite3VdbeSetSql(pVdbe, zSql, (int)(sParse.zTail-zSql), saveSqlFlag);
+        }
+    }
   }
+
 
   if( zErrMsg ){
     sqlite3ErrorWithMsg(db, rc, "%s", zErrMsg);
@@ -1273,7 +1276,7 @@ int sqlite3_prepare_flags(
 ){
   int rc;
   /* COMDB2 MODIFICATION */
-  rc = sqlite3LockAndPrepare(db,zSql,nBytes,0,0,ppStmt,pzTail,flags);
+  rc = sqlite3LockAndPrepare(db,zSql,nBytes,1,0,ppStmt,pzTail,flags);
   assert( rc==SQLITE_OK || ppStmt==0 || *ppStmt==0 );  /* VERIFY: F13021 */
   return rc;
 }
@@ -1290,24 +1293,6 @@ int sqlite3_prepare_v2(
   rc = sqlite3LockAndPrepare(db,zSql,nBytes,1,0,ppStmt,pzTail,0);
   assert( rc==SQLITE_OK || ppStmt==0 || *ppStmt==0 );  /* VERIFY: F13021 */
   return rc;
-}
-
-int sqlite3_fingerprint_size(sqlite3 *db) {
-    return sizeof(db->fingerprint);
-}
-
-const char *sqlite3_fingerprint(sqlite3 *db) {
-    return db->fingerprint;
-}
-
-int sqlite3_fingerprint_enable(sqlite3 *db) {
-    db->should_fingerprint = 1;
-    return 0;
-}
-
-int sqlite3_fingerprint_disable(sqlite3 *db) {
-    db->should_fingerprint = 0;
-    return 0;
 }
 
 #ifndef SQLITE_OMIT_UTF16

@@ -34,6 +34,7 @@ const sqlite3_module systblReplStatsModule;
 const sqlite3_module systblActivelocksModule;
 const sqlite3_module systblLogicalOpsModule;
 const sqlite3_module systblSystabsModule;
+const sqlite3_module systblFingerprintsModule;
 
 int systblTypeSamplesInit(sqlite3 *db);
 int systblRepNetQueueStatInit(sqlite3 *db);
