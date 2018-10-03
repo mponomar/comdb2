@@ -746,6 +746,7 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
     if (gbl_fingerprint_queries) {
         const char *sql = sqlite3_normalized_sql(rec->stmt);
         if (sql) {
+            printf("%s -> %s\n", clnt->sql, sql);
             char fingerprint[FINGERPRINTSZ];
             normalized_sql_to_fingerprint(sql, fingerprint);
             add_fingerprint(fingerprint, h->cost, h->time, h->rows, sql);

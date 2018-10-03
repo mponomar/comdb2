@@ -912,7 +912,8 @@ static int estimateNormalizedSize(
     z++;
     nOut += 5; /* ?,?,? */
   }
-  return nOut;
+  /* *2 is pessimistic - we occasionally space pad */
+  return nOut*2;
 }
 
 /*
@@ -1069,6 +1070,9 @@ void sqlite3Normalize(
       case TK_FLOAT:
       case TK_VARIABLE:
       case TK_BLOB: {
+        if( j>0 && (sqlite3IsIdChar(z[j-1]) || z[j-1] == '?') && sqlite3IsIdChar(zSql[i]) ){
+          z[j++] = ' ';
+        }
         z[j++] = '?';
         break;
       }
@@ -1132,7 +1136,7 @@ void sqlite3Normalize(
             break;
           }
         }
-        if( j>0 && sqlite3IsIdChar(z[j-1]) && sqlite3IsIdChar(zSql[i]) ){
+        if( j>0 && (sqlite3IsIdChar(z[j-1]) || z[j-1] == '?') && sqlite3IsIdChar(zSql[i]) ){
           z[j++] = ' ';
         }
         if( tokenType==TK_ID ){
