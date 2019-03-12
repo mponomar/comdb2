@@ -3240,7 +3240,7 @@ int offload_comm_send_blockreq(char *host, void *rqid, void *buf, int buflen)
     int rc = 0;
     int len = buflen + sizeof(net_block_msg_t);
     net_block_msg_t *net_msg = malloc(len);
-    net_msg->rqid = (unsigned long long)rqid;
+    net_msg->rqid = (unsigned long long)(intptr_t)rqid;
     net_msg->datalen = buflen;
     memcpy(net_msg->data, buf, buflen);
     rc = offload_net_send(host, NET_BLOCK_REQ, net_msg, len, 1);
@@ -3281,7 +3281,7 @@ static void net_block_reply(void *hndl, void *uptr, char *fromhost,
     net_block_msg_t *net_msg = dtap;
     /* using p_slock pointer as the request id now, this contains info about
      * socket request.*/
-    struct buf_lock_t *p_slock = (struct buf_lock_t *)net_msg->rqid;
+    struct buf_lock_t *p_slock = (struct buf_lock_t *)(intptr_t) net_msg->rqid;
     {
         Pthread_mutex_lock(&p_slock->req_lock);
         if (p_slock->reply_state == REPLY_STATE_DISCARD) {

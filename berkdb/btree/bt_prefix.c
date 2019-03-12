@@ -963,7 +963,7 @@ pfx_bulk_page(DBC *dbc, uint8_t * np, int32_t *offp, uint32_t space)
 		*offp-- = len;
 
 		/* ALIGN FOR THE NEXT ENTRY */
-		np = (uint8_t *) ALIGN((intptr_t)cur, sizeof(int));
+		np = (uint8_t *) (intptr_t) ALIGN((intptr_t)cur, sizeof(int));
 		space -= (np - cur);
 	}
 

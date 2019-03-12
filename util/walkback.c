@@ -489,6 +489,7 @@ static int __linux_stack_walkback(ucontext_t *context, unsigned maxframes,
                                                   void *handlerarg),
                                   void *handlerarg)
 {
+#if 0
 #ifdef USE_UNWIND
     unw_cursor_t cursor;
     unsigned int i;
@@ -507,6 +508,8 @@ static int __linux_stack_walkback(ucontext_t *context, unsigned maxframes,
             break;
         }
     }
+#endif
+    return 0;
 #endif
     return 0;
 }
