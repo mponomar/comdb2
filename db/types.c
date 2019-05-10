@@ -14553,6 +14553,8 @@ int get_type(struct param_data *param, void *p, int len, int type,
         return 0;
     case CLIENT_BLOB:
     case CLIENT_BYTEARRAY:
+        if (p == NULL && !param->null)
+            p = "";
         param->u.p = p;
         param->len = len;
         return 0;

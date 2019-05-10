@@ -1187,9 +1187,14 @@ static int newsql_param_value(struct sqlclntstate *clnt,
     param->name = val->varname;
     param->pos = val->has_index ? val->index : 0;
     param->type = newsql_to_client_type(val->type);
-    if ((val->has_isnull && val->isnull) || val->value.data == NULL) {
-        param->null = 1;
-        return 0;
+    if ((val->has_isnull && val->isnull) || (val->value.data == NULL)) {
+        if (param->type == CLIENT_BLOB && val->value.len == 0 && val->has_isnull == 1 && val->isnull == 0) {
+            /* fallthrough */
+        }
+        else {
+            param->null = 1;
+            return 0;
+        }
     }
     int little = appdata->sqlquery->little_endian;
     void *p = val->value.data;
