@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <cdb2api.h>
 #include <string.h>
+#include <stdint.h>
 
 const char *db;
 
@@ -197,12 +198,28 @@ void test_02()
     test_close(hndl);
 }
 
+void test_03(void) {
+    cdb2_hndl_tp *hndl = NULL;
+
+    test_open(&hndl, db);
+
+    test_exec(hndl, "create table t2(a int, b blob not null)");
+    int i = 1;
+    uint8_t blob[] = {0};
+    test_bind_param(hndl, "a", CDB2_INTEGER, &i, sizeof(int));
+    test_bind_param(hndl, "b", CDB2_BLOB, blob, 0);
+    test_exec(hndl, "insert into t2(a, b) values(@a, @b)");
+
+    test_close(hndl);
+}
+
 int main(int argc, char *argv[])
 {
     db = argv[1];
 
     test_01();
     test_02();
+    test_03();
 
     return 0;
 }
