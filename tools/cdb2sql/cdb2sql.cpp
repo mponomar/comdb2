@@ -473,6 +473,16 @@ char *get_parameter(const char **sqlstr)
     return copy;
 }
 
+static uint8_t nibble_value(char c) {
+    assert(isxdigit(c));
+    if (c >= '0' && c <= '9')
+        return c - '0';
+    else if (c >= 'A' && c <= 'F')
+        return 10 + (c - 'A');
+    else
+        return 10 + (c - 'a');
+}
+
 void *get_val(const char **sqlstr, int type, int *vallen)
 {
     while (isspace(**sqlstr))
@@ -521,6 +531,31 @@ void *get_val(const char **sqlstr, int type, int *vallen)
 
         *vallen = sizeof(*dt);
         return dt;
+    } else if (type == CDB2_BLOB) {
+        const char *s = *sqlstr;
+        /* must start with [xX], followed by quote, should end with a quote, lenght of string
+         * inside quotes must be even */
+        if (len < 3 ||
+            ((s[0] != 'x' || s[0] != 'X') && s[1] != '\'' && *(end-1) != '\'') ||
+            ((len-3) % 2 != 0)) {
+
+            fprintf(stderr, "not a blob value\n");
+            return NULL;
+        }
+        s+=2;
+        uint8_t *blob = new uint8_t[(len-3)/2];
+        int off = 0;
+        while (s != end-1){
+            if (!isxdigit(s[0]) || !isxdigit(s[1])) {
+                fprintf(stderr, "not a blob value\n");
+                delete []blob;
+                return NULL;
+            }
+            blob[off] = nibble_value(s[0]) << 4;
+            blob[off] |= nibble_value(s[1]);
+            s+=2;
+            off++;
+        }
     } else {
         /* ?? */
     }
