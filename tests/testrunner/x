@@ -1,0 +1,4 @@
+#!/bin/bash
+
+cd /comdb2/tests
+make -j3 -k 2>&1

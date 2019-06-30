@@ -1,4 +1,6 @@
-FROM ubuntu:xenial
+FROM ubuntu:latest
+
+ENV DEBIAN_FRONTEND noninteractive 
 
 RUN apt-get update && \
     apt-get install -y \
@@ -6,6 +8,7 @@ RUN apt-get update && \
     bc \
     bison \
     build-essential \
+    ninja-build \
     flex \
     gawk \
     liblz4-dev \
@@ -45,10 +48,10 @@ RUN cd /comdb2 &&  \
     rm -rf build && \
     mkdir build && \
     cd build && \
-    cmake -DWITH_TCL=1 .. && \
-    make -j4 && \
-    make -j4 test-tools && \
-    make install &&  \
+    cmake -DWITH_TCL=1 -DCMAKE_BUILD_TYPE=Debug .. -G Ninja && \
+    ninja && \
+    ninja test-tools && \
+    ninja install &&  \
     cp /comdb2/tests/docker/client / && \
     cp /comdb2/tests/docker/server / && \
     apt-get clean

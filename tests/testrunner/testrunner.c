@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <stddef.h>
 #include <ctype.h>
+#include <stdint.h>
 
 #include <sys/types.h>
 #include <regex.h>
@@ -12,10 +13,20 @@
 #include <signal.h> 
 #include <time.h>
 
+#include <cdb2api.h>
+
 int testnum=0, totaltests=0;
 int lines, cols;
 int passed, failed;
 time_t start_time;
+cdb2_hndl_tp *db;
+
+enum displaymode {
+    MODE_SCRIPT,
+    MODE_INTERACTIVE
+};
+
+enum displaymode mode = MODE_INTERACTIVE;
 
 enum status {
     ST_UNKNOWN,
@@ -29,6 +40,7 @@ enum status {
     ST_DBFAIL,
     ST_FAIL,
     ST_SUCCESS,
+    ST_MAX
 };
 
 typedef enum status status_type;
@@ -134,6 +146,25 @@ int cmptest(const void *p1, const void *p2) {
     return t1->start_time - t2->start_time;
 }
 
+void db_init_test(void) {
+    int project = 0;
+    uint8_t runid[] = { 0x66, 0x6a, 0xa8, 0x0c, 0xc4, 0xf6, 0x40, 0xd0, 0x88, 0x48, 0xa5, 0x13, 0x49, 0xf2, 0x51, 0x68 };
+    
+    if (db == NULL)
+        return;
+
+    cdb2_clearbindings(db);
+    cdb2_bind_param(db, "project", CDB2_INTEGER, &project, sizeof(project));
+    cdb2_bind_param(db, "runid", CDB2_BLOB, runid, sizeof(runid));
+
+    int rc = cdb2_run_statement(db, "delete from testcases where project=@project and runid=@runid");
+    if (rc) {
+        fprintf(stderr, "can't init db for testcase: %d %s\n", rc, cdb2_errstr(db));
+        exit(1);
+    }
+
+}
+
 char* runtime_to_string(time_t t) {
     char str[100] = {0};
     int seconds=0, minutes=0, hours=0;
@@ -144,11 +175,11 @@ char* runtime_to_string(time_t t) {
     seconds = t;
 #define suffix(t) ((t == 1) ? "" : "s")
     if (hours)
-        sprintf(str+strlen(str), "%d hour%s ", hours, suffix(hours));
+        sprintf(str+strlen(str), "%dh ", hours);
     if (minutes)
-        sprintf(str+strlen(str), "%d minute%s ", minutes, suffix(minutes));
+        sprintf(str+strlen(str), "%dm ", minutes);
     if (seconds)
-        sprintf(str+strlen(str), "%d second%s ", seconds, suffix(seconds));
+        sprintf(str+strlen(str), "%ds ", seconds);
 #undef suffix
     return strdup(str);
 }
@@ -157,6 +188,27 @@ void draw(void) {
     static const char *progress_chars = "\\|/-";
     static int pc = 0;
     int now = time(NULL);
+    static int last = 0;
+
+    if (mode == MODE_SCRIPT) {
+        if (last != now) {
+            int counters[ST_MAX] = {0};
+            for (int i = 0; i < numtests; i++) {
+                counters[tests[i].status]++;
+            }
+            char *r = runtime_to_string(time(NULL) - start_time);
+            printf("%d/%d runtime %s ", numtests, totaltests, r);
+            free(r);
+            for (int i = 0; i < ST_MAX; i++) {
+                if (counters[i])
+                    printf("%d %s ", counters[i], status_string(i));
+            }
+            printf("\n");
+            fflush(NULL);
+            last = now;
+        }
+        return;
+    }
 
     qsort(tests, numtests, sizeof(struct test), cmptest);
 
@@ -256,6 +308,8 @@ status_type status_from_string(const char *s) {
 }
 
 void add_test(char *name, char *status) {
+    if (db == NULL)
+        return;
     tests = realloc(tests, sizeof(struct test) * (numtests+1));
     if (tests == NULL)
         abort();
@@ -270,6 +324,40 @@ void add_test(char *name, char *status) {
     tests[numtests].start_time = time(NULL);
     tests[numtests].timeout = 0;
     numtests++;
+
+    int project = 0;
+    uint8_t runid[] = { 0x66, 0x6a, 0xa8, 0x0c, 0xc4, 0xf6, 0x40, 0xd0, 0x88, 0x48, 0xa5, 0x13, 0x49, 0xf2, 0x51, 0x68 };
+
+    cdb2_clearbindings(db);
+    cdb2_bind_param(db, "project", CDB2_INTEGER, &project, sizeof(project));
+    cdb2_bind_param(db, "runid", CDB2_BLOB, runid, sizeof(runid));
+    cdb2_bind_param(db, "testcase", CDB2_CSTRING, name, strlen(name));
+
+    int rc = cdb2_run_statement(db, "insert into testcases(project, runid, testcase, status, starttime, statustime, attempt) values(@project, @runid, @testcase, 0, now(), now(), 1)");
+    if (rc) {
+        fprintf(stderr, "Can't update db: %d %s\n", rc, cdb2_errstr(db));
+        exit(1);
+    }
+}
+
+void update_testcase(char *testcase, int status) {
+    int project = 0;
+    uint8_t runid[] = { 0x66, 0x6a, 0xa8, 0x0c, 0xc4, 0xf6, 0x40, 0xd0, 0x88, 0x48, 0xa5, 0x13, 0x49, 0xf2, 0x51, 0x68 };
+
+    if (db == NULL)
+        return;
+
+    cdb2_clearbindings(db);
+    cdb2_bind_param(db, "project", CDB2_INTEGER, &project, sizeof(project));
+    cdb2_bind_param(db, "runid", CDB2_BLOB, runid, sizeof(runid));
+    cdb2_bind_param(db, "testcase", CDB2_CSTRING, testcase, strlen(testcase));
+    cdb2_bind_param(db, "status", CDB2_INTEGER, &status, sizeof(status));
+
+    int rc = cdb2_run_statement(db, "update testcases set statustime=now(), status=@status, runtime=now()-starttime where project=@project and runid=@runid and testcase=@testcase");
+    if (rc) {
+        fprintf(stderr, "Can't update db: %d %s\n", rc, cdb2_errstr(db));
+        exit(1);
+    }
 }
 
 char *regmatch_to_str(char *s, regmatch_t *match) {
@@ -324,8 +412,10 @@ void update_test_line(char *testname, char *status) {
                 st == ST_FAIL)
             failed++;
 
-        if (t->status <= ST_RUNNING)
+        if (t->status <= ST_RUNNING) {
             t->status = status_from_string(status);
+            update_testcase(testname, st);
+        }
         t->start_time = time(NULL);
     }
 }
@@ -335,6 +425,9 @@ int main(int argc, char *argv[]) {
     int rc;
     regex_t firstline;
     regmatch_t matches[3];
+
+    if (!isatty(fileno(stdin)))
+        mode = MODE_SCRIPT;
 
     FILE *testrun = popen("./x", "r");
 
@@ -349,17 +442,26 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    if (read_screen_size())
-        exit(1);
-    signal(SIGWINCH, update_screen_size);
+    rc = cdb2_open(&db, "cdbtdb", "10.0.0.42", CDB2_DIRECT_CPU);
+    if (rc) {
+        fprintf(stderr, "open: %d %s\n", rc, cdb2_errstr(db));
+        db = NULL;
+    }
 
-    clear();    
-    lgoto(0,0);
+    db_init_test();
+
+    if (mode == MODE_INTERACTIVE) {
+        if (read_screen_size())
+            exit(1);
+        signal(SIGWINCH, update_screen_size);
+        clear();    
+        lgoto(0,0);
+    }
 
     start_time = time(NULL);
 
     for (;;) {
-        if (screen_updated > last_screen_updated) {
+        if (mode == MODE_INTERACTIVE && screen_updated > last_screen_updated) {
             last_screen_updated = screen_updated;
             if (read_screen_size())
                 return 1;
@@ -379,6 +481,11 @@ int main(int argc, char *argv[]) {
             n = regmatch_to_num(line, &matches[2]);
             if (n > totaltests)
                 totaltests = n;
+            static int once = 1;
+            if (once) {
+                once = 0;
+                printf("found %d tests\n", totaltests);
+            }
         }
         if (line[0] == '!') {
             char *c = strchr(line, ':');

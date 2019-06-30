@@ -24,9 +24,15 @@ while [[ $1 = -* ]]; do
 done
 
 
-if [[ "$src" = "" ]] || [[ "$numnodes" = "" ]]; then
-    echo "Usage: $0 -s source_directory -p nodeprefix -n numnodes [-c commands] [-f file]" >&2
-    exit 1
+#if [[ "$src" = "" ]] || [[ "$numnodes" = "" ]]; then
+#    echo "Usage: $0 [-s source_directory] [-p nodeprefix] [-n numnodes] [-c commands] [-f file]" >&2
+#    exit 1
+#fi
+if [[ -z "$src" ]]; then
+    src=$(realpath ../../)
+fi
+if [[ -z "$numnodes" ]]; then
+    numnodes=5
 fi
 
 prefix="$(git --git-dir "$src/.git" rev-parse --short HEAD)"
@@ -59,6 +65,11 @@ if [[ "$script" != "" ]]; then
     cp $script common/user_script
     chmod +x common/user_script
 fi
+
+if [[ -z "$script" && -z "$commands" ]]; then
+    commands="while :; do sleep 3600; done"
+fi
+
 docker build -t comdb2test:$prefix -f $src/tests/docker/Dockerfile.install $src
 
 echo $cluster >common/cluster
