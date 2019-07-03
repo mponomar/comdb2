@@ -1,0 +1,21 @@
+watch "cdb2sql --tabular cdbtdb \"
+select status_string as status, count(status_string) as count
+from testcases join testcasestatuses 
+on testcases.status = testcasestatuses.status
+where project=0 and 
+runid=x'666aa80cc4f640d08848a51349f25168' 
+group by status_string
+\";
+echo; cdb2sql cdbtdb --tabular \"
+select testcase, status_string, 
+      case testcases.status > 6 
+        when 1 then runtime
+        else now() - starttime
+      end as runtime
+from testcases 
+join testcasestatuses 
+on testcases.status = testcasestatuses.status 
+where project=0 and 
+      runid=x'666aa80cc4f640d08848a51349f25168' 
+order by testcases.status asc, runtime desc
+\""
