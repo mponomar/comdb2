@@ -35,12 +35,12 @@ mkdir -p ${TESTDIR}/logs/
 
 call_unsetup() {
     [[ $COMDB2_UNITTEST == 1 ]] && return
-    ${TESTSROOTDIR}/unsetup $successful &> >(gawk '{ print strftime("%H:%M:%S>"), $0; fflush(); }' | tee ${TESTDIR}/logs/${DBNAME}.unsetup | cut -c11- | grep "^!" )
+    ${TESTSROOTDIR}/unsetup $successful &> >(tee ${TESTDIR}/logs/${DBNAME}.unsetup | grep "^!" )
 }
 
 warn_long_setup() {
     start=$(date +%s)
-    ( ${TESTSROOTDIR}/setup &> >(gawk '{ print strftime("%H:%M:%S>"), $0; fflush(); }' | tee ${TESTDIR}/logs/${DBNAME}.setup | cut -c11- | grep "^!" ) ) &
+    ( ${TESTSROOTDIR}/setup &> >(tee ${TESTDIR}/logs/${DBNAME}.setup | grep "^!" ) ) &
     pid=$!
     kill -0 $pid >/dev/null 2>&1
     r=$?
@@ -174,11 +174,11 @@ call_setup() {
          warn_long_setup
          rc=$?
     else
-        { timeout ${SETUP_TIMEOUT} ${TESTSROOTDIR}/setup 2>&1 || echo $?; } | gawk '{ print strftime("%H:%M:%S>"), $0; fflush(); }' | tee ${TESTDIR}/logs/${DBNAME}.setup | cut -c11- | grep "^!"
+        { timeout ${SETUP_TIMEOUT} ${TESTSROOTDIR}/setup 2>&1 || echo $?; } | tee ${TESTDIR}/logs/${DBNAME}.setup | grep "^!"
     fi
     sleep 0.8 # wait a bit for any cores
     #last line of .setup file will contain the error rc if any
-    ret=`tail -1 ${TESTDIR}/logs/${DBNAME}.setup | cut -c11-`
+    ret=`tail -1 ${TESTDIR}/logs/${DBNAME}.setup`
 
     cr=`find_cores ${DBNAME} $DBDIR`
 
@@ -253,7 +253,7 @@ if [[ "x${DEBUGGER}" == "xcallgrind" ]]; then
     callgrind_control -i on
 fi
 
-timeout ${TEST_TIMEOUT} ./runit ${DBNAME} 2>&1  | gawk '{ print strftime("%H:%M:%S>"), $0; fflush(); }' &> ${TESTDIR}/logs/${DBNAME}.testcase
+timeout ${TEST_TIMEOUT} ./runit ${DBNAME} 2>&1 &> ${TESTDIR}/logs/${DBNAME}.testcase
 rc=${PIPESTATUS[0]}
 
 DATETIME=$(date +"%Y-%m-%d %H:%M:%S")
