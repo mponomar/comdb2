@@ -572,6 +572,7 @@ static int bdb_get_first_data_length_int(bdb_state_type *bdb_state, int *bdberr)
     }
 
     int stripen, length=0;
+    assert(bdb_state->nstripes >= 1);
 
     /* Look at each stripe file until we find some data. */
     for (stripen = 0; stripen < bdb_state->nstripes; stripen++) {
