@@ -308,8 +308,6 @@ status_type status_from_string(const char *s) {
 }
 
 void add_test(char *name, char *status) {
-    if (db == NULL)
-        return;
     tests = realloc(tests, sizeof(struct test) * (numtests+1));
     if (tests == NULL)
         abort();
@@ -324,6 +322,9 @@ void add_test(char *name, char *status) {
     tests[numtests].start_time = time(NULL);
     tests[numtests].timeout = 0;
     numtests++;
+
+    if (db == NULL)
+        return;
 
     int project = 0;
     uint8_t runid[] = { 0x66, 0x6a, 0xa8, 0x0c, 0xc4, 0xf6, 0x40, 0xd0, 0x88, 0x48, 0xa5, 0x13, 0x49, 0xf2, 0x51, 0x68 };
