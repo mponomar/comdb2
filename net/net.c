@@ -72,6 +72,7 @@
 #include "locks_wrap.h"
 #include "net.h"
 #include "net_int.h"
+#include "list.h"
 
 /* rtcpu.h breaks dbx on sun */
 #ifndef NET_DEBUG
@@ -103,6 +104,7 @@
 #include "perf.h"
 
 #include <crc32c.h>
+#include <sys/epoll.h>
 
 #ifdef UDP_DEBUG
 static int curr_udp_cnt = 0;
@@ -5447,26 +5449,223 @@ void net_register_child_net(netinfo_type *netinfo_ptr,
 
 int gbl_forbid_remote_admin = 1;
 
+enum fdtype {
+    FDTYPE_LISTEN,
+    FDTYPE_SOCKET
+};
+
+struct connection {
+    int fd;
+    enum fdtype type;
+    int64_t start_time;
+    struct sockaddr_in cliaddr;
+    LINKC_T(struct connection) lnk;
+};
+
+#define MAX_EPOLL 4096
+
+void handle_active_connection(netinfo_type *netinfo_ptr, int new_fd, struct sockaddr_in cliaddr) {
+    int tcpbfsz;
+    struct linger linger_data;
+    connect_and_accept_t *ca;
+    pthread_t tid;
+    int flag = 1;
+    SBUF2 *sb;
+    watchlist_node_type *watchlist_node;
+    char paddr[64];
+    int rc = 0;
+
+#ifdef NODELAY
+    /* We've seen unexplained EINVAL errors here.  Be extremely defensive
+     * and always reset flag to 1 before calling this function. */
+    flag = 1;
+    rc = setsockopt(new_fd, IPPROTO_TCP, TCP_NODELAY, (char *)&flag,
+            sizeof(int));
+    /* Note: don't complain on EINVAL.  There's a legitimate condition where
+       the requester drops the socket according to manpages. */
+    if (rc != 0 && errno != EINVAL) {
+        logmsg(LOGMSG_ERROR, 
+                "%s: couldnt turn off nagel on new_fd %d, flag=%d: %d "
+                "%s\n",
+                __func__, new_fd, flag, errno, strerror(errno));
+        close(new_fd);
+        return;
+    }
+#endif
+
+    flag = 1;
+    rc = setsockopt(new_fd, SOL_SOCKET, SO_KEEPALIVE, (char *)&flag,
+            sizeof(int));
+    if (rc != 0) {
+        logmsg(LOGMSG_FATAL, "%s: couldnt turn on keep alive on new fd %d: %d %s\n",
+                __func__, new_fd, errno, strerror(errno));
+        exit(1);
+    }
+
+#ifdef TCPBUFSZ
+    tcpbfsz = (8 * 1024 * 1024);
+    rc = setsockopt(new_fd, SOL_SOCKET, SO_SNDBUF, &tcpbfsz,
+            sizeof(tcpbfsz));
+    if (rc < 0) {
+        logmsg(LOGMSG_FATAL, "%s: couldnt set tcp sndbuf size on listenfd %d: %d %s\n",
+                __func__, new_fd, errno, strerror(errno));
+        exit(1);
+    }
+
+    tcpbfsz = (8 * 1024 * 1024);
+    rc = setsockopt(new_fd, SOL_SOCKET, SO_RCVBUF, &tcpbfsz,
+            sizeof(tcpbfsz));
+    if (rc < 0) {
+        logmsg(LOGMSG_FATAL, 
+                "%s: couldnt set tcp rcvbuf size on listenfd %d: %d %s\n",
+                __func__, new_fd, errno, strerror(errno));
+        exit(1);
+    }
+#endif
+
+#ifdef NOLINGER
+    linger_data.l_onoff = 0;
+    linger_data.l_linger = 1;
+    if (setsockopt(new_fd, SOL_SOCKET, SO_LINGER, (char *)&linger_data,
+                sizeof(linger_data)) != 0) {
+        logmsg(LOGMSG_ERROR, "%s: couldnt turn off linger on new_fd %d: %d %s\n",
+                __func__, new_fd, errno, strerror(errno));
+        close(new_fd);
+        return;
+    }
+#endif
+
+    /* get a buffered pointer to the socket */
+    sb = sbuf2open(new_fd, 0); /* no flags yet... */
+    if (sb == NULL) {
+        logmsg(LOGMSG_ERROR, "sbuf2open failed\n");
+        return;
+    }
+
+    if (debug_switch_net_verbose()) {
+        logmsg(LOGMSG_DEBUG, "Setting wrapper\n");
+        sbuf2setr(sb, sbuf2read_wrapper);
+        sbuf2setw(sb, sbuf2write_wrapper);
+    }
+
+    sbuf2setbufsize(sb, netinfo_ptr->bufsz);
+    netinfo_ptr->num_accepts++;
+
+    uint8_t firstbyte;
+    rc = read_stream(netinfo_ptr, NULL, sb, &firstbyte, 1);
+    if (rc != 1) {
+        findpeer(new_fd, paddr, sizeof(paddr));
+        logmsg(LOGMSG_ERROR, "%s: read_stream failed for = %s\n", __func__,
+                paddr);
+        sbuf2close(sb);
+        return;
+    }
+
+    /* appsock reqs have a non-0 first byte */
+    if (firstbyte > 0) {
+        int admin = 0;
+        APPSOCKFP *rtn = NULL;
+
+        if (firstbyte == '@') {
+            findpeer(new_fd, paddr, sizeof(paddr));
+            if (!gbl_forbid_remote_admin ||
+                    (cliaddr.sin_addr.s_addr == htonl(INADDR_LOOPBACK))) {
+                logmsg(LOGMSG_INFO, "Accepting admin user from %s\n",
+                        paddr);
+                admin = 1;
+            } else {
+                logmsg(LOGMSG_INFO,
+                        "Rejecting non-local admin user from %s\n", paddr);
+                sbuf2close(sb);
+                return;
+            }
+        } else if (firstbyte != sbuf2ungetc(firstbyte, sb)) {
+            logmsg(LOGMSG_ERROR, "sbuf2ungetc failed %s:%d\n", __FILE__,
+                    __LINE__);
+            sbuf2close(sb);
+            return;
+        }
+
+        /* call user specified app routine */
+        if (admin && netinfo_ptr->admin_appsock_rtn) {
+            rtn = netinfo_ptr->admin_appsock_rtn;
+        } else if (netinfo_ptr->appsock_rtn) {
+            rtn = netinfo_ptr->appsock_rtn;
+        }
+
+        if (rtn) {
+            /* set up the watchlist system for this node */
+            watchlist_node = calloc(1, sizeof(watchlist_node_type));
+            if (!watchlist_node) {
+                logmsg(LOGMSG_ERROR, "%s: malloc watchlist_node failed\n",
+                        __func__);
+                sbuf2close(sb);
+                return;
+            }
+            memcpy(watchlist_node->magic, "WLST", 4);
+            watchlist_node->in_watchlist = 0;
+            watchlist_node->netinfo_ptr = netinfo_ptr;
+            watchlist_node->sb = sb;
+            watchlist_node->readfn = sbuf2getr(sb);
+            watchlist_node->writefn = sbuf2getw(sb);
+            watchlist_node->addr = cliaddr;
+            sbuf2setrw(sb, net_reads, net_writes);
+            sbuf2setuserptr(sb, watchlist_node);
+
+            /* this doesn't read- it just farms this off to a thread */
+            (rtn)(netinfo_ptr, sb);
+        }
+
+        return;
+    }
+
+    // it's a replication connection
+
+    /* grab pool memory for connect_and_accept_t */
+    Pthread_mutex_lock(&(netinfo_ptr->connlk));
+    ca = (connect_and_accept_t *)pool_getablk(netinfo_ptr->connpool);
+    Pthread_mutex_unlock(&(netinfo_ptr->connlk));
+
+    /* setup connect_and_accept args */
+    ca->netinfo_ptr = netinfo_ptr;
+    ca->sb = sb;
+    ca->addr = cliaddr.sin_addr;
+
+    /* connect and accept- this might be replaced with a threadpool later */
+    rc = pthread_create(&tid, &(netinfo_ptr->pthread_attr_detach),
+            connect_and_accept, ca);
+
+    if (rc != 0) {
+        logmsg(LOGMSG_ERROR, "%s:pthread_create error: %s\n", __func__,
+                strerror(errno));
+        Pthread_mutex_lock(&(netinfo_ptr->connlk));
+        pool_relablk(netinfo_ptr->connpool, ca);
+        Pthread_mutex_unlock(&(netinfo_ptr->connlk));
+        sbuf2close(sb);
+        return;
+    }
+}
+
 static void *accept_thread(void *arg)
 {
     netinfo_type *netinfo_ptr;
-    struct pollfd pol;
     int rc;
     int listenfd = 0;
     int polltm;
-    int tcpbfsz;
-    struct linger linger_data;
-    struct sockaddr_in cliaddr;
-    connect_and_accept_t *ca;
-    pthread_t tid;
-    char paddr[64];
     size_t clilen;
     int new_fd;
-    int flag = 1;
-    SBUF2 *sb;
-    portmux_fd_t *portmux_fds = NULL;
-    watchlist_node_type *watchlist_node;
-    unsigned int last_stat_dump_time = comdb2_time_epochms();
+    struct sockaddr_in cliaddr;
+    struct epoll_event events[MAX_EPOLL];
+    
+    // epoll test
+    int epl = epoll_create(1);
+    if (epl == -1) {
+        logmsg(LOGMSG_FATAL, "Can't create epoll fd: %d %s\n", errno, strerror(errno));
+        abort();
+    }
+
+    static LISTC_T(struct connection) connections;
+    listc_init(&connections, offsetof(struct connection, lnk));
 
     thread_started("net accept");
     THREAD_TYPE(__func__);
@@ -5484,140 +5683,35 @@ static void *accept_thread(void *arg)
     logmsg(LOGMSG_INFO, "net %s my port is %d fd is %d\n", netinfo_ptr->service,
             netinfo_ptr->myport, netinfo_ptr->myfd);
 
-    if (gbl_pmux_route_enabled) {
-        portmux_fds =
-            portmux_listen_setup(netinfo_ptr->app, netinfo_ptr->service,
-                                 netinfo_ptr->instance, netinfo_ptr->myfd);
-        if (!portmux_fds) {
-            logmsg(LOGMSG_FATAL, "Could not get portmux_fds\n");
-            exit(1);
-        }
-    } else {
-        /* We used to listen here. We now listen way earlier and get a file
-           descriptor passed in.
-           This is to prevent 2 instances from coming up against the same data.
-           */
-        if (netinfo_ptr->myfd != -1)
-            listenfd = netinfo_ptr->myfd;
-        else
-            listenfd = netinfo_ptr->myfd = net_listen(netinfo_ptr->myport);
+    /* We used to listen here. We now listen way earlier and get a file
+       descriptor passed in.
+       This is to prevent 2 instances from coming up against the same data.
+       */
+    if (netinfo_ptr->myfd != -1)
+        listenfd = netinfo_ptr->myfd;
+    else
+        listenfd = netinfo_ptr->myfd = net_listen(netinfo_ptr->myport);
+
+    // note: we're not adding this to the connection list - we
+    // won't be timing it out
+    struct connection *listen_conn = malloc(sizeof(struct connection));
+    listen_conn->fd = listenfd;
+    listen_conn->type = FDTYPE_LISTEN;
+
+    struct epoll_event ev;
+    ev.data.ptr = listen_conn;
+    ev.events = EPOLLIN;
+    rc = epoll_ctl(epl, EPOLL_CTL_ADD, listenfd, &ev);
+    if (rc) {
+        logmsg(LOGMSG_FATAL, "Can't add listen fd to epoll: %d %s\n", errno, strerror(errno));
+        abort();
     }
 
     netinfo_ptr->accept_thread_created = 1;
     /*fprintf(stderr, "setting netinfo_ptr->accept_thread_created\n");*/
 
+//  int last_check = comdb2_time_epochms(), now;
     while (!netinfo_ptr->exiting) {
-
-        clilen = sizeof(cliaddr);
-
-        if (portmux_fds) {
-            new_fd = portmux_accept(portmux_fds, -1);
-        } else {
-            new_fd = accept(listenfd, (struct sockaddr *)&cliaddr,
-                            (socklen_t *)&clilen);
-        }
-        if (new_fd == 0 || new_fd == 1 || new_fd == 2) {
-            logmsg(LOGMSG_ERROR, "Weird new_fd:%d\n", new_fd);
-        }
-
-        if (new_fd == -1) {
-            logmsg(LOGMSG_ERROR, "accept fd %d rc %d %s", listenfd, errno,
-                    strerror(errno));
-            continue;
-        }
-
-        if(portmux_fds) {
-            rc = getpeername(new_fd, (struct sockaddr *)&cliaddr,
-                             (socklen_t *)&clilen);
-            if (rc) {
-                logmsg(LOGMSG_ERROR,
-                       "Failed to get peer address, error: %d %s\n", errno,
-                       strerror(errno));
-                close(new_fd);
-                continue;
-            }
-        }
-
-        if (netinfo_ptr->exiting) {
-            close(new_fd);
-            break;
-        }
-
-#ifdef NODELAY
-        /* We've seen unexplained EINVAL errors here.  Be extremely defensive
-         * and always reset flag to 1 before calling this function. */
-        flag = 1;
-        rc = setsockopt(new_fd, IPPROTO_TCP, TCP_NODELAY, (char *)&flag,
-                        sizeof(int));
-        /* Note: don't complain on EINVAL.  There's a legitimate condition where
-           the requester drops the socket according to manpages. */
-        if (rc != 0 && errno != EINVAL) {
-            logmsg(LOGMSG_ERROR, 
-                    "%s: couldnt turn off nagel on new_fd %d, flag=%d: %d "
-                    "%s\n",
-                    __func__, new_fd, flag, errno, strerror(errno));
-            close(new_fd);
-            continue;
-        }
-#endif
-
-        flag = 1;
-        rc = setsockopt(new_fd, SOL_SOCKET, SO_KEEPALIVE, (char *)&flag,
-                        sizeof(int));
-        if (rc != 0) {
-            logmsg(LOGMSG_FATAL, "%s: couldnt turn on keep alive on new fd %d: %d %s\n",
-                    __func__, new_fd, errno, strerror(errno));
-            exit(1);
-        }
-
-#ifdef TCPBUFSZ
-        tcpbfsz = (8 * 1024 * 1024);
-        rc = setsockopt(new_fd, SOL_SOCKET, SO_SNDBUF, &tcpbfsz,
-                        sizeof(tcpbfsz));
-        if (rc < 0) {
-            logmsg(LOGMSG_FATAL, "%s: couldnt set tcp sndbuf size on listenfd %d: %d %s\n",
-                    __func__, new_fd, errno, strerror(errno));
-            exit(1);
-        }
-
-        tcpbfsz = (8 * 1024 * 1024);
-        rc = setsockopt(new_fd, SOL_SOCKET, SO_RCVBUF, &tcpbfsz,
-                        sizeof(tcpbfsz));
-        if (rc < 0) {
-            logmsg(LOGMSG_FATAL, 
-                    "%s: couldnt set tcp rcvbuf size on listenfd %d: %d %s\n",
-                    __func__, new_fd, errno, strerror(errno));
-            exit(1);
-        }
-#endif
-
-#ifdef NOLINGER
-        linger_data.l_onoff = 0;
-        linger_data.l_linger = 1;
-        if (setsockopt(new_fd, SOL_SOCKET, SO_LINGER, (char *)&linger_data,
-                       sizeof(linger_data)) != 0) {
-            logmsg(LOGMSG_ERROR, "%s: couldnt turn off linger on new_fd %d: %d %s\n",
-                    __func__, new_fd, errno, strerror(errno));
-            close(new_fd);
-            continue;
-        }
-#endif
-
-        /* get a buffered pointer to the socket */
-        sb = sbuf2open(new_fd, 0); /* no flags yet... */
-        if (sb == NULL) {
-            logmsg(LOGMSG_ERROR, "sbuf2open failed\n");
-            continue;
-        }
-
-        if (debug_switch_net_verbose()) {
-            logmsg(LOGMSG_DEBUG, "Setting wrapper\n");
-            sbuf2setr(sb, sbuf2read_wrapper);
-            sbuf2setw(sb, sbuf2write_wrapper);
-        }
-
-        sbuf2setbufsize(sb, netinfo_ptr->bufsz);
-
         /* reasonable default for poll */
         polltm = 100;
 
@@ -5626,151 +5720,87 @@ static void *accept_thread(void *arg)
             polltm = netinfo_ptr->netpoll;
         }
 
-        /* setup poll */
-        pol.fd = new_fd;
-        pol.events = POLLIN;
-
-        /* poll */
-        unsigned pollstart, pollend;
-        pollstart = comdb2_time_epochms();
-        rc = poll(&pol, 1, polltm);
-        pollend = comdb2_time_epochms();
-
-        quantize(netinfo_ptr->conntime_all, pollend - pollstart);
-        quantize(netinfo_ptr->conntime_periodic, pollend - pollstart);
-        netinfo_ptr->num_accepts++;
-
-        if (netinfo_ptr->conntime_dump_period && ((pollend - last_stat_dump_time) / 1000) > netinfo_ptr->conntime_dump_period ) {
-            quantize_ctrace(netinfo_ptr->conntime_all, "Accept poll times, overall:");
-            quantize_ctrace(netinfo_ptr->conntime_periodic, "Accept poll times, last period:");
-            quantize_clear(netinfo_ptr->conntime_periodic);
-            last_stat_dump_time = pollend;
+        int nevents = epoll_wait(epl, events, MAX_EPOLL, polltm/2);
+#if 0
+        now = comdb2_time_epochms();
+        if ((now - last_check) > 100/*tunabalize?*/) {
+            struct connection *conn;
+            conn = listc_rtl(&connections);
+            while (conn && (now - conn->start_time) > polltm) {
+                // man epoll says the fd is automatically removed from the poll
+                // set on close (unless we dup() it, which we never do)
+                close(conn->fd);
+                free(conn);
+                conn = listc_rtl(&connections);
+            }
+            if (conn)
+                listc_atl(&connections, conn);
         }
-
-        netinfo_ptr->num_accepts++;
-
-        /* drop connection on poll error */
-        if (rc < 0) {
-            findpeer(new_fd, paddr, sizeof(paddr));
-            logmsg(LOGMSG_ERROR, "%s: error from poll: %s, peeraddr=%s\n", __func__,
-                    strerror(errno), paddr);
-            sbuf2close(sb);
+#endif
+        if (nevents == 0)
             continue;
-        }
+        for (int i = 0; i < nevents; i++) {
+            struct connection *conn;
+            conn = (struct connection*) events[i].data.ptr;
+            if (conn->type == FDTYPE_LISTEN) {
+                new_fd = accept(listenfd, &cliaddr, (socklen_t*) &clilen);
+                if (new_fd == 0 || new_fd == 1 || new_fd == 2) {
+                    logmsg(LOGMSG_ERROR, "Weird new_fd:%d\n", new_fd);
+                }
 
-        /* drop connection on timeout */
-        else if (0 == rc) {
-            findpeer(new_fd, paddr, sizeof(paddr));
-            logmsg(LOGMSG_ERROR, "%s: timeout reading from socket, peeraddr=%s\n",
-                    __func__, paddr);
-            sbuf2close(sb);
-            netinfo_ptr->num_accept_timeouts++;
-            continue;
-        }
-
-        /* drop connection if i would block in read */
-        if ((pol.revents & POLLIN) == 0) {
-            findpeer(new_fd, paddr, sizeof(paddr));
-            logmsg(LOGMSG_ERROR, "%s: cannot read without blocking, peeraddr=%s\n",
-                    __func__, paddr);
-            sbuf2close(sb);
-            continue;
-        }
-
-        /* the above poll ensures that this will not block */
-
-        uint8_t firstbyte;
-        rc = read_stream(netinfo_ptr, NULL, sb, &firstbyte, 1);
-        if (rc != 1) {
-            findpeer(new_fd, paddr, sizeof(paddr));
-            logmsg(LOGMSG_ERROR, "%s: read_stream failed for = %s\n", __func__,
-                    paddr);
-            sbuf2close(sb);
-            continue;
-        }
-
-        /* appsock reqs have a non-0 first byte */
-        if (firstbyte > 0) {
-            int admin = 0;
-            APPSOCKFP *rtn = NULL;
-
-            if (firstbyte == '@') {
-                findpeer(new_fd, paddr, sizeof(paddr));
-                if (!gbl_forbid_remote_admin ||
-                    (cliaddr.sin_addr.s_addr == htonl(INADDR_LOOPBACK))) {
-                    logmsg(LOGMSG_INFO, "Accepting admin user from %s\n",
-                           paddr);
-                    admin = 1;
-                } else {
-                    logmsg(LOGMSG_INFO,
-                           "Rejecting non-local admin user from %s\n", paddr);
-                    sbuf2close(sb);
+                if (new_fd == -1) {
+                    logmsg(LOGMSG_ERROR, "accept fd %d rc %d %s", listenfd, errno,
+                            strerror(errno));
                     continue;
                 }
-            } else if (firstbyte != sbuf2ungetc(firstbyte, sb)) {
-                logmsg(LOGMSG_ERROR, "sbuf2ungetc failed %s:%d\n", __FILE__,
-                        __LINE__);
-                sbuf2close(sb);
-                continue;
-            }
 
-            /* call user specified app routine */
-            if (admin && netinfo_ptr->admin_appsock_rtn) {
-                rtn = netinfo_ptr->admin_appsock_rtn;
-            } else if (netinfo_ptr->appsock_rtn) {
-                rtn = netinfo_ptr->appsock_rtn;
-            }
+                if (netinfo_ptr->exiting) {
+                    close(new_fd);
+                    goto done;
+                }
 
-            if (rtn) {
-                /* set up the watchlist system for this node */
-                watchlist_node = calloc(1, sizeof(watchlist_node_type));
-                if (!watchlist_node) {
-                    logmsg(LOGMSG_ERROR, "%s: malloc watchlist_node failed\n",
-                            __func__);
-                    sbuf2close(sb);
+                conn = malloc(sizeof(struct connection));
+                conn->fd = new_fd;
+                conn->type = FDTYPE_SOCKET;
+                conn->start_time = comdb2_time_epochms();
+                conn->cliaddr = cliaddr;
+
+                ev.data.ptr = conn;
+                ev.events = EPOLLIN;
+                rc = epoll_ctl(epl, EPOLL_CTL_ADD, new_fd, &ev);
+                if (rc) {
+                    free(conn);
+                    logmsg(LOGMSG_ERROR, "can't add connection to epoll set: %d %s\n",
+                            errno, strerror(errno));
+                    close(new_fd);
                     continue;
                 }
-                memcpy(watchlist_node->magic, "WLST", 4);
-                watchlist_node->in_watchlist = 0;
-                watchlist_node->netinfo_ptr = netinfo_ptr;
-                watchlist_node->sb = sb;
-                watchlist_node->readfn = sbuf2getr(sb);
-                watchlist_node->writefn = sbuf2getw(sb);
-                watchlist_node->addr = cliaddr;
-                sbuf2setrw(sb, net_reads, net_writes);
-                sbuf2setuserptr(sb, watchlist_node);
 
-                /* this doesn't read- it just farms this off to a thread */
-                (rtn)(netinfo_ptr, sb);
+                listc_abl(&connections, conn);
             }
+            else {
+                struct sockaddr_in cliaddr = conn->cliaddr;
+                // not sure we need to setup ev here, but no harm doing so
+                new_fd = conn->fd;
 
-            continue;
+                ev.data.ptr = conn;
+                ev.events = EPOLLIN;
+                // don't monitor this fd anymore, we've done our job
+                listc_rfl(&connections, conn);
+                free(conn);
+                rc = epoll_ctl(epl, EPOLL_CTL_DEL, new_fd, &ev);
+                if (rc) {
+                    logmsg(LOGMSG_ERROR, "can't remove fd %d from poll set: %d %s\n", new_fd, errno, strerror(errno));
+                    close(new_fd);
+                    continue;
+                }
+                handle_active_connection(netinfo_ptr, new_fd, cliaddr);
+            }
         }
+        
 
-        /* grab pool memory for connect_and_accept_t */
-        Pthread_mutex_lock(&(netinfo_ptr->connlk));
-        ca = (connect_and_accept_t *)pool_getablk(netinfo_ptr->connpool);
-        Pthread_mutex_unlock(&(netinfo_ptr->connlk));
-
-        /* setup connect_and_accept args */
-        ca->netinfo_ptr = netinfo_ptr;
-        ca->sb = sb;
-        ca->addr = cliaddr.sin_addr;
-
-        /* connect and accept- this might be replaced with a threadpool later */
-        rc = pthread_create(&tid, &(netinfo_ptr->pthread_attr_detach),
-                            connect_and_accept, ca);
-
-        if (rc != 0) {
-            logmsg(LOGMSG_ERROR, "%s:pthread_create error: %s\n", __func__,
-                    strerror(errno));
-            Pthread_mutex_lock(&(netinfo_ptr->connlk));
-            pool_relablk(netinfo_ptr->connpool, ca);
-            Pthread_mutex_unlock(&(netinfo_ptr->connlk));
-            sbuf2close(sb);
-            continue;
-        }
     }
+done:
 
     close(listenfd);
 
