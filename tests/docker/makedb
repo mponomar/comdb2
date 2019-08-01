@@ -1,0 +1,44 @@
+#!/bin/bash
+
+set -x
+
+if [[ $# -lt 1 ]]; then
+    echo >&2 "Usage: dbname1 [dbname2...]"
+    exit 1
+fi
+
+cluster=$(cat /common/cluster)
+set -e
+
+for dbname in $*; do
+    figlet create
+    comdb2 $dbname --create
+    echo "cluster nodes $cluster" >> /opt/bb/var/cdb2/${dbname}/${dbname}.lrl
+
+    figlet start pmux
+    for node in $cluster; do
+        ssh -n $node /opt/bb/bin/pmux -l &
+    done
+    for node in $cluster; do
+        figlet copy to $node
+        copycomdb2 /opt/bb/var/cdb2/${dbname}/${dbname}.lrl ${node}:
+        figlet start on $node
+        ssh -n $node /opt/bb/bin/comdb2 $dbname > ${node}.out 2>&1 &
+    done
+
+    echo "$dbname ${cluster}" > /opt/bb/etc/cdb2/config/comdb2.d/${dbname}.cfg 
+done
+
+set +e
+for dbname in $*; do
+    figlet "Waiting for ${dbname}"
+    for node in $cluster; do
+        figlet $node
+        one=$(cdb2sql --host ${node} --tabs $dbname 'select 1' 2>&1)
+        while [[ "$one" != "1" ]]; do
+            sleep 0.1
+            one=$(cdb2sql --host ${node} --tabs $dbname 'select 1' 2>&1)
+            echo $one
+        done
+    done
+done

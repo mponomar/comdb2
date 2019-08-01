@@ -45,7 +45,7 @@ export COMPOSE_PROJECT_NAME=$prefix
 rm -fr common
 mkdir common
 for node in $(seq 1 $numnodes); do
-    cluster="$cluster ${nodeprefix}${node}.${prefix}_primary"
+    cluster="$cluster ${nodeprefix}${node}"
     containers="$containers ${nodeprefix}$node"
 done
 
@@ -87,7 +87,7 @@ networks:
 services:
     client:
         container_name: c1
-        hostname: c1.${prefix}_primary
+        hostname: c1
         labels:
             what: "testclient"
         networks:
@@ -117,17 +117,17 @@ for node in $containers; do
 cat >> $compose <<EOF
     $node:
         container_name: $node
-        hostname: $node.${prefix}_primary
+        hostname: $node
         labels:
             what: "testserver"
         networks:
             primary:
             n3:
                 aliases:
-                    - $node.${prefix}_primary-n3
+                    - ${node}-n3
             n4:
                 aliases:
-                    - $node.${prefix}_primary-n4
+                    - ${node}-n4
         build:
             context: .
             dockerfile: $src/tests/docker/Dockerfile.db

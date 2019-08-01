@@ -40,7 +40,10 @@ RUN apt-get update && \
     strace \
     gdb \
     openssh-server \
-    psmisc
+    psmisc \
+    vim \
+    less \
+    figlet
 
 COPY . /comdb2
 
@@ -54,6 +57,7 @@ RUN cd /comdb2 &&  \
     ninja install &&  \
     cp /comdb2/tests/docker/client / && \
     cp /comdb2/tests/docker/server / && \
+    cp /comdb2/tests/docker/makedb / && \
     apt-get clean
 
 ENV PATH      $PATH:/opt/bb/bin
