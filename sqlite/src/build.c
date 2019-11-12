@@ -4684,6 +4684,24 @@ SrcList *sqlite3SrcListAppendFromTerm(
     );
     goto append_from_error;
   }
+#if defined(SQLITE_BUILDING_FOR_COMDB2)
+  if ( pParse->trackTables && pTable ) {
+      TableReference *t = sqlite3DbMallocRaw(pParse->db, sizeof(TableReference));
+      if ( t ) {
+          t->zTableName = sqlite3NameFromToken(pParse->db, pTable);
+          printf("table %s\n", t->zTableName);
+          if ( pDatabase ) {
+              t->zDbName = sqlite3NameFromToken(pParse->db, pDatabase);
+              printf("database %s\n", t->zDbName);
+          }
+          else {
+              t->zDbName = NULL;
+          }
+          t->next = pParse->tableRefs;
+          pParse->tableRefs = t;
+      }
+  }
+#endif 
   p = sqlite3SrcListAppend(pParse, p, pTable, pDatabase);
   if( p==0 ){
     goto append_from_error;
@@ -5667,6 +5685,21 @@ void sqlite3ResetFdbSchemas(sqlite3 *db){
 
   sqlite3_mutex_leave(sqlite3_db_mutex(db));
 }
+
+void sqlite3_table_list_for_query(sqlite3 *db, const char *query, TableReference **t) {
+    char *pzErrMsg;
+    Parse pParse;
+    memset(&pParse, 0, sizeof(Parse));
+    pParse.trackTables = 1;
+    pParse.db = db;
+
+    sqlite3RunParser(&pParse, query, &pzErrMsg);
+    *t = pParse.tableRefs;
+    pParse.tableRefs = NULL;
+
+    sqlite3ParserReset(&pParse);
+}
+
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 
 #endif /* !defined(SQLITE_OMIT_CTE) */

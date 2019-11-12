@@ -1160,6 +1160,7 @@ typedef struct Cdb2TrigEvent Cdb2TrigEvent;
 typedef struct Cdb2TrigEvents Cdb2TrigEvents;
 typedef struct Cdb2TrigTables Cdb2TrigTables;
 typedef struct comdb2_ddl_context Cdb2DDL;
+typedef struct TableReference TableReference;
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 
 
@@ -3336,6 +3337,9 @@ struct Parse {
                              * of interest to the DDL integration code in
                              * the "comdb2build.c" and "comdb2lua.c" files.
                              */
+
+  u8 trackTables;
+  TableReference *tableRefs;
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 };
 
@@ -5028,6 +5032,13 @@ int sqlite3RecordCompareExprList(UnpackedRecord *rec, Mem *mems);
 int sqlite3ExprList2MemArray(ExprList *list, Mem *mems);
 Mem* sqlite3CloneResult(sqlite3_stmt *pStmt, Mem *cols, long long *pSize);
 void sqlite3CloneResultFree(sqlite3_stmt *pStmt, Mem **cols, long long *pSize);
+
+struct TableReference {
+    char *zDbName;
+    char *zTableName;
+    struct TableReference *next;
+};
+
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 
 int sqlite3ExprVectorSize(Expr *pExpr);

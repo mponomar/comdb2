@@ -3433,6 +3433,15 @@ static int get_prepared_stmt_int(struct sqlthdstate *thd,
                "TRAILING CHARACTERS AFTER QUERY TERMINATION (%d): \"%s\"\n",
                rc, tail);
     }
+    printf("hi:\n");
+    void sqlite3_table_list_for_query(sqlite3 *db, const char *query, TableReference **);
+    TableReference *tables;
+    sqlite3_table_list_for_query(thd->sqldb, clnt->sql, &tables);
+    for (TableReference *t = tables; t; t = t->next) {
+        if (t->zDbName)
+            printf("%s.", t->zDbName);
+        printf("%s\n", t->zTableName);
+    }
     return rc;
 }
 
