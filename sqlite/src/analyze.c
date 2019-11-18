@@ -2476,9 +2476,15 @@ int sqlite3AnalysisLoad(sqlite3 *db, int iDb){
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
   }
 
+  extern char *gbl_override_fdb_tier;
+  if (gbl_override_fdb_tier && strcmp(sInfo.zDatabase, "main")) {
+      return 0;
+  }
+
   /* Load new statistics out of the sqlite_stat1 table */
   sInfo.db = db;
   sInfo.zDatabase = db->aDb[iDb].zDbSName;
+
 #if defined(SQLITE_BUILDING_FOR_COMDB2)
   if( sqlite3FindTableByAnalysisLoad(db, "sqlite_stat1", sInfo.zDatabase)!=0 ){
 #else /* defined(SQLITE_BUILDING_FOR_COMDB2) */

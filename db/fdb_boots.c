@@ -84,7 +84,7 @@ static int _fdb_refresh_location(const char *dbname, fdb_location_t *loc)
 
     /* retrieve nodes */
     nnodes = 0;
-    rc = _discover_remote_db_nodes(dbname, lvl, REPMAX, nodes, &nnodes, room);
+    rc = _discover_remote_db_nodes(dbname, gbl_override_fdb_tier ? gbl_override_fdb_tier : lvl, REPMAX, nodes, &nnodes, room);
     if (rc != FDB_NOERR || nnodes <= 0) {
         logmsg(LOGMSG_ERROR, "%s: failed to retrieve %s (%s) nodes rc=%d nnodes=%d\n",
                 __func__, dbname, lvl, rc, nnodes);

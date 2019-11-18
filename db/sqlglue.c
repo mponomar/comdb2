@@ -2573,7 +2573,7 @@ static int cursor_move_index(BtCursor *pCur, int *pRes, int how)
     if (rc == IX_EMPTY) {
         pCur->empty = 1;
         *pRes = 1;
-    } else if (rc == IX_ACCESS) {
+    } else if (rc == IX_ACCESS) { 
         return SQLITE_ACCESS;
     } else if (rc == IX_PASTEOF) {
         pCur->eof = 1;
@@ -7362,6 +7362,8 @@ static int sqlite3LockStmtTables_int(sqlite3_stmt *pStmt, int after_recovery)
     struct sql_thread *thd = pthread_getspecific(query_info_key);
     struct sqlclntstate *clnt = thd->clnt;
 
+    printf("hi in %s ver %d\n", __func__, clnt->fdb_state.version);
+
     if (NULL == clnt->dbtran.cursor_tran) {
         return 0;
     }
@@ -7444,6 +7446,7 @@ static int sqlite3LockStmtTables_int(sqlite3_stmt *pStmt, int after_recovery)
             }
 
             if (short_version != clnt->fdb_state.version) {
+                printf("%s:%d xerr %d %d != %d\n", __FILE__, __LINE__, SQLITE_SCHEMA, short_version, clnt->fdb_state.version);
                 clnt->fdb_state.xerr.errval = SQLITE_SCHEMA;
                 /* NOTE: first word of the error string is the actual version,
                    expected on the other side; please do not change */
@@ -10041,9 +10044,9 @@ static int ddguard_bdb_cursor_move(struct sql_thread *thd, BtCursor *pCur,
 
     assert(bdb_lockref() > 0);
     /* check authentication */
-    if (authenticate_cursor(pCur, AUTHENTICATE_READ) != 0)
+    if (authenticate_cursor(pCur, AUTHENTICATE_READ) != 0) {
         return IX_ACCESS;
-
+    }
     do {
         switch (how) {
         case CFIRST:

@@ -3274,6 +3274,7 @@ static void free_normalized_sql(
 ){
   if (clnt->work.zNormSql) {
     /* NOTE: Actual memory owned by SQLite, do not free. */
+    free((char*) clnt->work.zNormSql);
     clnt->work.zNormSql = 0;
   }
 }
@@ -3328,7 +3329,7 @@ static void normalize_stmt_and_store(
     if (rec != NULL) {
       assert(rec->stmt);
       assert(rec->sql);
-      const char *zNormSql = sqlite3_normalized_sql(rec->stmt);
+      const char *zNormSql = strdup(sqlite3_normalized_sql(rec->stmt));
       if (zNormSql) {
         assert(clnt->work.zNormSql==0);
         clnt->work.zNormSql = zNormSql;

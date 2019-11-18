@@ -353,6 +353,9 @@ int gbl_init_with_compr = BDB_COMPRESS_CRLE;
 int gbl_init_with_compr_blobs = BDB_COMPRESS_LZ4;
 int gbl_init_with_bthash = 0;
 
+char *gbl_override_fdb_source = NULL; 
+char *gbl_override_fdb_tier = NULL;
+
 uint32_t gbl_nsql;
 long long gbl_nsql_steps;
 

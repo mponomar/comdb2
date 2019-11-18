@@ -1875,4 +1875,13 @@ REGISTER_TUNABLE("cached_output_buffer_max_bytes",
                  "thread.  (Default: 8 MiB)",
                  TUNABLE_INTEGER, &gbl_cached_output_buffer_max_bytes, 0, NULL,
                  NULL, NULL, NULL);
+
+REGISTER_TUNABLE("override_fdb_source",
+                 "Use a different database as source for foreign table schemas",
+                 TUNABLE_STRING, &gbl_override_fdb_source, INTERNAL, NULL, NULL, NULL, NULL);
+
+REGISTER_TUNABLE("override_fdb_tier",
+                 "Specifies db tier for \"override_fdb_source\"",
+                 TUNABLE_STRING, &gbl_override_fdb_tier, INTERNAL, NULL, NULL, NULL, NULL);
+
 #endif /* _DB_TUNABLES_H */

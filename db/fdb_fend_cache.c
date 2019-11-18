@@ -199,6 +199,9 @@ static int fdb_sqlstat_cache_populate(struct sqlclntstate *clnt, fdb_t *fdb,
     char *sql_stat4 = "select * from sqlite_stat4 where tbl not like 'cdb2.%'";
     int rc;
 
+    if (gbl_override_fdb_source)
+        return 0;
+
     /* fake a BtCursor */
     cur = calloc(1, sizeof(BtCursor) + sizeof(Btree));
     if (!cur) {

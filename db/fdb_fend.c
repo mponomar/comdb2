@@ -115,6 +115,8 @@ struct fdb_tbl {
 /* foreign db structure, caches the used tables for the remote db */
 struct fdb {
     char *dbname;
+    char *contact_dbname;
+    char *contact_dbtier;
     int dbname_len; /* excluding terminal 0 */
     enum mach_class class
         ;      /* what class is the cluster CLASS_PROD, CLASS_TEST, ... */
@@ -489,6 +491,16 @@ static fdb_t *new_fdb(const char *dbname, int *created, enum mach_class class,
 
     fdb->dbname = strdup(dbname);
     fdb->class = class;
+    fdb->contact_dbname = NULL;
+
+    if (gbl_override_fdb_source) {
+        fdb->contact_dbname = strdup(gbl_override_fdb_source);
+        fdb->contact_dbtier = gbl_override_fdb_tier ? gbl_override_fdb_tier : "local";
+    }
+    else {
+        fdb->contact_dbname = strdup(dbname);
+    }
+
     /*
        default remote version we expect
 
@@ -962,35 +974,43 @@ run:
     fdbc = fdbc_if->impl;
 
     /* prepackaged select */
-    if (versioned) {
-        if (initial) {
-            sql = sqlite3_mprintf(
-                     "select *, table_version(tbl_name) from sqlite_master"
-                     " where tbl_name='%q' collate nocase or tbl_name="
-                     "'sqlite_stat1' or "
-                     "tbl_name='sqlite_stat4'",
-                     tbl->name);
+    if (gbl_override_fdb_source) {
+        // type name tbl_name rootpage sql csc2
+        // TODO: tier
+        sql = sqlite3_mprintf("select 'table', tablename, tablename, 2, sql, schema, table_version from schemas where dbname='%q' and (tablename='%q' collate nocase or tablename='sqlite_stat1' or tablename='sqlite_stat4')", fdb->dbname, tbl->name);
+    }
+    else {
+        if (versioned) {
+            if (initial) {
+                sql = sqlite3_mprintf(
+                        "select *, table_version(tbl_name) from sqlite_master"
+                        " where tbl_name='%q' collate nocase or tbl_name="
+                        "'sqlite_stat1' or "
+                        "tbl_name='sqlite_stat4'",
+                        tbl->name);
+            } else {
+                sql = sqlite3_mprintf(
+                        "select *, table_version(tbl_name) from sqlite_master"
+                        " where tbl_name='%q' collate nocase",
+                        tbl->name);
+            }
         } else {
-            sql = sqlite3_mprintf(
-                     "select *, table_version(tbl_name) from sqlite_master"
-                     " where tbl_name='%q' collate nocase",
-                     tbl->name);
-        }
-    } else {
-        /* fallback to old un-versioned implementation */
-        if (initial) {
-            sql = sqlite3_mprintf(
-                     "select * from sqlite_master"
-                     " where tbl_name='%q' or tbl_name='sqlite_stat1' or "
-                     "tbl_name='sqlite_stat4' collate nocase",
-                     tbl->name);
-        } else {
-            sql = sqlite3_mprintf(
-                     "select * from sqlite_master"
-                     " where tbl_name='%q' collate nocase",
-                     tbl->name);
+            /* fallback to old un-versioned implementation */
+            if (initial) {
+                sql = sqlite3_mprintf(
+                        "select * from sqlite_master"
+                        " where tbl_name='%q' or tbl_name='sqlite_stat1' or "
+                        "tbl_name='sqlite_stat4' collate nocase",
+                        tbl->name);
+            } else {
+                sql = sqlite3_mprintf(
+                        "select * from sqlite_master"
+                        " where tbl_name='%q' collate nocase",
+                        tbl->name);
+            }
         }
     }
+    printf("sql: %s\n", sql);
     fdbc->sql_hint = sql;
 
     rc = fdbc_if->move(cur, CFIRST);
@@ -1119,6 +1139,9 @@ static enum mach_class get_fdb_class(const char **p_dbname, int *local)
         }
 
         *p_dbname = dbname;
+    } else if (gbl_override_fdb_tier && strcmp(gbl_override_fdb_tier, "local") == 0) {
+        remote_lvl = my_lvl;
+        *local = 1;
     } else {
         /* implicit is same class */
         remote_lvl = my_lvl;
@@ -1271,11 +1294,12 @@ int sqlite3AddAndLockTable(sqlite3 *db, const char *dbname, const char *table,
     lvl = get_fdb_class(&dbname, &local);
     if (lvl == CLASS_UNKNOWN || lvl == CLASS_DENIED) {
         return _failed_AddAndLockTable(
-            db, dbname, (lvl == CLASS_UNKNOWN) ? FDB_ERR_CLASS_UNKNOWN
-                                               : FDB_ERR_CLASS_DENIED,
-            (lvl == CLASS_UNKNOWN) ? "unrecognized class" : "denied access");
+                db, dbname, (lvl == CLASS_UNKNOWN) ? FDB_ERR_CLASS_UNKNOWN
+                : FDB_ERR_CLASS_DENIED,
+                (lvl == CLASS_UNKNOWN) ? "unrecognized class" : "denied access");
     }
 retry_fdb_creation:
+
     fdb = new_fdb(dbname, &created, lvl, local);
     if (!fdb) {
         /* we cannot really alloc a new memory string for sqlite here */
@@ -1303,7 +1327,7 @@ retry_fdb_creation:
 
     if (!local) {
         Pthread_mutex_lock(&fdb->dbcon_mtx);
-        rc = fdb_locate(fdb->dbname, fdb->class, 0, &fdb->loc);
+        rc = fdb_locate(fdb->contact_dbname, fdb->class, 0, &fdb->loc);
         Pthread_mutex_unlock(&fdb->dbcon_mtx);
         if (rc != FDB_NOERR) {
             switch (rc) {
@@ -1772,6 +1796,8 @@ static int insert_table_entry_from_packedsqlite(fdb_t *fdb, fdb_tbl_t *tbl,
                                               &tbl_name, &source_rootpage, &sql,
                                               &csc2, &version, rootpage);
 
+    printf("table %s version %lld\n", tbl_name, version);
+
     if (gbl_fdb_track)
         logmsg(LOGMSG_USER, "%s:%s Inserting table %s:%s rootp=%d src_rootp=%d "
                         "version=%llu, sql %s\n",
@@ -2106,7 +2132,7 @@ static int _fdb_remote_reconnect(fdb_t *fdb, SBUF2 **psb, char *host, int use_ca
         now = gettimeofday_ms();
     }
 
-    *psb = sb = connect_remote_db("icdb2", fdb->dbname, "remsql", host, use_cache);
+    *psb = sb = connect_remote_db("icdb2", fdb->contact_dbname, "remsql", host, use_cache);
 
     if (gbl_fdb_track_times) {
         then = gettimeofday_ms();
@@ -3007,6 +3033,7 @@ static int fdb_cursor_move_sql(BtCursor *pCur, int how)
         if (!rc) {
             /* otherwise.read row */
             rc = fdb_recv_row(fdbc->msg, fdbc->cid, fdbc->fcon.sock.sb);
+            printf("fdb_recv_row %d\n", rc);
 
             if (rc != IX_FND && rc != IX_FNDMORE && rc != IX_NOTFND &&
                 rc != IX_PASTEOF && rc != IX_EMPTY) {
