@@ -51,6 +51,8 @@ int fdb_appsock_work(const char *cid, struct sqlclntstate *clnt, int version,
     int rc = 0;
     /* TODO:int node = -1;     add source node */
 
+    printf("fdb_appsock_work: version %d\n", version);
+
     clnt->sql = sql;
     clnt->fdb_state.remote_sql_sb = sb;
     clnt->fdb_state.version = version;

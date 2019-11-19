@@ -584,6 +584,7 @@ struct Vdbe {
   i64 luaStartTime;       /* start time for Lua running a query */
   i64 luaRows;            /* number of rows processed by Lua */
   double luaSavedCost;    /* saved cost for this Lua thread */
+  int nextnum;
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 };
 

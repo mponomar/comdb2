@@ -381,10 +381,8 @@ void unlock_client_write_lock(struct sqlclntstate *clnt)
 
 int write_response(struct sqlclntstate *clnt, int R, void *D, int I)
 {
-#ifdef DEBUG
-    logmsg(LOGMSG_DEBUG, "write_response(%s,%p,%d)\n", WriteRespString[R], D,
+    logmsg(LOGMSG_INFO, "write_response(%s,%p,%d)\n", WriteRespString[R], D,
            I);
-#endif
     return clnt->plugin.write_response(clnt, R, D, I);
 }
 
@@ -3363,6 +3361,9 @@ static int get_prepared_stmt_int(struct sqlthdstate *thd,
     int recreate = (flags & PREPARE_RECREATE);
     int prepareOnly = (flags & PREPARE_ONLY);
     int rc = sqlengine_prepare_engine(thd, clnt, recreate);
+
+    printf("%s: %s\n", __func__, clnt->sql);
+
     if (thd->sqldb == NULL) {
         return handle_bad_engine(clnt);
     } else if (rc) {
@@ -4457,6 +4458,8 @@ static int execute_sql_query(struct sqlthdstate *thd, struct sqlclntstate *clnt)
     logmsg(LOGMSG_DEBUG, "execute_sql_query: '%.30s'\n", clnt->sql);
 #endif
 
+    printf("%s\n", __func__);
+
     /* access control */
     rc = check_sql_access(thd, clnt);
     if (rc)
@@ -5306,12 +5309,16 @@ int dispatch_sql_query(struct sqlclntstate *clnt, priority_t priority)
     clnt->seqNo = ATOMIC_ADD64(gbl_clnt_seq_no, 1);
     assert(clnt->seqNo > 0);
     int rc = verify_dispatch_sql_query(clnt, &priority);
+    printf("%s:%d rc %d\n", __func__, __LINE__, rc);
     if (rc != 0) return rc;
 
     rc = enqueue_sql_query(clnt, priority);
+    printf("%s:%d rc %d\n", __func__, __LINE__, rc);
     if (rc != 0) return rc;
 
-    return wait_for_sql_query(clnt);
+    rc = wait_for_sql_query(clnt);
+    printf("%s:%d rc %d\n", __func__, __LINE__, rc);
+    return rc;
 }
 
 void sqlengine_thd_start(struct thdpool *pool, struct sqlthdstate *thd,

@@ -514,6 +514,8 @@ int fdb_send_run_sql(fdb_msg_t *msg, char *cid, int sqllen, char *sql,
     int rc = 0;
     fdb_msg_clean_message(msg);
 
+    printf("%s\n", __func__);
+
     /* request streaming remotely */
     msg->hd.type = FDB_MSG_RUN_SQL;
 
@@ -529,6 +531,7 @@ int fdb_send_run_sql(fdb_msg_t *msg, char *cid, int sqllen, char *sql,
 
     msg->sq.sqllen = sqllen;
     msg->sq.sql = sql;
+    printf("run sql version %d\n", version);
     msg->sq.version = version;
     msg->sq.flags = flags;
     msg->sq.keylen = keylen;
@@ -2754,6 +2757,7 @@ int fdb_bend_run_sql(SBUF2 *sb, fdb_msg_t *msg, svc_callback_arg_t *arg)
 
     rc = fdb_appsock_work(cid, clnt, version, flags, sql, sqllen, trim_key,
                           trim_keylen, sb);
+    printf("%s:%d rc %d\n", __func__, __LINE__, rc);
     if (rc) {
         /* this happens natural for fractured streams */
         if (gbl_fdb_track)
@@ -2785,6 +2789,7 @@ int fdb_bend_run_sql(SBUF2 *sb, fdb_msg_t *msg, svc_callback_arg_t *arg)
         }
     }
 
+    printf("%s:%d rc %d\n", __func__, __LINE__, rc);
     return rc;
 }
 

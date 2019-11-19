@@ -837,6 +837,8 @@ static int _add_table_and_stats_fdb(fdb_t *fdb, const char *table_name,
         goto done;
     }
 
+    printf("discovering %s initial %d\n", table_name, initial);
+
     /* this COULD be taken out of tbls_mtx, but I want to clear table
        under lock so I don't add garbage table structures when mispelling
      */
@@ -977,7 +979,7 @@ run:
     if (gbl_override_fdb_source) {
         // type name tbl_name rootpage sql csc2
         // TODO: tier
-        sql = sqlite3_mprintf("select 'table', tablename, tablename, 2, sql, schema, table_version from schemas where dbname='%q' and (tablename='%q' collate nocase or tablename='sqlite_stat1' or tablename='sqlite_stat4')", fdb->dbname, tbl->name);
+        sql = sqlite3_mprintf("select 'table', tablename, tablename, 2+nextnum(), sql, schema, table_version from schemas where dbname='%q' and (tablename='%q' collate nocase or tablename='sqlite_stat1' or tablename='sqlite_stat4') and tier='%q'", fdb->dbname, tbl->name, "dev");
     }
     else {
         if (versioned) {
@@ -2488,6 +2490,8 @@ fdb_cursor_if_t *fdb_cursor_open(struct sqlclntstate *clnt, BtCursor *pCur,
     int source_rootpage;
     int flags;
 
+    printf("rootpage %d\n", rootpage);
+
     assert(pCur->bt->is_remote);
 
     fdb = pCur->bt->fdb;
@@ -2935,6 +2939,8 @@ static int fdb_cursor_reopen(BtCursor *pCur)
     int rc;
     fdb_tran_t *tran;
     int need_ssl = 0;
+
+    printf(">>>>> reopen\n");
 
     thd = pthread_getspecific(query_info_key);
 

@@ -1007,6 +1007,14 @@ static void md5Func(
     sqlite3_result_text(context, strdup(out), 32, free);
 }
 
+static void nextNumFunc(
+  sqlite3_context *context,
+  int argc,
+  sqlite3_value **argv){
+
+  sqlite3_result_int(context, context->pVdbe->nextnum++);
+}
+
 static void comdb2UserFunc(
   sqlite3_context *context,
   int NotUsed,
@@ -2676,6 +2684,7 @@ void sqlite3RegisterBuiltinFunctions(void){
     FUNCTION(comdb2_user,           0, 0, 0, comdb2UserFunc),
 
     FUNCTION(checksum_md5,          1, 0, 0, md5Func),
+    VFUNCTION(nextnum,              0, 0, 0, nextNumFunc),
 #if defined(SQLITE_BUILDING_FOR_COMDB2_DBGLOG)
     FUNCTION(dbglog_cookie,         0, 0, 0, dbglogCookieFunc),
     FUNCTION(dbglog_begin,          1, 0, 0, dbglogBeginFunc),

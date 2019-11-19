@@ -7365,11 +7365,15 @@ static int sqlite3LockStmtTables_int(sqlite3_stmt *pStmt, int after_recovery)
     printf("hi in %s ver %d\n", __func__, clnt->fdb_state.version);
 
     if (NULL == clnt->dbtran.cursor_tran) {
+        printf("no tran\n");
         return 0;
     }
 
     /* sort and dedup */
     qsort(tbls, nTables, sizeof(Table *), rootpcompare);
+    for (int i = 0; i < nTables; i++) {
+        printf(">> %s\n", tbls[i]->zName);
+    }
 
     prev = -1;
     nRemoteTables = 0;
@@ -7422,8 +7426,9 @@ static int sqlite3LockStmtTables_int(sqlite3_stmt *pStmt, int after_recovery)
            NOTE: initial code FDB_VER_LEGACY did not do schema change version
            tracking
          */
+        printf("code_release %d ver %d sb %p\n", clnt->fdb_state.code_release, FDB_VER_CODE_VERSION, clnt->fdb_state.remote_sql_sb);
         if (clnt->fdb_state.remote_sql_sb &&
-            clnt->fdb_state.code_release >= FDB_VER_CODE_VERSION) {
+            clnt->fdb_state.code_release >= FDB_VER_CODE_VERSION && strcmp(tab->zName, "schemas")) {
             /*assert(nTables == 1);   WRONG: currently our sql includes one
              * table and only one table */
 
@@ -7444,6 +7449,8 @@ static int sqlite3LockStmtTables_int(sqlite3_stmt *pStmt, int after_recovery)
                        __func__, db->tablename, version, short_version,
                        clnt->fdb_state.version);
             }
+
+            printf("short_version %d req version %d\n", short_version, clnt->fdb_state.version);
 
             if (short_version != clnt->fdb_state.version) {
                 printf("%s:%d xerr %d %d != %d\n", __FILE__, __LINE__, SQLITE_SCHEMA, short_version, clnt->fdb_state.version);
