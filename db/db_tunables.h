@@ -1884,4 +1884,8 @@ REGISTER_TUNABLE("override_fdb_tier",
                  "Specifies db tier for \"override_fdb_source\"",
                  TUNABLE_STRING, &gbl_override_fdb_tier, INTERNAL, NULL, NULL, NULL, NULL);
 
+REGISTER_TUNABLE("override_fdb_test_tier",
+                 "Specifies db tier to pass down to  \"override_fdb_source\"",
+                 TUNABLE_STRING, &gbl_override_fdb_test_tier, INTERNAL, NULL, NULL, NULL, NULL);
+
 #endif /* _DB_TUNABLES_H */

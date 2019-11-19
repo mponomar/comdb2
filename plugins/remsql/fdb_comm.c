@@ -514,8 +514,6 @@ int fdb_send_run_sql(fdb_msg_t *msg, char *cid, int sqllen, char *sql,
     int rc = 0;
     fdb_msg_clean_message(msg);
 
-    printf("%s\n", __func__);
-
     /* request streaming remotely */
     msg->hd.type = FDB_MSG_RUN_SQL;
 
@@ -531,7 +529,6 @@ int fdb_send_run_sql(fdb_msg_t *msg, char *cid, int sqllen, char *sql,
 
     msg->sq.sqllen = sqllen;
     msg->sq.sql = sql;
-    printf("run sql version %d\n", version);
     msg->sq.version = version;
     msg->sq.flags = flags;
     msg->sq.keylen = keylen;
@@ -2748,16 +2745,11 @@ int fdb_bend_run_sql(SBUF2 *sb, fdb_msg_t *msg, svc_callback_arg_t *arg)
 
     /* TODO: get tid */
 
-    printf("run sql: version %d %s\n", version, sql);
-
     start_localrpc = osql_log_time();
     /*fprintf(stderr, "=== Calling appsock %llu\n", start_localrpc);*/
 
-
-
     rc = fdb_appsock_work(cid, clnt, version, flags, sql, sqllen, trim_key,
                           trim_keylen, sb);
-    printf("%s:%d rc %d\n", __func__, __LINE__, rc);
     if (rc) {
         /* this happens natural for fractured streams */
         if (gbl_fdb_track)
@@ -2777,7 +2769,6 @@ int fdb_bend_run_sql(SBUF2 *sb, fdb_msg_t *msg, svc_callback_arg_t *arg)
     /* was there any error processing? */
     int irc;
     if ((irc = errstat_get_rc(&clnt->fdb_state.xerr)) != 0) {
-        printf("irc %d\n", irc);
         /* we need to send back a rc code */
         const char *tmp = errstat_get_str(&clnt->fdb_state.xerr);
         rc = fdb_svc_sql_row(clnt->fdb_state.remote_sql_sb, cid,
@@ -2789,7 +2780,6 @@ int fdb_bend_run_sql(SBUF2 *sb, fdb_msg_t *msg, svc_callback_arg_t *arg)
         }
     }
 
-    printf("%s:%d rc %d\n", __func__, __LINE__, rc);
     return rc;
 }
 
@@ -3381,7 +3371,6 @@ static int _check_code_release(SBUF2 *sb, char *cid, int code_release,
         errval = FDB_ERR_FDB_VERSION;
 
         /* we need to send back a rc code */
-        printf("%s:%d rc %d\n", __FILE__, __LINE__, errval);
         rc = fdb_svc_sql_row(sb, cid, errstr, strlen(errstr) + 1, errval,
                              isuuid);
         if (rc) {
@@ -3394,63 +3383,6 @@ static int _check_code_release(SBUF2 *sb, char *cid, int code_release,
 
     return 0;
 }
-
-
-const char *fdb_msgtype_str(int type) {
-    switch (type) {
-        case FDB_MSG_TRAN_BEGIN:
-            return "tran_begin";
-        case FDB_MSG_TRAN_PREPARE:
-            return "tran_prepare";
-        case FDB_MSG_TRAN_COMMIT:
-            return "tran_commit";
-        case FDB_MSG_TRAN_ROLLBACK:
-            return "tran_rollback";
-        case FDB_MSG_TRAN_RC:
-            return "tran_rc";
-        case FDB_MSG_CURSOR_OPEN:
-            return "cursor_open";
-        case FDB_MSG_CURSOR_CLOSE:
-            return "cursor_close";
-        case FDB_MSG_CURSOR_FIND:
-            return "cursor_find";
-        case FDB_MSG_CURSOR_FIND_LAST:
-            return "cursor_find_last";
-        case FDB_MSG_CURSOR_FIRST:
-            return "cursor_first";
-        case FDB_MSG_CURSOR_LAST:
-            return "cursor_last";
-        case FDB_MSG_CURSOR_NEXT:
-            return "cursor_next";
-        case FDB_MSG_CURSOR_PREV:
-            return "cursor_prev";
-        case FDB_MSG_DATA_ROW:
-            return "data_row";
-        case FDB_MSG_DATA_RC:
-            return "data_rc";
-        case FDB_MSG_RUN_SQL:
-            return "run_sql";
-        case FDB_MSG_INSERT:
-            return "insert";
-        case FDB_MSG_DELETE:
-            return "delete";
-        case FDB_MSG_UPDATE:
-            return "update";
-        case FDB_MSG_HBEAT:
-            return "hbeat";
-        case FDB_MSG_INSERT_PI:
-            return "insert_pi";
-        case FDB_MSG_DELETE_PI:
-            return "delete_pi";
-        case FDB_MSG_UPDATE_PI:
-            return "update_pi";
-        case FDB_MSG_INDEX:
-            return "index";
-        default:
-            return "???";
-    }
-}
-
 
 static int handle_remsql_session(SBUF2 *sb, struct dbenv *dbenv)
 {
@@ -3491,7 +3423,6 @@ static int handle_remsql_session(SBUF2 *sb, struct dbenv *dbenv)
     }
 
     while (1) {
-        printf("remsql request op %d %s\n", msg.hd.type, fdb_msgtype_str(msg.hd.type));
 
         arg.isuuid = flags & FD_MSG_FLAGS_ISUUID;
 

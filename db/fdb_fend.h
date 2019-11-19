@@ -400,9 +400,9 @@ void fdb_cursor_use_table(fdb_cursor_t *cur, struct fdb *fdb,
  * Retrieve the schema of a remote table
  *
  */
-int fdb_get_remote_version(const char *dbname, const char *table,
-                           enum mach_class class, int local,
-                           unsigned long long *version);
+int fdb_get_remote_version(const char *dbname, const char *contact_dbname, 
+                           const char *table, enum mach_class class, 
+                           int local, unsigned long long *version);
 
 int fdb_table_exists(int rootpage);
 

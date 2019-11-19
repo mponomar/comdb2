@@ -79,6 +79,7 @@ static int fingerprints_callback(void **data, int *npoints)
                     if (pEntry->zNormSql != NULL) {
                         pFp[copied].zNormSql = strdup(pEntry->zNormSql);
                         pFp[copied].nNormSql = strlen(pEntry->zNormSql);
+                        assert( pFp[copied].nNormSql==pEntry->nNormSql );
                     }
                     copied++;
                     pEntry = hash_next(gbl_fingerprint_hash, &hash_cur, &hash_cur_buk);

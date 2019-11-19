@@ -524,7 +524,7 @@ retry_after_fdb_creation:
   ** database name and a table name and we are trying to find them
   ** remotely
   */
-  if( !already_searched_fdb /*&& (db->flags & SQLITE_PrepareOnly)==0*/ ){
+  if( !already_searched_fdb){
     int        version = 0;
     char       *zErrDyn = NULL;
 

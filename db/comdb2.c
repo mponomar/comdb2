@@ -355,6 +355,7 @@ int gbl_init_with_bthash = 0;
 
 char *gbl_override_fdb_source = NULL; 
 char *gbl_override_fdb_tier = NULL;
+char *gbl_override_fdb_test_tier = NULL;
 
 uint32_t gbl_nsql;
 long long gbl_nsql_steps;

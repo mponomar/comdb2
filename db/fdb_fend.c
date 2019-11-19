@@ -491,14 +491,13 @@ static fdb_t *new_fdb(const char *dbname, int *created, enum mach_class class,
 
     fdb->dbname = strdup(dbname);
     fdb->class = class;
-    fdb->contact_dbname = NULL;
 
     if (gbl_override_fdb_source) {
-        fdb->contact_dbname = strdup(gbl_override_fdb_source);
+        fdb->contact_dbname = gbl_override_fdb_source;
         fdb->contact_dbtier = gbl_override_fdb_tier ? gbl_override_fdb_tier : "local";
     }
     else {
-        fdb->contact_dbname = strdup(dbname);
+        fdb->contact_dbname = fdb->dbname;
     }
 
     /*
@@ -652,7 +651,7 @@ static int _table_exists(fdb_t *fdb, const char *table_name,
         } else {
             if (comdb2_get_verify_remote_schemas()) {
                 /* this is a retry for an already */
-                rc = fdb_get_remote_version(fdb->dbname, table_name, fdb->class,
+                rc = fdb_get_remote_version(fdb->dbname, fdb->contact_dbname, table_name, fdb->class,
                                             fdb->loc == NULL, &remote_version);
                 if (rc == FDB_NOERR) {
                     if (table->version != remote_version) {
@@ -833,11 +832,12 @@ static int _add_table_and_stats_fdb(fdb_t *fdb, const char *table_name,
     /* create the table object */
     tbl = _alloc_table_fdb(fdb, table_name);
     if (!tbl) {
+        logmsg(LOGMSG_ERROR,
+                "_alloc_table_fdb failed");
+
         rc = FDB_ERR_MALLOC;
         goto done;
     }
-
-    printf("discovering %s initial %d\n", table_name, initial);
 
     /* this COULD be taken out of tbls_mtx, but I want to clear table
        under lock so I don't add garbage table structures when mispelling
@@ -852,8 +852,10 @@ static int _add_table_and_stats_fdb(fdb_t *fdb, const char *table_name,
            remove them */
         __free_fdb_tbl(tbl, fdb);
 
-        if (rc == FDB_NOERR)
+        if (rc == FDB_NOERR) {
             rc = FDB_ERR_FDB_TBL_NOTFOUND;
+            logmsg(LOGMSG_ERROR, "%s: %d rc %d\n", __func__, __LINE__, rc);
+        }
 
         goto done;
     }
@@ -977,9 +979,7 @@ run:
 
     /* prepackaged select */
     if (gbl_override_fdb_source) {
-        // type name tbl_name rootpage sql csc2
-        // TODO: tier
-        sql = sqlite3_mprintf("select 'table', tablename, tablename, 2+nextnum(), sql, schema, table_version from schemas where dbname='%q' and (tablename='%q' collate nocase or tablename='sqlite_stat1' or tablename='sqlite_stat4') and tier='%q'", fdb->dbname, tbl->name, "dev");
+        sql = sqlite3_mprintf("select 'table', tablename, tablename, 2+nextnum(), sql, schema, table_version from schemas where dbname='%q' and (tablename='%q' collate nocase or tablename='sqlite_stat1' or tablename='sqlite_stat4') and tier='%q'", fdb->dbname, tbl->name, gbl_override_fdb_test_tier);
     }
     else {
         if (versioned) {
@@ -1012,7 +1012,6 @@ run:
             }
         }
     }
-    printf("sql: %s\n", sql);
     fdbc->sql_hint = sql;
 
     rc = fdbc_if->move(cur, CFIRST);
@@ -1297,11 +1296,10 @@ int sqlite3AddAndLockTable(sqlite3 *db, const char *dbname, const char *table,
     if (lvl == CLASS_UNKNOWN || lvl == CLASS_DENIED) {
         return _failed_AddAndLockTable(
                 db, dbname, (lvl == CLASS_UNKNOWN) ? FDB_ERR_CLASS_UNKNOWN
-                : FDB_ERR_CLASS_DENIED,
+                                                   : FDB_ERR_CLASS_DENIED,
                 (lvl == CLASS_UNKNOWN) ? "unrecognized class" : "denied access");
     }
 retry_fdb_creation:
-
     fdb = new_fdb(dbname, &created, lvl, local);
     if (!fdb) {
         /* we cannot really alloc a new memory string for sqlite here */
@@ -1797,8 +1795,6 @@ static int insert_table_entry_from_packedsqlite(fdb_t *fdb, fdb_tbl_t *tbl,
     fdb_packedsqlite_process_sqlitemaster_row(row, rowlen, &etype, &name,
                                               &tbl_name, &source_rootpage, &sql,
                                               &csc2, &version, rootpage);
-
-    printf("table %s version %lld\n", tbl_name, version);
 
     if (gbl_fdb_track)
         logmsg(LOGMSG_USER, "%s:%s Inserting table %s:%s rootp=%d src_rootp=%d "
@@ -2490,8 +2486,6 @@ fdb_cursor_if_t *fdb_cursor_open(struct sqlclntstate *clnt, BtCursor *pCur,
     int source_rootpage;
     int flags;
 
-    printf("rootpage %d\n", rootpage);
-
     assert(pCur->bt->is_remote);
 
     fdb = pCur->bt->fdb;
@@ -2940,8 +2934,6 @@ static int fdb_cursor_reopen(BtCursor *pCur)
     fdb_tran_t *tran;
     int need_ssl = 0;
 
-    printf(">>>>> reopen\n");
-
     thd = pthread_getspecific(query_info_key);
 
     if (!thd) {
@@ -3039,7 +3031,6 @@ static int fdb_cursor_move_sql(BtCursor *pCur, int how)
         if (!rc) {
             /* otherwise.read row */
             rc = fdb_recv_row(fdbc->msg, fdbc->cid, fdbc->fcon.sock.sb);
-            printf("fdb_recv_row %d\n", rc);
 
             if (rc != IX_FND && rc != IX_FNDMORE && rc != IX_NOTFND &&
                 rc != IX_PASTEOF && rc != IX_EMPTY) {
@@ -4915,7 +4906,7 @@ void fdb_cursor_use_table(fdb_cursor_t *cur, struct fdb *fdb,
  * Retrieve the schema of a remote table
  *
  */
-int fdb_get_remote_version(const char *dbname, const char *table,
+int fdb_get_remote_version(const char *dbname, const char *contact_dbname, const char *table,
                            enum mach_class class, int local,
                            unsigned long long *version)
 {
@@ -4933,11 +4924,19 @@ int fdb_get_remote_version(const char *dbname, const char *table,
         flags = 0;
     }
 
-    sql = sqlite3_mprintf("select table_version('%q')", table);
-    if (sql == NULL)
-        return FDB_ERR_MALLOC;
+    if (strcmp(contact_dbname, dbname) == 0) {
+        sql = sqlite3_mprintf("select table_version('%q')", table);
+        if (sql == NULL)
+            return FDB_ERR_MALLOC;
+        rc = cdb2_open(&db, dbname, location, flags);
+    }
+    else {
+        sql = sqlite3_mprintf("select table_version from schemas where dbname='%q' and tablename='%q' and tier='%q'", dbname, table, gbl_override_fdb_test_tier);
+        if (sql == NULL)
+            return FDB_ERR_MALLOC;
+        rc = cdb2_open(&db, contact_dbname, location, flags);
+    }
 
-    rc = cdb2_open(&db, dbname, location, flags);
     if (rc) {
         sqlite3_free(sql);
         return FDB_ERR_GENERIC;

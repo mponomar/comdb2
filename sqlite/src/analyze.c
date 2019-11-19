@@ -2484,7 +2484,6 @@ int sqlite3AnalysisLoad(sqlite3 *db, int iDb){
   /* Load new statistics out of the sqlite_stat1 table */
   sInfo.db = db;
   sInfo.zDatabase = db->aDb[iDb].zDbSName;
-
 #if defined(SQLITE_BUILDING_FOR_COMDB2)
   if( sqlite3FindTableByAnalysisLoad(db, "sqlite_stat1", sInfo.zDatabase)!=0 ){
 #else /* defined(SQLITE_BUILDING_FOR_COMDB2) */
