@@ -1,0 +1,390 @@
+#!/bin/bash
+
+function usage {
+    cat <<EOF
+Usage
+
+build [src]
+cluster N
+win c|N
+create dbname
+tmux
+EOF
+exit 1
+}
+
+function make_cluster {
+    local numnodes=$1
+    mkdir common
+    chmod 777 -R common
+    local cluster
+    for node in $(seq 1 $numnodes); do
+        cluster="$cluster m${node}"
+    done
+    echo "$cluster" > common/cluster
+    cat  > Dockerfile.db <<EOF
+ARG REVISION=HEAD
+FROM comdb2:test
+
+RUN mkdir /var/run/sshd && \
+    echo 'root:bigsecret' | chpasswd && \
+    sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    echo "StrictHostKeyChecking no" > /etc/ssh/ssh_config && \
+    sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
+
+EXPOSE 22
+CMD ["/usr/sbin/sshd", "-D"]
+EOF
+
+    compose=docker-compose.yml
+    cat > $compose <<EOF
+version: '2'
+
+networks:
+    primary:
+    n3:
+    n4:
+
+services:
+    client:
+        container_name: c1
+        hostname: c1
+        labels:
+            what: "testclient"
+        networks:
+            - primary
+        build:
+            context: .
+            dockerfile: Dockerfile.db
+        volumes:
+            - ./common:/common
+            - ./common/c1:/dedicated
+
+        command: /client
+        cap_add:
+            - SYS_PTRACE
+EOF
+
+    for node in $cluster; do
+        cat >> $compose <<EOF
+    $node:
+        container_name: $node
+        hostname: $node
+        labels:
+            what: "testserver"
+        networks:
+            primary:
+            n3:
+                aliases:
+                    - $node
+            n4:
+                aliases:
+                    - $node
+        build:
+            context: .
+            dockerfile: Dockerfile.db
+        volumes:
+            - ./common:/common
+            - ./common/$node:/dedicated
+
+        command: /server
+        cap_add:
+            - SYS_PTRACE
+EOF
+    done
+    echo $cluster
+    pwd
+    ls -l
+    export COMPOSE_PROJECT_NAME=cdb2
+    ssh-keygen -N "" -f common/id_rsa
+    docker-compose build
+    docker-compose up --abort-on-container-exit
+    docker-compose down --rmi all --volumes
+    docker-compose rm -f
+}
+
+function build_base {
+    local src=$1
+    src=${src:-$startdir}
+    if [[ ! -d ${src}/.git || ! -d ${src}/db || ! -d ${src}/bdb ]] ; then
+        echo "Expected db build to run from db source directory" >&2
+        exit 1
+    fi
+
+    cat >server <<'EOF'
+#!/bin/bash
+
+# wait for keys
+mkdir ~/.ssh
+chmod 700 ~/.ssh
+cp /common/id_rsa ~/.ssh/
+chmod 700 ~/.ssh/id_rsa
+cp /common/id_rsa.pub ~/.ssh/
+cat /common/id_rsa.pub >> ~/.ssh/authorized_keys
+echo "hostname $(hostname)" > /opt/bb/etc/cdb2/config/comdb2.d/hostname.lrl
+/opt/bb/bin/pmux &
+echo READY
+exec /usr/sbin/sshd -D
+EOF
+    chmod +x server
+
+    cat >client <<'EOF'
+#!/bin/bash
+
+# create and distribute ssh key
+mkdir ~/.ssh
+chmod 700 ~/.ssh
+cp /common/id_rsa* ~/.ssh/
+chmod 700 ~/.ssh/id_rsa
+cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+export CLUSTER="$(cat common/cluster)"
+echo "CLUSTER is $CLUSTER"
+export DEDICATED_NETWORK_SUFFIXES='-n3 -n4'
+
+# wait for all the nodes to signal that they're ready
+numnodes=0
+for node in $CLUSTER; do
+    numnodes=$(($numnodes+1))
+done
+
+declare -A ready
+while :; do 
+    for node in $CLUSTER; do
+        host=$(ssh -o StrictHostKeyChecking=no $node hostname 2>/dev/null)
+        if [[ $? -eq 0 && "$host" == $node ]]; then
+            ready[$node]=1
+        fi
+    done
+
+    ready=0
+    for node in $CLUSTER; do
+        [[ ${ready[$node]} = 1 ]] && ready=$(($ready+1))
+    done
+    [[ $ready -eq $numnodes ]] && break
+done
+
+ssh-keyscan $CLUSTER >> ~/.ssh/known_hosts 2>/dev/null
+
+#if [[ $# -ne 0 ]]; then
+#    eval $*
+#fi
+
+echo READY
+
+if [[ -f /common/user_script ]]; then
+    /common/user_script
+fi
+while :; do
+    sleep 3600
+done
+EOF
+    chmod +x client
+    
+    cp $0 db
+
+    cat >Dockerfile.base <<'EOF'
+FROM ubuntu:eoan
+
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN apt-get update && \
+    apt-get install -y \
+    cmake \
+    bc \
+    bison \
+    build-essential \
+    ninja-build \
+    flex \
+    gawk \
+    liblz4-dev \
+    libprotobuf-c-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    libssl-dev \
+    libunwind-dev \
+    libz-dev \
+    make \
+    ncurses-dev \
+    protobuf-c-compiler \
+    tcl \
+    tcl-dev \
+    uuid-dev \
+    libz1 \
+    liblz4-tool \
+    libprotobuf-c1 \
+    libsqlite3-0 \
+    libuuid1 \
+    libz1 \
+    tzdata \
+    iputils-ping \
+    net-tools \
+    netcat-openbsd \
+    iproute2 \
+    socat \
+    time \
+    strace \
+    gdb \
+    openssh-server \
+    psmisc \
+    gdb \
+    vim \
+    git \
+    less && \
+    apt-get clean
+
+COPY server /server
+COPY client /client
+COPY db /db
+EOF
+    docker build -t comdb2:base -f Dockerfile.base .
+
+    cat >Dockerfile.test <<EOF
+FROM comdb2:base
+
+COPY . ${startdir}
+
+RUN ln -s ${startdir} /comdb2 && \
+    cd /comdb2 &&  \
+    cd build && \
+    ninja && \
+    ninja test-tools && \
+    ninja install && \
+    mv /db /opt/bb/bin/
+
+ENV PATH      \$PATH:/opt/bb/bin
+EOF
+    docker build -t comdb2:test -f Dockerfile.test ${src}
+}
+
+function create_db {
+    local db=$1
+    echo "creating"
+    comdb2 $db --create >/dev/null 2>&1
+    if [[ -f /common/cluster ]]; then
+        set -e
+        printf copying
+        echo "cluster nodes $(cat /common/cluster)" >> /opt/bb/var/cdb2/$db/${db}.lrl
+        for n in $(cat /common/cluster); do
+            printf "."
+            copycomdb2 /opt/bb/var/cdb2/$db/${db}.lrl $n:
+        done
+        printf "\n"
+        for n in $(cat /common/cluster); do
+            ssh -tt $n /opt/bb/bin/comdb2 $db > /common/${db}_${n}.log 2>&1 &
+        done
+        local ready
+        declare -A ready
+        local nready=0
+        local numnodes=0
+        for node in $(cat /common/cluster); do
+            numnodes=$(($numnodes+1))
+            ready[$node]=0
+        done
+        set +e
+
+        echo waiting until ready
+        while [[ $nready -lt $numnodes ]]; do
+            nready=0
+            for node in $(cat /common/cluster); do
+                [[ ${ready[$node]} == 1 ]] && nready=$(($nready+1))
+            done
+            [[ $nready -eq $numnodes ]] && break
+            printf "\r["
+            for n in $(cat /common/cluster); do
+                if [[ ${ready[$node]} == 1 ]]; then
+                    printf "☑"
+                else
+                    printf "☐"
+                fi
+            done
+            printf "]"
+
+            for n in $(cat /common/cluster); do
+                if [[ ${ready[$n]} == 0 ]]; then
+                    local one
+                    one=$(cdb2sql -tabs --host $n $db "select 1" 2>/dev/null)
+                    if [[ $one == '1' ]]; then
+                        ready[$n]=1
+                    fi
+                fi
+            done
+            sleep 0.1
+        done
+        echo
+        mkdir -p /opt/bb/etc/cdb2/config.d/
+        echo "$db $(cat /common/cluster)" > /opt/bb/etc/cdb2/config.d/${db}.cfg
+        cdb2sql --tabular $db dev 'select * from comdb2_cluster'
+   else
+       comdb2 $db >/common${db}.log 2>&1 &
+   fi
+}
+
+[[ $# -lt 1 ]] && usage
+
+startdir=$(pwd)
+workdir=$(mktemp -d /tmp/cluster.XXXXXXXX)
+[[ $? -ne 0 ]] && exit 1
+cd $workdir
+
+function clean_exit {
+    cd $startdir
+    rm -fr $workdir
+}
+trap clean_exit EXIT
+
+cmd=$1
+case $cmd in
+    build)
+        shift
+        build_base $*
+        ;;
+
+    cluster)
+        [[ $# -ne 2 ]] && usage
+        shift
+        numnodes=$1
+        make_cluster $numnodes
+        ;;
+
+    create)
+        [[ $# -ne 2 ]] && usage
+        shift
+        db=$1
+        create_db $db
+        ;;
+
+    win)
+        [[ $# -ne 2 ]] && usage
+        shift
+        mach=$1
+        docker exec -ti $mach /bin/bash
+        ;;
+
+    tmux)
+        containers=$(docker ps | grep -v ^CONTAINER | awk '{if ($2 ~ /^cdb2_m/) print $1}')
+        (
+        echo "select-window -t db"
+        first=1
+        for c in $containers; do 
+            if [[ $first -eq 1 ]]; then
+                echo "new-window -n db docker exec -ti $c /bin/bash"
+                first=0
+            else
+                echo "split-window docker exec -ti $c /bin/bash"
+                echo "select-layout -t db tiled"
+            fi
+        done
+        echo "split-window docker exec -ti c1 /bin/bash"
+        echo "select-layout -t db tiled"
+        ) >>tmux.conf
+        if [[ -z "$TMUX" ]]; then
+            tmux -f tmux.conf
+        else
+            tmux source-file tmux.conf
+        fi
+        ;;
+
+    *)
+        usage
+        ;;
+esac
