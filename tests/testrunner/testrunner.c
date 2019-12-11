@@ -336,7 +336,7 @@ int main(int argc, char *argv[]) {
     regex_t firstline;
     regmatch_t matches[3];
 
-    FILE *testrun = popen("./x", "r");
+    FILE *testrun = popen("./run", "r");
 
     rc = regcomp(&firstline, "TESTID=.*([0-9]+)/([0-9]+)$", REG_EXTENDED);
     if (rc) {
