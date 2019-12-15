@@ -1,0 +1,8 @@
+schema {
+    int state
+    cstring statestr[20]
+}
+
+keys {
+    "0" = state
+}

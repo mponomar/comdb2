@@ -12,10 +12,19 @@
 #include <signal.h> 
 #include <time.h>
 
+#include <cdb2api.h>
+
+cdb2_hndl_tp *db;
+char runid[41];
+char version[41];
+
 int testnum=0, totaltests=0;
 int lines, cols;
 int passed, failed;
 time_t start_time;
+FILE *testlog = NULL;
+
+void db_update_test(char *test, int state);
 
 enum status {
     ST_UNKNOWN,
@@ -267,6 +276,8 @@ void add_test(char *name, char *status) {
     tests[numtests].name = strdup(name);
     tests[numtests].status = status_from_string(status);
 
+    db_update_test(name, tests[numtests].status);
+
     tests[numtests].start_time = time(NULL);
     tests[numtests].timeout = 0;
     numtests++;
@@ -324,10 +335,114 @@ void update_test_line(char *testname, char *status) {
                 st == ST_FAIL)
             failed++;
 
-        if (t->status <= ST_RUNNING)
+        if (t->status <= ST_RUNNING) {
             t->status = status_from_string(status);
+            db_update_test(testname, st);
+        }
         t->start_time = time(NULL);
     }
+}
+
+void chomp(char *s) {
+    s = strchr(s, '\n');
+    if (s)
+        *s = 0;
+}
+
+void load_config(void) {
+    char dbname[100];
+    char host[100];
+    char tier[100];
+
+    FILE *f = fopen("/common/testrun", "r");
+    if (f == NULL)
+        goto err;
+    if (fgets(runid, sizeof(runid), f) == NULL)
+        goto err;
+    chomp(runid);
+    if (fgets(dbname, sizeof(dbname), f) == NULL)
+        goto err;
+    chomp(dbname);
+    if (fgets(host, sizeof(host), f) == NULL)
+        goto err;
+    chomp(host);
+    if (fgets(tier, sizeof(tier), f) == NULL)
+        goto err;
+    chomp(tier);
+    fclose(f);
+    f = fopen("/comdb2/version", "r");
+    if (f == NULL)
+        goto err;
+    if (fgets(version, sizeof(version), f) == NULL)
+        goto err;
+    chomp(version);
+
+    printf("runid %s dbname %s host %s tier %s version %s\n",
+            runid, dbname, host, tier, version);
+
+    int rc = cdb2_open(&db, dbname, host, strcmp(tier, "-") == 0 ? CDB2_DIRECT_CPU : 0);
+    if (rc) {
+        cdb2_close(db);
+        db = NULL;
+        goto err;
+    }
+
+err:
+    if (f)
+        fclose(f);
+}
+
+void db_inittest(void) {
+    if (!db) return;
+    cdb2_clearbindings(db);
+    cdb2_bind_param(db, "version", CDB2_CSTRING, version, strlen(version));
+    cdb2_bind_param(db, "runid", CDB2_CSTRING, runid, strlen(runid));
+    int rc = cdb2_run_statement(db, "insert into testruns(version, runid, start, end) values(@version, @runid, now(), NULL)");
+    if (rc) {
+        fprintf(stderr, "init %d %s\n", rc, cdb2_errstr(db));
+        exit(1);
+    }
+}
+
+void db_end(void) {
+    if (!db) return;
+    cdb2_clearbindings(db);
+    cdb2_bind_param(db, "version", CDB2_CSTRING, version, strlen(version));
+    int rc = cdb2_run_statement(db, "update testruns set end=now() where version=@version");
+    if (rc) {
+        fprintf(stderr, "end %d %s\n", rc, cdb2_errstr(db));
+        exit(1);
+    }
+}
+
+int is_endstate(int state) {
+    return state == ST_TIMEOUT || state == ST_DBFAIL || state == ST_SUCCESS;
+}
+
+void db_update_test(char *test, int state) {
+    if (!db) return;
+    cdb2_clearbindings(db);
+    cdb2_bind_param(db, "runid", CDB2_CSTRING, runid, strlen(runid));
+    cdb2_bind_param(db, "test", CDB2_CSTRING, test, strlen(test));
+    cdb2_bind_param(db, "state", CDB2_INTEGER, &state, sizeof(state));
+
+    if (testlog)
+        fprintf(testlog, "test update %s->%d\n", test, state);
+
+    int rc;
+    if (state == ST_CREATING) {
+        rc = cdb2_run_statement(db, "insert into tests(runid, test, state, start, statetime) values(@runid, @test, @state, now(), now())");
+    }
+    else if (!is_endstate(state)) {
+        rc = cdb2_run_statement(db, "update tests set state=@state, statetime=now() where runid=@runid and test=@test");
+    }
+    else {
+        if (testlog)
+            fprintf(testlog, "DONE %s->%d\n", test, state);
+        rc = cdb2_run_statement(db, "update tests set state=@state, statetime=NULL, end=now() where runid=@runid and test=@test");
+    }
+    if (rc)
+        fprintf(testlog, "ERROR: %s %d rc %d %s\n", test, state, rc, cdb2_errstr(db));
 }
 
 int main(int argc, char *argv[]) {
@@ -336,7 +451,12 @@ int main(int argc, char *argv[]) {
     regex_t firstline;
     regmatch_t matches[3];
 
+    load_config();
+    if (db)
+        db_inittest();
+
     FILE *testrun = popen("./run", "r");
+    testlog = fopen("test.log", "w");
 
     rc = regcomp(&firstline, "TESTID=.*([0-9]+)/([0-9]+)$", REG_EXTENDED);
     if (rc) {
@@ -370,9 +490,10 @@ int main(int argc, char *argv[]) {
         }
         if (fgets(line, sizeof(line), testrun) == NULL)
             break;
-
         char *s = strchr(line, '\n');
         if (s) *s = 0;
+        if (testlog)
+            fprintf(testlog, "%s\n", line);
         if ((rc=regexec(&firstline, line, 3, matches, 0)) == 0) {
             int n;
             testnum = regmatch_to_num(line, &matches[1]);
@@ -393,4 +514,5 @@ int main(int argc, char *argv[]) {
 done:
         draw();
     }
+    db_end();
 }

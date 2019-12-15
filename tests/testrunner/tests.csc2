@@ -1,0 +1,12 @@
+schema {
+    cstring runid[37]
+    cstring test[100]
+    int state
+    datetime start
+    datetime statetime  null=yes
+    datetime end        null=yes
+}
+
+keys {
+    "0" = runid + test
+}

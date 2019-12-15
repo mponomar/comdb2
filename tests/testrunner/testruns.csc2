@@ -1,0 +1,6 @@
+schema {
+    cstring version[41]
+    cstring runid[37]
+    datetime start
+    datetime end            null=yes
+}
