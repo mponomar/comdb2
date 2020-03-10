@@ -15,6 +15,7 @@ struct consumer_stat {
     int has_stuff;
     size_t first_item_length;
     time_t epoch;
+    time_t last_epoch;
     int depth;
 };
 

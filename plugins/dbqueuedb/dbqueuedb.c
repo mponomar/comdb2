@@ -79,6 +79,7 @@ static int add_consumer_int(struct dbtable *db, int consumern,
                                     const char *method, int noremove,
                                     int checkonly);
 
+extern int gbl_max_queue_scan;
 
 int set_consumer_options(struct consumer *consumer, const char *opts);
 
@@ -516,8 +517,11 @@ static int stat_callback(int consumern, size_t length,
             stats[consumern].first_item_length = length;
             stats[consumern].epoch = epoch;
         }
+        stats[consumern].last_epoch = epoch;
         stats[consumern].has_stuff = 1;
         stats[consumern].depth++;
+        if (gbl_max_queue_scan > 0  && stats[consumern].depth >= gbl_max_queue_scan)
+            return 1;
     }
 
     return BDB_QUEUE_WALK_CONTINUE;

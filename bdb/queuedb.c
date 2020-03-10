@@ -250,7 +250,8 @@ int bdb_queuedb_walk(bdb_state_type *bdb_state, int flags, void *lastitem,
             rc = 0;
             break;
         }
-        rc = dbcp->c_get(dbcp, &dbt_key, &dbt_key, DB_NEXT);
+
+        rc = dbcp->c_get(dbcp, &dbt_key, &dbt_data, DB_NEXT);
     }
     if (rc) {
         if (rc == DB_LOCK_DEADLOCK) {
@@ -690,4 +691,52 @@ int bdb_trigger_close(bdb_state_type *bdb_state)
 {
     DB_ENV *dbenv = bdb_state->dbenv;
     return dbenv->trigger_close(dbenv, bdb_state->name);
+}
+
+/* Note: we don't currently have a way to have multiple consumers on a queue.  If
+ * we ever do, this will need to change. */
+int bdb_queuedb_oldest_epoch(bdb_state_type *bdb_state, time_t *epoch, int *bdberr) 
+{
+    DBT dbt_key = {0}, dbt_data = {0};
+    DBC *dbcp = NULL;
+    int rc;
+
+    *epoch = 0;
+
+    dbt_key.flags = dbt_data.flags = DB_DBT_MALLOC;
+
+    rc = bdb_state->dbp_data[0][0]->cursor(bdb_state->dbp_data[0][0], NULL,
+                                           &dbcp, 0);
+    if (rc != 0) {
+        *bdberr = BDBERR_MISC;
+        return -1;
+    }
+
+    rc = dbcp->c_get(dbcp, &dbt_key, &dbt_data, DB_LAST);
+    if (rc == DB_NOTFOUND) {
+        rc = 0;
+        goto done;
+    }
+
+    struct bdb_queue_found qfnd;
+    uint8_t *p_buf, *p_buf_end;
+
+    p_buf = dbt_data.data;
+    p_buf_end = p_buf + dbt_data.size;
+    p_buf = (uint8_t *)queue_found_get(&qfnd, p_buf, p_buf_end);
+    if (p_buf == NULL) {
+        logmsg(LOGMSG_ERROR, "%s failed to decode queue header for %s\n",
+                __func__, bdb_state->name);
+        *bdberr = BDBERR_MISC;
+        rc = -1;
+        goto done;
+    }
+    *epoch = qfnd.epoch;
+
+done:
+    free(dbt_key.data);
+    free(dbt_data.data);
+    if (dbcp)
+        dbcp->c_close(dbcp);
+    return rc;
 }

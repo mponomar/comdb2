@@ -923,6 +923,10 @@ void bdb_queue_get_found_info(const void *fnd, size_t *dtaoff, size_t *dtalen);
 /* Get queue stats */
 const struct bdb_queue_stats *bdb_queue_get_stats(bdb_state_type *bdb_state);
 
+
+/* Epoch time of oldest entry */
+int bdb_queue_oldest_epoch(bdb_state_type *bdb_state, time_t *epoch);
+
 /* dump dta contents of bdb_handle to stream sb */
 int bdb_dumpdta(bdb_state_type *bdb_handle, SBUF2 *sb, int *bdberr);
 
@@ -2159,4 +2163,6 @@ int bdb_pack_heap(bdb_state_type *bdb_state, void *in, size_t inlen, void **out,
  * Otherwise unpack the payload into heap memory. */
 int bdb_unpack_heap(bdb_state_type *bdb_state, void *in, size_t inlen,
                     void **out, size_t *outlen, void **freeptr);
+
+
 #endif

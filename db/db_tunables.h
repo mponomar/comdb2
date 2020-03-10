@@ -1888,4 +1888,9 @@ REGISTER_TUNABLE("cached_output_buffer_max_bytes",
                  "thread.  (Default: 8 MiB)",
                  TUNABLE_INTEGER, &gbl_cached_output_buffer_max_bytes, 0, NULL,
                  NULL, NULL, NULL);
+
+REGISTER_TUNABLE("max_queue_scan", 
+                 "Maximum number of queue elements scanned by a queue walk", 
+                 TUNABLE_INTEGER, &gbl_max_queue_scan, 0, NULL, NULL, NULL, NULL);
+
 #endif /* _DB_TUNABLES_H */

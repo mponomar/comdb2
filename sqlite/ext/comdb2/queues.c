@@ -40,6 +40,7 @@ struct systbl_queues_cursor {
   char          spname[256];
   unsigned long long     depth;
   unsigned long long     age;
+  unsigned long long     last_age;
   int           last_qid;
   int           is_last;
 };
@@ -49,6 +50,7 @@ struct systbl_queues_cursor {
 #define STQUEUE_SPNAME       1
 #define STQUEUE_HEADTIME     2
 #define STQUEUE_DEPTH        3
+#define STQUEUE_TAILTIME     4
 
 static int systblQueuesConnect(
   sqlite3 *db,
@@ -62,7 +64,7 @@ static int systblQueuesConnect(
   int rc;
 
   rc = sqlite3_declare_vtab(db,
-     "CREATE TABLE comdb2_queues(queuename, spname, head_age, depth)");
+     "CREATE TABLE comdb2_queues(queuename, spname, oldest_age, depth, newest_age)");
   if( rc==SQLITE_OK ){
     pNew = *ppVtab = sqlite3_malloc( sizeof(*pNew) );
     if( pNew==0 ) return SQLITE_NOMEM;
@@ -78,6 +80,8 @@ static int systblQueuesDisconnect(sqlite3_vtab *pVtab){
   sqlite3_free(pVtab);
   return SQLITE_OK;
 }
+
+extern int gbl_max_queue_scan;
 
 static int get_stats(struct systbl_queues_cursor *pCur) {
   struct consumer_stat stats[MAXCONSUMERS] = {{0}};
@@ -97,16 +101,32 @@ static int get_stats(struct systbl_queues_cursor *pCur) {
   if (rc) {
       /* TODO: signal error? */
   }
+
   for (int consumern = 0; consumern < MAXCONSUMERS; consumern++) {
       if (stats[consumern].has_stuff)
           depth += stats[consumern].depth;
   }
 
   pCur->depth = depth;
-  if (stats[0].epoch)
+  if (stats[0].epoch) {
       pCur->age  = comdb2_time_epoch() - stats[0].epoch;
+      pCur->last_age = comdb2_time_epoch() - stats[0].last_epoch;
+  }
   else
       pCur->age  = 0;
+
+  /* if we hit the max depth, look up the oldest value's age explicitly   */
+  if (gbl_max_queue_scan > 0 && stats[0].depth == gbl_max_queue_scan) {
+      time_t epoch;
+      int rc = bdb_queue_oldest_epoch(thedb->qdbs[pCur->last_qid]->handle, &epoch);
+      if (rc)
+          return rc;
+      if (epoch > 0)
+          pCur->last_age = comdb2_time_epoch() - epoch;
+      else
+          pCur->last_age = 0;
+  }
+
   return 0;
 }
 
@@ -181,6 +201,10 @@ static int systblQueuesColumn(
     }    
     case STQUEUE_HEADTIME: {
       sqlite3_result_int64(ctx, (sqlite3_int64)pCur->age);
+      break;
+    }
+    case STQUEUE_TAILTIME: {
+      sqlite3_result_int64(ctx, (sqlite3_int64)pCur->last_age);
       break;
     }
   }

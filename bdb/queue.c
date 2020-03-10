@@ -2084,3 +2084,10 @@ const struct bdb_queue_stats *bdb_queue_get_stats(bdb_state_type *bdb_state)
 
     return &bdb_state->qpriv->stats;
 }
+
+int bdb_queue_oldest_epoch(bdb_state_type *bdb_state, time_t *epoch) {
+    int bdberr;
+    if (bdb_state->bdbtype != BDBTYPE_QUEUEDB)
+        return -1;
+    return bdb_queuedb_oldest_epoch(bdb_state, epoch, &bdberr);
+}
