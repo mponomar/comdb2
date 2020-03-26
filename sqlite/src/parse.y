@@ -315,7 +315,7 @@ columnname(A) ::= nm(A) typetoken(Y). {sqlite3AddColumn(pParse,&A,&Y);}
   CHECK COMMITSLEEP CONSUMER CONVERTSLEEP COUNTER COVERAGE CRLE
   DATA DATABLOB DATACOPY DBPAD DEFERRABLE DISABLE DISTRIBUTION DRYRUN
   ENABLE EXEC EXECUTE FUNCTION GENID48 GET GRANT INCREMENT IPU ISC KW
-  LUA LZ4 NONE
+  LUA LZ4 MULTI NONE
   ODH OFF OP OPTION OPTIONS
   PAGEORDER PASSWORD PAUSE PERIOD PENDING PROCEDURE PUT
   REBUILD READ READONLY REC RESERVED RESUME RETENTION REVOKE RLE ROWLOCKS
@@ -2425,11 +2425,15 @@ cmd ::= createkw LUA AGGREGATE FUNCTION nm(Q). {
 }
 
 cmd ::= createkw LUA TRIGGER nm(Q) withsequence(S) ON table_trigger_event(T). {
-  comdb2CreateTrigger(pParse,0,S,&Q,T);
+  comdb2CreateTrigger(pParse,0,S,0,&Q,T);
 }
 
 cmd ::= createkw LUA CONSUMER nm(Q) withsequence(S) ON table_trigger_event(T). {
-  comdb2CreateTrigger(pParse,1,S,&Q,T);
+  comdb2CreateTrigger(pParse,1,S,0,&Q,T);
+}
+
+cmd ::= createkw LUA MULTI CONSUMER nm(Q) withsequence(S) ON table_trigger_event(T). {
+  comdb2CreateTrigger(pParse,0,S,1,&Q,T);
 }
 
 table_trigger_event(A) ::= table_trigger_event(B) COMMA LP TABLE fullname(T) FOR trigger_events(C) RP. {

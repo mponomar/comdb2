@@ -1109,7 +1109,7 @@ void bdb_set_odh_options(bdb_state_type *bdb_state, int odh, int compression,
                          int blob_compression);
 
 void bdb_set_queue_odh_options(bdb_state_type *bdb_state, int odh,
-                               int compression, int persistseq);
+                               int compression, int persistseq, int multi);
 
 void bdb_get_compr_flags(bdb_state_type *bdb_state, int *odh, int *compr,
                          int *blob_compr);
@@ -2189,5 +2189,7 @@ int bdb_debug_log(bdb_state_type *bdb_state, tran_type *tran, int op);
 
 /* Return 1 if this node is master, 0 otherwise */
 int bdb_iam_master(bdb_state_type *bdb_state);
+
+int bdb_queue_finish_open(bdb_state_type *bdb_state, tran_type *tran);
 
 #endif

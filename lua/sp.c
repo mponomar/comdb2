@@ -242,6 +242,9 @@ static const luaL_Reg tran_funcs[] = {
     {"create_thread", db_create_thread}, // not tran func; same visibility
     {NULL, NULL}};
 
+static int is_multiconsumer(const char *spname);
+
+
 /*
 ** n1: namespace - main, temp, fdb ...
 ** n2: unqualified table name
@@ -5935,6 +5938,8 @@ static int run_sp_int(struct sqlclntstate *clnt, int argcnt, char **err)
     SP sp = clnt->sp;
     Lua lua = sp->lua;
 
+    printf("running\n");
+
     if ((rc = lua_pcall(lua, argcnt, LUA_MULTRET, 0)) != 0) {
         if (lua_gettop(lua) > 0 && !lua_isnil(lua, -1)) {
             *err = strdup(luabb_tostring(lua, -1));
@@ -6616,6 +6621,17 @@ static int exec_procedure_int(struct sqlthdstate *thd,
     return flush_sp(sp, err);
 }
 
+static int db_multi_emit(Lua L) {
+    printf("hi i am multiemit\n");
+    return 0;
+}
+
+void add_multiconsumer_emit(Lua L) {
+    luaL_getmetatable(L, dbtypes.db);
+    lua_pushcfunction(L, db_multi_emit);
+    lua_setfield(L, -2, "emit");
+}
+
 static int setup_sp_for_trigger(trigger_reg_t *reg, char **err,
                                 struct sqlthdstate *thd,
                                 struct sqlclntstate *clnt, dbconsumer_t **q)
@@ -6637,6 +6653,9 @@ static int setup_sp_for_trigger(trigger_reg_t *reg, char **err,
     remove_tran_funcs(L);
     remove_consumer(L);
     remove_emit(L);
+
+    if (is_multiconsumer(reg->spname)) 
+        add_multiconsumer_emit(L);
 
     char *spname = reg->spname;
     Q4SP(qname, spname);
@@ -6809,10 +6828,12 @@ void *exec_trigger(trigger_reg_t *reg)
         L = sp->lua;
         if ((args = dbconsumer_get_int(L, q)) < 0) {
             err = strdup(sp->error);
+            printf("err %s\n", err);
             goto bad;
         }
         if ((rc = begin_sp(&clnt, &err)) != 0) {
             err = strdup(sp->error);
+            printf("err %s\n", err);
             goto bad;
         }
         if ((rc = run_sp(&clnt, args, &err)) != 0) {
@@ -6880,4 +6901,23 @@ int exec_procedure(struct sqlthdstate *thd, struct sqlclntstate *clnt, char **er
         reset_sp(clnt->sp);
     }
     return rc;
+}
+
+static int is_multiconsumer(const char *spname) {
+    Q4SP(qname, spname);
+    struct dbtable *db = getqueuebyname(qname);
+
+    if (db == NULL) {
+        fprintf(stderr, "unknown consumer?\n");
+        return -1;
+    }
+
+    int multi;
+    if (get_db_queue_multi(db, &multi)) {
+        fprintf(stderr, "can't get flags?\n");
+        return 0;
+    }
+
+    printf("multi %d\n", multi);
+    return multi;
 }

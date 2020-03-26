@@ -456,7 +456,8 @@ enum DB_METADATA {
     META_QUEUE_ODH = -14,
     META_QUEUE_COMPRESS = -15,
     META_QUEUE_PERSISTENT_SEQ = -16,
-    META_QUEUE_SEQ = -17
+    META_QUEUE_SEQ = -17,
+    META_QUEUE_MULTI = -18
 };
 
 enum CONSTRAINT_FLAGS {
@@ -2362,10 +2363,18 @@ int get_db_queue_odh_tran(struct dbtable *, int *odh, tran_type *);
 int put_db_queue_compress(struct dbtable *db, tran_type *, int odh);
 int get_db_queue_compress(struct dbtable *db, int *odh);
 int get_db_queue_compress_tran(struct dbtable *, int *odh, tran_type *);
+
 int put_db_queue_persistent_seq(struct dbtable *db, tran_type *, int persist);
 int get_db_queue_persistent_seq(struct dbtable *db, int *persist);
 int get_db_queue_persistent_seq_tran(struct dbtable *, int *persist,
                                      tran_type *);
+
+int put_db_queue_multi(struct dbtable *db, tran_type *, int multi);
+int get_db_queue_multi(struct dbtable *db, int *multi);
+int get_db_queue_multi_tran(struct dbtable *, int *multi,
+                                     tran_type *);
+
+
 int put_db_queue_sequence(struct dbtable *db, tran_type *, long long seq);
 int get_db_queue_sequence(struct dbtable *db, long long *seq);
 int get_db_queue_sequence_tran(struct dbtable *, long long *seq, tran_type *);
@@ -3403,7 +3412,7 @@ void set_bdb_option_flags(struct dbtable *, int odh, int ipu, int isc, int ver,
                           int compr, int blob_compr, int datacopy_odh);
 
 void set_bdb_queue_option_flags(struct dbtable *, int odh, int compr,
-                                int persist);
+                                int persist, int multi);
 
 extern int gbl_debug_temptables;
 

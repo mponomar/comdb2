@@ -879,6 +879,9 @@ struct bdb_state_tag {
     /* bit mask of which consumers want to consume new queue items */
     uint32_t active_consumers;
 
+    /* true if this queue is a multiconsumer queue */
+    int multiconsumer;
+
     unsigned long long master_cmpcontext;
 
     /* stuff for the genid->thread affinity logic */

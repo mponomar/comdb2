@@ -8536,3 +8536,9 @@ int bdb_debug_log(bdb_state_type *bdb_state, tran_type *trans, int inop)
     op.data = &endianized;
     return bdb_state->dbenv->debug_log(bdb_state->dbenv, tid, &op, NULL, NULL);
 }
+
+int bdb_queue_finish_open(bdb_state_type *bdb_state, tran_type *trans) {
+    if (bdb_state->multiconsumer) {
+    }
+    return 0;
+}

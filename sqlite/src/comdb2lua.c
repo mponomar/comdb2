@@ -144,11 +144,13 @@ Cdb2TrigTables *comdb2AddTriggerTable(Parse *parse, Cdb2TrigTables *tables,
 }
 
 // dynamic -> consumer
-void comdb2CreateTrigger(Parse *parse, int dynamic, int seq, Token *proc,
+void comdb2CreateTrigger(Parse *parse, int dynamic, int seq, int multi, Token *proc,
                          Cdb2TrigTables *tbl)
 {
     if (comdb2IsPrepareOnly(parse))
         return;
+
+    printf("dynamic %d seq %d multi %d\n", dynamic, seq, multi);
 
 #ifndef SQLITE_OMIT_AUTHORIZATION
     {
@@ -225,6 +227,7 @@ void comdb2CreateTrigger(Parse *parse, int dynamic, int seq, Token *proc,
 	sc->is_trigger = 1;
 	sc->addonly = 1;
     sc->persistent_seq = seq;
+    sc->multiconsumer = multi;
 	strcpy(sc->tablename, qname);
 	struct dest *d = malloc(sizeof(struct dest));
 	d->dest = strdup(method);

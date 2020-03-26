@@ -141,6 +141,7 @@ struct schema_change_type {
     /* View operations */
     int add_view;
     int drop_view;
+    uint8_t multiconsumer;
 
     /* ========== runtime members ========== */
     int onstack; /* if 1 don't free */

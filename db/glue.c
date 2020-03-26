@@ -3816,7 +3816,7 @@ static int init_odh_lrl(struct dbtable *d, int *compr, int *compr_blobs,
 }
 
 static int init_queue_odh_lrl(struct dbtable *d, int *compr,
-                              int *persistent_seq)
+                              int *persistent_seq, int *multi)
 {
     if (gbl_init_with_queue_odh == 0) {
         gbl_init_with_queue_compr = 0;
@@ -3833,13 +3833,17 @@ static int init_queue_odh_lrl(struct dbtable *d, int *compr,
         put_db_queue_sequence(d, NULL, 0) != 0) {
         return -1;
     }
+
+    // TODO: way to indicate in lrl file for repoplrl
+    put_db_queue_multi(d, NULL, 0);
+
     d->odh = gbl_init_with_queue_odh;
     *compr = gbl_init_with_queue_compr;
     *persistent_seq = gbl_init_with_queue_persistent_seq;
     return 0;
 }
 
-static int init_queue_odh_llmeta(struct dbtable *d, int *compr, int *persist,
+static int init_queue_odh_llmeta(struct dbtable *d, int *compr, int *persist, int *multi,
                                  tran_type *tran)
 {
     if (get_db_queue_odh_tran(d, &d->odh, tran) != 0 || d->odh == 0) {
@@ -3851,6 +3855,7 @@ static int init_queue_odh_llmeta(struct dbtable *d, int *compr, int *persist,
 
     get_db_queue_compress_tran(d, compr, tran);
     get_db_queue_persistent_seq_tran(d, persist, tran);
+    get_db_queue_multi_tran(d, multi, tran);
     return 0;
 }
 
@@ -4030,19 +4035,22 @@ int backend_open_tran(struct dbenv *dbenv, tran_type *tran, uint32_t flags)
         struct dbtable *queue = dbenv->qdbs[ii];
         int compress;
         int persist;
+        int multi;
         if (gbl_create_mode) {
-            if (init_queue_odh_lrl(queue, &compress, &persist) != 0) {
+            if (init_queue_odh_lrl(queue, &compress, &persist,&multi) != 0) {
                 logmsg(LOGMSG_ERROR, "save queue odh to llmeta failed\n");
                 return -1;
             }
         } else {
-            if (init_queue_odh_llmeta(queue, &compress, &persist, tran) != 0) {
+            if (init_queue_odh_llmeta(queue, &compress, &persist, &multi, tran) != 0) {
                 logmsg(LOGMSG_ERROR, "fetch queue odh from llmeta failed\n");
                 return -1;
             }
         }
 
-        set_bdb_queue_option_flags(queue, queue->odh, compress, persist);
+        set_bdb_queue_option_flags(queue, queue->odh, compress, persist, multi);
+
+        bdb_queue_finish_open(queue->handle, tran);
     }
 
     for (ii = 0; ii < dbenv->num_dbs; ii++) {
@@ -4460,6 +4468,7 @@ int get_db_##x##_tran(struct dbtable *db, long long *value,                \
     struct metahdr hdr = {.rrn = y, .attr = 0};                            \
     long long tmp;                                                         \
     int rc = meta_get_tran(tran, db, &hdr, &tmp, sizeof(long long));       \
+    printf("get %d rc %d\n", hdr.rrn, rc);                                 \
     if (rc == 0)                                                           \
         *value = flibc_ntohll(tmp);                                        \
     else                                                                   \
@@ -4540,6 +4549,12 @@ get_put_db(queue_persistent_seq, META_QUEUE_PERSISTENT_SEQ)
 // get_db_queue_sequence, get_db_queue_sequence_tran,
 // put_db_queue_sequence
 get_put_db_ll(queue_sequence, META_QUEUE_SEQ)
+
+// get_db_queue_multi, get_db_queue_multi_tran,
+// put_db_queue_multi
+get_put_db(queue_multi, META_QUEUE_MULTI)
+
+
 
 static int put_meta_int(const char *table, void *tran, int rrn, int key,
                         int value)

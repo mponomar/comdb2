@@ -173,6 +173,7 @@ int perform_trigger_update_replicant(const char *queue_name, scdone_t type)
     int ndests;
     int compr;
     int persist;
+    int multi;
     char **dests;
     uint32_t lid = 0;
     extern uint32_t gbl_rep_lockid;
@@ -325,15 +326,16 @@ int perform_trigger_update_replicant(const char *queue_name, scdone_t type)
         goto done;
     }
 
-    compr = persist = 0;
+    compr = persist = multi = 0;
     if (type != llmeta_queue_drop) {
         if (get_db_queue_odh_tran(db, &db->odh, tran) != 0 || db->odh == 0) {
             db->odh = 0;
         } else {
             get_db_queue_compress_tran(db, &compr, tran);
             get_db_queue_persistent_seq_tran(db, &persist, tran);
+            get_db_queue_multi_tran(db, &multi, tran);
         }
-        bdb_set_queue_odh_options(db->handle, db->odh, compr, persist);
+        bdb_set_queue_odh_options(db->handle, db->odh, compr, persist, multi);
     }
 
 done:
@@ -552,6 +554,14 @@ static int perform_trigger_update_int(struct schema_change_type *sc)
             goto done;
         }
 
+        if ((rc = put_db_queue_multi(db, tran, sc->multiconsumer)) !=
+            0) {
+            logmsg(LOGMSG_ERROR, "failed to set queue-multi seq, rc %d\n",
+                   rc);
+            goto done;
+        }
+
+
         if (sc->persistent_seq &&
             (rc = put_db_queue_sequence(db, tran, 0)) != 0) {
             logmsg(LOGMSG_ERROR, "failed to set queue-sequence, rc %d\n", rc);
@@ -560,7 +570,7 @@ static int perform_trigger_update_int(struct schema_change_type *sc)
 
         db->odh = sc->headers;
         bdb_set_queue_odh_options(db->handle, sc->headers, sc->compress,
-                                  sc->persistent_seq);
+                                  sc->persistent_seq, sc->multiconsumer);
 
         thedb->qdbs =
             realloc(thedb->qdbs, (thedb->num_qdbs + 1) * sizeof(struct dbtable *));
@@ -621,7 +631,7 @@ static int perform_trigger_update_int(struct schema_change_type *sc)
 
         db->odh = sc->headers;
         bdb_set_queue_odh_options(db->handle, sc->headers, sc->compress,
-                                  sc->persistent_seq);
+                                  sc->persistent_seq, sc->multiconsumer);
 
         scdone_type = llmeta_queue_alter;
 
