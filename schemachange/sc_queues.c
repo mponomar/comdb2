@@ -554,6 +554,12 @@ static int perform_trigger_update_int(struct schema_change_type *sc)
             goto done;
         }
 
+        if (sc->persistent_seq &&
+            (rc = put_db_queue_sequence(db, tran, 0)) != 0) {
+            logmsg(LOGMSG_ERROR, "failed to set queue-sequence, rc %d\n", rc);
+            goto done;
+        }
+
         if ((rc = put_db_queue_multi(db, tran, sc->multiconsumer)) !=
             0) {
             logmsg(LOGMSG_ERROR, "failed to set queue-multi seq, rc %d\n",
@@ -561,16 +567,18 @@ static int perform_trigger_update_int(struct schema_change_type *sc)
             goto done;
         }
 
-
-        if (sc->persistent_seq &&
-            (rc = put_db_queue_sequence(db, tran, 0)) != 0) {
-            logmsg(LOGMSG_ERROR, "failed to set queue-sequence, rc %d\n", rc);
-            goto done;
-        }
-
         db->odh = sc->headers;
         bdb_set_queue_odh_options(db->handle, sc->headers, sc->compress,
                                   sc->persistent_seq, sc->multiconsumer);
+
+        if (sc->multiconsumer) {
+            rc = bdb_queue_finish_open(db->handle, tran, 1);
+            if (rc) {
+                logmsg(LOGMSG_ERROR, "failed to open secondary queue for queue-multi, rc %d\n",
+                        rc);
+                goto done;
+            }
+        }
 
         thedb->qdbs =
             realloc(thedb->qdbs, (thedb->num_qdbs + 1) * sizeof(struct dbtable *));

@@ -3917,6 +3917,7 @@ void get_disable_skipscan_all()
 /* open the db files, etc */
 int backend_open_tran(struct dbenv *dbenv, tran_type *tran, uint32_t flags)
 {
+
     int bdberr, ii;
     struct dbtable *db = NULL;
     int rc;
@@ -4050,7 +4051,8 @@ int backend_open_tran(struct dbenv *dbenv, tran_type *tran, uint32_t flags)
 
         set_bdb_queue_option_flags(queue, queue->odh, compress, persist, multi);
 
-        bdb_queue_finish_open(queue->handle, tran);
+        if (multi)
+            bdb_queue_finish_open(queue->handle, tran, 0);
     }
 
     for (ii = 0; ii < dbenv->num_dbs; ii++) {
@@ -4468,7 +4470,6 @@ int get_db_##x##_tran(struct dbtable *db, long long *value,                \
     struct metahdr hdr = {.rrn = y, .attr = 0};                            \
     long long tmp;                                                         \
     int rc = meta_get_tran(tran, db, &hdr, &tmp, sizeof(long long));       \
-    printf("get %d rc %d\n", hdr.rrn, rc);                                 \
     if (rc == 0)                                                           \
         *value = flibc_ntohll(tmp);                                        \
     else                                                                   \

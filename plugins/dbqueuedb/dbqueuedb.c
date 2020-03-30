@@ -202,7 +202,8 @@ static int add_consumer_int(struct dbtable *db, int consumern,
 
     if (checkonly) {
         if (strncmp(method, "lua:", 4) != 0 &&
-            strncmp(method, "dynlua:", 7) != 0) {
+            strncmp(method, "dynlua:", 7) != 0 &&
+            strncmp(method, "multiconsumer:", 14) != 0) {
             logmsg(LOGMSG_ERROR, "Unsupported method: %s\n", method);
             rc = -1;
             goto done;
@@ -267,6 +268,10 @@ static int add_consumer_int(struct dbtable *db, int consumern,
     } else if (strncmp(method, "dynlua:", 7) == 0) {
         consumer->base.type = CONSUMER_TYPE_DYNLUA;
         strncpy(consumer->procedure_name, method + 7,
+                sizeof(consumer->procedure_name));
+    } else if (strncmp(method, "multiconsumer:", 14) == 0) {
+        consumer->base.type = CONSUMER_TYPE_MULTICONSUMER;
+        strncpy(consumer->procedure_name, method + 14,
                 sizeof(consumer->procedure_name));
     } else if (strcmp(method, "remove") == 0 && !noremove) {
         free(consumer);
@@ -471,6 +476,7 @@ static void admin(struct dbenv *dbenv, int type)
                         continue;
                     switch (consumer->base.type) {
                     case CONSUMER_TYPE_LUA:
+                    case CONSUMER_TYPE_MULTICONSUMER:
                         dbqueue_check_inactivity(consumer);
 
                         if (!trigger_registered(consumer->procedure_name)) {
@@ -818,7 +824,8 @@ static void stop_consumer(struct consumer *consumer)
     // These get offloaded to replicants, not run locally.
     // Let them get error from missing queue
     if (consumer->base.type == CONSUMER_TYPE_DYNLUA ||
-        consumer->base.type == CONSUMER_TYPE_LUA) {
+        consumer->base.type == CONSUMER_TYPE_LUA ||
+        consumer->base.type == CONSUMER_TYPE_MULTICONSUMER) {
         return;
     }
 
@@ -883,7 +890,8 @@ static enum consumer_t consumer_type(struct consumer *c)
 static int handles_method(const char *method) {
     if (strncmp(method, "remove", 6) == 0 ||
             strncmp(method, "lua:4" , 4) == 0 ||
-            strncmp(method, "dynlua:", 7) == 0) {
+            strncmp(method, "dynlua:", 7) == 0 ||
+            strncmp(method, "multiconsumer:", 14) == 0) {
         return 1;
     }
     return 0;
@@ -915,37 +923,26 @@ static int get_stats(struct dbtable *db, struct consumer_stat *st) {
     return 0;
 }
 
-comdb2_queue_consumer_t dbqueuedb_plugin_lua = {
-    .type = CONSUMER_TYPE_LUA,
-    .add_consumer = add_consumer,
-    .admin = admin,
-    .check_consumer = check_consumer,
-    .consumer_type = consumer_type,
-    .coalesce = coalesce,
-    .restart_consumers = restart_consumers,
-    .stop_consumers = stop_consumers,
-    .wake_all_consumers = wake_all_consumers,
-    .wake_all_consumers_all_queues = wake_all_consumers_all_queues,
-    .handles_method = handles_method,
-    .get_name = get_name,
-    .get_stats = get_stats
-};
+#define QUEUE_PLUGIN(name, qtype)                                   \
+comdb2_queue_consumer_t name = {                                    \
+    .type = qtype,                                                  \
+    .add_consumer = add_consumer,                                   \
+    .admin = admin,                                                 \
+    .check_consumer = check_consumer,                               \
+    .consumer_type = consumer_type,                                 \
+    .coalesce = coalesce,                                           \
+    .restart_consumers = restart_consumers,                         \
+    .stop_consumers = stop_consumers,                               \
+    .wake_all_consumers = wake_all_consumers,                       \
+    .wake_all_consumers_all_queues = wake_all_consumers_all_queues, \
+    .handles_method = handles_method,                               \
+    .get_name = get_name,                                           \
+    .get_stats = get_stats                                          \
+}
 
-comdb2_queue_consumer_t dbqueuedb_plugin_dynlua = {
-    .type = CONSUMER_TYPE_DYNLUA,
-    .add_consumer = add_consumer,
-    .admin = admin,
-    .check_consumer = check_consumer,
-    .consumer_type = consumer_type,
-    .coalesce = coalesce,
-    .restart_consumers = restart_consumers,
-    .stop_consumers = stop_consumers,
-    .wake_all_consumers = wake_all_consumers,
-    .wake_all_consumers_all_queues = wake_all_consumers_all_queues,
-    .handles_method = handles_method,
-    .get_name = get_name,
-    .get_stats = get_stats
-};
+QUEUE_PLUGIN(dbqueuedb_plugin_dynlua, CONSUMER_TYPE_DYNLUA);
+QUEUE_PLUGIN(dbqueuedb_plugin_lua, CONSUMER_TYPE_LUA);
+QUEUE_PLUGIN(dbqueuedb_plugin_multiconsumer, CONSUMER_TYPE_MULTICONSUMER);
 
 
 #include "plugin.h"

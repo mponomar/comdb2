@@ -1,6 +1,7 @@
 #ifndef TRIGGER_H
 #define TRIGGER_H
 
+#include <stdlib.h>
 #include "genid.h"
 
 struct dbtable;
@@ -40,8 +41,9 @@ enum consumer_t {
     CONSUMER_TYPE_API = 0,
     CONSUMER_TYPE_FSTSND = 1,
     CONSUMER_TYPE_JAVASP = 2,
-    CONSUMER_TYPE_LUA,
-    CONSUMER_TYPE_DYNLUA,
+    CONSUMER_TYPE_LUA = 3,
+    CONSUMER_TYPE_DYNLUA = 4,
+    CONSUMER_TYPE_MULTICONSUMER = 5,
 
     CONSUMER_TYPE_LAST
 };

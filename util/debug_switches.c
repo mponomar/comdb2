@@ -114,7 +114,7 @@ int init_debug_switches(void)
     debug_switches.verbose_fix_pinref = 1;
     debug_switches.fix_pinref = 1;
     debug_switches.verbose_cursor_deadlocks = 0;
-    debug_switches.check_multiple_lockers = 1;
+    debug_switches.check_multiple_lockers = 0;
     debug_switches.dump_pool_on_full = 1;
     debug_switches.net_delay = 0;
 

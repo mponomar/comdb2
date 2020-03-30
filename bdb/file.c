@@ -641,21 +641,23 @@ static int form_indexfile_name(bdb_state_type *bdb_state, DB_TXN *tid,
 
 int gbl_queuedb_genid_filename = 1;
 static int form_queuedb_name(bdb_state_type *bdb_state, tran_type *tran,
-                             int create, char *name, size_t len)
+                             int is_multiq, char *name, size_t len)
 {
     unsigned long long ver;
-    int rc, bdberr;
-    if (create && gbl_queuedb_genid_filename) {
-        ver = flibc_htonll(bdb_get_cmp_context(bdb_state));
-        rc = bdb_new_file_version_qdb(bdb_state, tran, ver, &bdberr);
-        if (rc || bdberr != BDBERR_NOERROR) {
-            return -1;
+    int bdberr;
+    if (is_multiq) {
+        if (bdb_get_file_version_qdb(bdb_state, tran, &ver, &bdberr) == 0) {
+            snprintf0(name, len, "XXX.%s_%016llx.mq.queuedb", bdb_state->name, ver);
+        } else {
+            snprintf0(name, len, "XXX.%s.mq.queuedb", bdb_state->name);
         }
     }
-    if (bdb_get_file_version_qdb(bdb_state, tran, &ver, &bdberr) == 0) {
-        snprintf0(name, len, "XXX.%s_%016llx.queuedb", bdb_state->name, ver);
-    } else {
-        snprintf0(name, len, "XXX.%s.queuedb", bdb_state->name);
+    else {
+        if (bdb_get_file_version_qdb(bdb_state, tran, &ver, &bdberr) == 0) {
+            snprintf0(name, len, "XXX.%s_%016llx.queuedb", bdb_state->name, ver);
+        } else {
+            snprintf0(name, len, "XXX.%s.queuedb", bdb_state->name);
+        }
     }
     return 0;
 }
@@ -4324,7 +4326,7 @@ deadlock_again:
         int rc = 0;
         switch (bdbtype) {
         case BDBTYPE_QUEUEDB:
-            rc = form_queuedb_name(bdb_state, &tran, create, tmpname,
+            rc = form_queuedb_name(bdb_state, &tran, 0, tmpname,
                                    sizeof(tmpname));
             break;
         case BDBTYPE_QUEUE:
@@ -4390,7 +4392,7 @@ deadlock_again:
                 exit(1);
             }
 
-            print(bdb_state, "open_dbs: cannot open %s: %d %s\n", tmpname, rc,
+            printf("open_dbs: cannot open %s: %d %s\n", tmpname, rc,
                   db_strerror(rc));
             rc = dbp->close(dbp, 0);
             if (rc != 0)
@@ -7137,6 +7139,8 @@ uint64_t bdb_queuedb_size(bdb_state_type *bdb_state)
         return 0;
     }
     return st.st_size;
+
+    // TODO: here: add multiq size
 }
 
 uint64_t bdb_queue_size(bdb_state_type *bdb_state, unsigned *num_extents)
@@ -7402,8 +7406,10 @@ int oldfile_list_add(char *filename, unsigned lognum, const char *func,
         of_list[list_hd].fname = filename;
         of_list[list_hd++].lognum = lognum;
         list_hd %= OF_LIST_MAX;
+#if 0
         logmsg(LOGMSG_DEBUG, "%s:%d [%s] list_hd %d, list_tl %d from %s:%d\n",
                __func__, __LINE__, filename, list_hd, list_tl, func, line);
+#endif
     }
     Pthread_mutex_unlock(&of_list_mtx);
 
@@ -7420,8 +7426,10 @@ char *oldfile_list_rem(int *lognum)
         *lognum = of_list[list_tl].lognum;
         of_list[list_tl].fname = NULL;
         list_tl = (list_tl + 1) % OF_LIST_MAX;
+#if 0
         logmsg(LOGMSG_DEBUG, "%s:%d [%s] list_hd %d, list_tl %d\n", __func__,
                __LINE__, ret, list_hd, list_tl);
+#endif
     }
     Pthread_mutex_unlock(&of_list_mtx);
 
@@ -8537,8 +8545,45 @@ int bdb_debug_log(bdb_state_type *bdb_state, tran_type *trans, int inop)
     return bdb_state->dbenv->debug_log(bdb_state->dbenv, tid, &op, NULL, NULL);
 }
 
-int bdb_queue_finish_open(bdb_state_type *bdb_state, tran_type *trans) {
+int bdb_queue_finish_open(bdb_state_type *bdb_state, tran_type *trans, int create) {
     if (bdb_state->multiconsumer) {
+        int rc;
+        char tmpname[PATH_MAX];
+
+        rc = db_create(&bdb_state->multiq_persist, bdb_state->dbenv, 0);
+        if (rc != 0) {
+            logmsg(LOGMSG_FATAL, "%s: db_create: %s\n", __func__, db_strerror(rc));
+            exit(1);
+        }
+
+        rc = form_queuedb_name(bdb_state, trans, 1, tmpname, sizeof(tmpname));
+        if (rc)
+            return -1;
+        set_some_flags(bdb_state, bdb_state->multiq_persist, bdb_state->name);
+        rc = bdb_state->multiq_persist->set_pagesize(bdb_state->multiq_persist, 65536);
+        if (rc) {
+            logmsg(LOGMSG_ERROR, "%s: multiq->set_pagesize: %s\n", __func__, db_strerror(rc));
+            return -1;
+        }
+        int flags = DB_THREAD;
+        if (create)
+            flags |= DB_CREATE;
+
+        rc = bdb_state->multiq_persist->open(bdb_state->multiq_persist, trans ? trans->tid : NULL, tmpname, NULL, DB_BTREE, flags, 0666);
+        if (rc) {
+            logmsg(LOGMSG_ERROR, "%s: multiq->set_pagesize: %s\n", __func__, db_strerror(rc));
+            return -1;
+        }
     }
     return 0;
 }
+
+int bdb_queue_is_multiconsumer(bdb_state_type *bdb_state) {
+    return bdb_state->multiconsumer;
+}
+
+int bdb_qchk(bdb_state_type *bdb_state) {
+    printf("queue %s multi %p\n", bdb_state->name, bdb_state->multiq_persist);
+    return 0;
+}
+

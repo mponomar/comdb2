@@ -38,6 +38,8 @@
 #include <luaglue.h>
 #include <logmsg.h>
 
+#include <cson_amalgamation_core.h>
+
 static int lua_writer1(lua_State* lua, const void* p, size_t size, void* u)
 {
     UNUSED(lua);
@@ -109,6 +111,26 @@ const char *luabb_pushfstring(lua_State *lua, char *fmt, ...) {
     return (const char*) out;
 }
 
+typedef struct {
+#define CONV_FLAG_UTF8_FATAL 0x01
+#define CONV_FLAG_UTF8_NIL 0x02
+#define CONV_FLAG_UTF8_TRUNCATE 0x04
+#define CONV_FLAG_UTF8_HEX 0x08
+#define CONV_FLAG_UTF8_MASK 0x0f
+#define CONV_FLAG_ANNOTATE 0x10
+    unsigned flag;
+
+#define CONV_REASON_UTF8_FATAL 0x01
+#define CONV_REASON_UTF8_NIL 0x02
+#define CONV_REASON_UTF8_TRUNCATE 0x04
+#define CONV_REASON_UTF8_HEX 0x08
+#define CONV_REASON_ARGS_FATAL 0x10
+    unsigned reason;   // output param
+    const char *error; // output param
+} json_conv;
+
+cson_value *table_to_cson(Lua L, int lvl, json_conv *conv);
+
 //don't call from any of the l_*_tostring functions
 void luabb_dumpcstack_(Lua lua)
 {
@@ -135,6 +157,21 @@ void luabb_dumpcstack_(Lua lua)
             break;
         case LUA_TTABLE:
             logmsg(LOGMSG_DEBUG, "table\n");
+            json_conv conv = {0};
+
+            lua_pushvalue(lua, i);
+            cson_value *cson = table_to_cson(lua, 0, &conv);
+            if (cson == NULL) {
+                printf("%s\n", conv.error);
+            }
+            cson_buffer buf = cson_buffer_empty;
+            cson_output_buffer(cson, &buf, NULL);
+            if (buf.mem)
+                logmsg(LOGMSG_DEBUG, "%.100s\n", buf.mem);
+            cson_buffer_reserve(&buf, 0);
+            cson_free_value(cson);
+            lua_pop(lua, 1);
+
             break;
         case LUA_TFUNCTION:
             logmsg(LOGMSG_DEBUG, "function\n");

@@ -2190,6 +2190,9 @@ int bdb_debug_log(bdb_state_type *bdb_state, tran_type *tran, int op);
 /* Return 1 if this node is master, 0 otherwise */
 int bdb_iam_master(bdb_state_type *bdb_state);
 
-int bdb_queue_finish_open(bdb_state_type *bdb_state, tran_type *tran);
+int bdb_queue_finish_open(bdb_state_type *bdb_state, tran_type *tran, int create);
+int bdb_queue_is_multiconsumer(bdb_state_type *bdb_state);
+
+int bdb_qchk(bdb_state_type *bdb_state);
 
 #endif

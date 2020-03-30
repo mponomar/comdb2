@@ -1045,6 +1045,8 @@ struct bdb_state_tag {
     pthread_mutex_t sc_redo_lk;
     pthread_cond_t sc_redo_wait;
     LISTC_T(struct sc_redo_lsn) sc_redo_list;
+
+    DB *multiq_persist;
 };
 
 #include <net_types.h>

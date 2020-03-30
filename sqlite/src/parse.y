@@ -2432,8 +2432,8 @@ cmd ::= createkw LUA CONSUMER nm(Q) withsequence(S) ON table_trigger_event(T). {
   comdb2CreateTrigger(pParse,1,S,0,&Q,T);
 }
 
-cmd ::= createkw LUA MULTI CONSUMER nm(Q) withsequence(S) ON table_trigger_event(T). {
-  comdb2CreateTrigger(pParse,0,S,1,&Q,T);
+cmd ::= createkw LUA MULTI CONSUMER nm(Q) ON table_trigger_event(T). {
+  comdb2CreateTrigger(pParse,0,1,1,&Q,T);
 }
 
 table_trigger_event(A) ::= table_trigger_event(B) COMMA LP TABLE fullname(T) FOR trigger_events(C) RP. {

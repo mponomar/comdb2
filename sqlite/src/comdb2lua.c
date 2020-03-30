@@ -220,7 +220,19 @@ void comdb2CreateTrigger(Parse *parse, int dynamic, int seq, int multi, Token *p
 	}
 
 	char method[64];
-	sprintf(method, "dest:%s:%s", dynamic ? "dynlua" : "lua", spname);
+
+    char *trigger_type;
+    if (multi) {
+        trigger_type = "multiconsumer";
+    }
+    else if (dynamic) {
+        trigger_type = "consumer";
+    }
+    else {
+        trigger_type = "trigger";
+    }
+
+    sprintf(method, "dest:%s:%s", trigger_type, spname);
 
 	// trigger add table:qname dest:method
 	struct schema_change_type *sc = new_schemachange_type();

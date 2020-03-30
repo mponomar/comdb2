@@ -230,6 +230,9 @@ static int triggerColumn(sqlite3_vtab_cursor *cur, sqlite3_context *ctx, int i){
         case CONSUMER_TYPE_LUA:
           sqlite3_result_text(ctx, "trigger", -1, NULL);
           break;
+        case CONSUMER_TYPE_MULTICONSUMER:
+          sqlite3_result_text(ctx, "multi-consumer", -1, NULL);
+          break;
         case CONSUMER_TYPE_DYNLUA:
           sqlite3_result_text(ctx, "consumer", -1, NULL);
           break;

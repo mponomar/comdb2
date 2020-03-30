@@ -66,6 +66,8 @@
 #include <ctrace.h>
 #include <bb_oscompat.h>
 
+#include <bdb_api.h>
+
 #ifdef WITH_RDKAFKA    
 
 #include "librdkafka/rdkafka.h"  /* for Kafka driver */
@@ -3022,6 +3024,7 @@ static int process_src(Lua L, const char *src, char **err)
     int rc;
     if ((rc = luaL_dostring(L, src)) != 0) {
         *err = strdup(lua_tostring(L, -1));
+        printf("failed to compile? %s\n", *err);
         return -1;
     }
     // TODO FIXME XXX: HOW IS THERE CRAP ON THE STACK HERE??
@@ -3965,7 +3968,7 @@ static int process_json_conv(Lua L, json_conv *conv)
     return -4;
 }
 
-static cson_value *table_to_cson(Lua, int, json_conv *);
+cson_value *table_to_cson(Lua, int, json_conv *);
 static int db_table_to_json(Lua L)
 {
     luaL_checkudata(L, 1, dbtypes.db);
@@ -5139,6 +5142,13 @@ static cson_value *table_to_cson_object(Lua L, int lvl, json_conv *conv)
     cson_object *o = cson_value_get_object(v);
     lua_pushnil(L);
     while (lua_next(L, -2)) {
+        if (lua_type(L, -2) == LUA_TSTRING) {
+            const char *key = lua_tostring(L, -2);
+            if (strcmp(key, "__index") == 0) {
+                lua_pop(L, 1);
+                continue;
+            }
+        }
         cson_value *val = table_to_cson(L, lvl, conv); // get value
         if (val == NULL) {
             cson_free_value(v);
@@ -5168,14 +5178,17 @@ static int is_array(Lua L)
 }
 
 // value to convert is on top of stack
-static cson_value *table_to_cson(Lua L, int lvl, json_conv *conv)
+cson_value *table_to_cson(Lua L, int lvl, json_conv *conv)
 {
     const char *type = NULL;
     ++lvl;
     if (lvl > 100 || lua_checkstack(L, 1) == 0) {
+        return cson_value_new_string("<qqqq>", strlen("<qqqq>"));
+#if 0
         conv->error = "too many nested tables";
         conv->reason |= CONV_REASON_ARGS_FATAL;
         return NULL;
+#endif
     }
     cson_value *v = NULL;
     long long integer;
@@ -5207,6 +5220,10 @@ static cson_value *table_to_cson(Lua L, int lvl, json_conv *conv)
     int tostr = 0; // 1->validate utf8   2->no validation
     int utf8_len;
     switch (dbtype) {
+    case DBTYPES_LFUNCTION:
+        v = cson_value_new_string("<function>", strlen("<function>"));
+        break;
+
     case DBTYPES_LTABLE:
         if (is_array(L)) {
             type = "array";
@@ -5938,11 +5955,10 @@ static int run_sp_int(struct sqlclntstate *clnt, int argcnt, char **err)
     SP sp = clnt->sp;
     Lua lua = sp->lua;
 
-    printf("running\n");
-
     if ((rc = lua_pcall(lua, argcnt, LUA_MULTRET, 0)) != 0) {
         if (lua_gettop(lua) > 0 && !lua_isnil(lua, -1)) {
             *err = strdup(luabb_tostring(lua, -1));
+            printf("err: %s\n", *err);
         } else {
             *err = strdup("");
         }
@@ -6203,6 +6219,7 @@ static int push_trigger_args_int(Lua L, dbconsumer_t *q, struct qfound *f, char 
     blob_t id = {.length = sizeof(genid_t), .data = &q->genid};
     luabb_pushblob(L, &id);
     lua_setfield(L, -2, "id");
+
 
     if (q->push_tid) {
         luabb_pushinteger(L, f->item->trans.tid);
@@ -6621,21 +6638,78 @@ static int exec_procedure_int(struct sqlthdstate *thd,
     return flush_sp(sp, err);
 }
 
-static int db_multi_emit(Lua L) {
-    printf("hi i am multiemit\n");
+static int db_multi_table_emit(Lua L) {
+    lua_getfield(L, -1, "sequence");
+    luabb_dumpcstack(L);
+    long long seq;
+    luabb_tointeger(L, -1, &seq);
+
     return 0;
 }
 
+static int db_multi_emit(Lua L) {
+    luaL_checktype(L, 1, LUA_TUSERDATA);
+    lua_remove(L, 1);
+
+    SP sp = getsp(L);
+    char spname[strlen(sp->spname) + 1];
+    strcpy(spname, sp->spname);
+    Q4SP(qname, spname);
+    struct dbtable *db = getqueuebyname(qname);
+    if (db == NULL) {
+        return luaL_error(L, "trigger not found for sp:%s", spname);
+    }
+
+    if (lua_istable(L, 1))
+        return db_multi_table_emit(L);
+
+    return 0;
+}
+
+void dump_db_table(Lua L) {
+    int t = lua_gettop(L);
+
+    luaL_getmetatable(L, dbtypes.db);
+    lua_getfield(L, -1, "__index");
+    luaL_checktype(L, -1, LUA_TTABLE);       
+
+    json_conv c = {0};
+    cson_value *cson = table_to_cson(L, 0, &c);
+    cson_buffer buf = cson_buffer_empty;
+    cson_output_buffer(cson, &buf, NULL);
+    printf("%s\n", buf.mem);
+    cson_buffer_reserve(&buf, 0);
+    cson_free_value(cson);
+
+    lua_settop(L, t);
+}
+
 void add_multiconsumer_emit(Lua L) {
+    int t = lua_gettop(L);
+
     luaL_getmetatable(L, dbtypes.db);
     lua_pushcfunction(L, db_multi_emit);
     lua_setfield(L, -2, "emit");
+
+    lua_settop(L, t);
+}
+
+#define DEBUGFUNC
+
+static DEBUGFUNC void check_emit(Lua L) {
+    int t = lua_gettop(L);
+    luaL_getmetatable(L, dbtypes.db);
+    lua_getfield(L, -1, "emit");
+    lua_insert(L, 1);
+    luabb_dumpcstack(L);
+    lua_settop(L, t);
 }
 
 static int setup_sp_for_trigger(trigger_reg_t *reg, char **err,
                                 struct sqlthdstate *thd,
                                 struct sqlclntstate *clnt, dbconsumer_t **q)
 {
+
     int new_vm;
     int rc = setup_sp(reg->spname, thd, clnt, &new_vm, err);
     if (rc != 0) return rc;
@@ -6654,8 +6728,10 @@ static int setup_sp_for_trigger(trigger_reg_t *reg, char **err,
     remove_consumer(L);
     remove_emit(L);
 
-    if (is_multiconsumer(reg->spname)) 
+    if (is_multiconsumer(reg->spname)) {
         add_multiconsumer_emit(L);
+        //check_emit(L);
+    }
 
     char *spname = reg->spname;
     Q4SP(qname, spname);
@@ -6677,8 +6753,11 @@ static int setup_sp_for_trigger(trigger_reg_t *reg, char **err,
         *err = strdup("failed to register trigger with qdb");
         return -1;
     }
-    *q = newq;
 
+    // TODO: timestamp here?
+    newq->push_seq = bdb_queue_is_multiconsumer(db->handle);
+
+    *q = newq;
     lua_settop(L, 1);
     return rc;
 }
@@ -6818,6 +6897,7 @@ void *exec_trigger(trigger_reg_t *reg)
         char *err = NULL;
         get_curtran(thedb->bdb_env, &clnt);
         if (setup_sp_for_trigger(reg, &err, &thd, &clnt, &q) != 0) {
+            printf("bad\n");
             goto bad;
         }
         if (q == NULL) {
@@ -6918,6 +6998,5 @@ static int is_multiconsumer(const char *spname) {
         return 0;
     }
 
-    printf("multi %d\n", multi);
     return multi;
 }

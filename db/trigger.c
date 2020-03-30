@@ -301,9 +301,20 @@ int trigger_stat()
     for (int i = 0; i < thedb->num_qdbs; ++i) {
         struct dbtable *qdb = thedb->qdbs[i];
         int ctype = dbqueue_consumer_type(qdb->consumers[0]);
-        if (ctype != CONSUMER_TYPE_LUA && ctype != CONSUMER_TYPE_DYNLUA)
+        const char *type;
+        switch (ctype) {
+            case CONSUMER_TYPE_LUA:
+                type = "trigger";
+                break;
+            case CONSUMER_TYPE_DYNLUA:
+                type = "consumer";
+                break;
+            case CONSUMER_TYPE_MULTICONSUMER:
+                type = "multiconsumer";
+                break;
+            default:
             continue;
-        const char *type = ctype == CONSUMER_TYPE_LUA ? "trigger" : "consumer";
+        } 
         char *spname = SP4Q(qdb->tablename);
         trigger_info_t *info =
             trigger_hash ? hash_find(trigger_hash, spname) : NULL;
