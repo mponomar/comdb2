@@ -162,6 +162,8 @@ struct dbconsumer_t {
     int register_timeoutms;
     time_t registration_time;
 
+    long long seq;
+
     /* signaling from libdb on qdb insert */
     pthread_mutex_t *lock;
     pthread_cond_t *cond;
@@ -6184,6 +6186,7 @@ static int push_trigger_args_int(Lua L, dbconsumer_t *q, struct qfound *f, char 
 {
     uint8_t *payload = ((uint8_t *)f->item) + f->dtaoff;
     size_t len = f->len - f->dtaoff;
+    q->seq = f->seq;
     memcpy(&q->genid, &q->fnd.genid, sizeof(genid_t));
     /*
     char header[] = "CDB2_UPD";
@@ -6638,18 +6641,34 @@ static int exec_procedure_int(struct sqlthdstate *thd,
     return flush_sp(sp, err);
 }
 
-static int db_multi_table_emit(Lua L) {
-    lua_getfield(L, -1, "sequence");
-    luabb_dumpcstack(L);
-    long long seq;
-    luabb_tointeger(L, -1, &seq);
-
+int multi_queue_persist(char *pname, long long seq, const char *payload) {
     return 0;
+}
+
+static int db_multi_table_emit(Lua L) {
+    SP sp = getsp(L);
+    dbconsumer_t *consumer = sp->consumer;
+
+    db_table_to_json(L);
+    int rc = (int) lua_tonumber(L, -1);
+    if (rc) {
+        lua_settop(L, 0);
+        lua_pushstring(L, "failed to convert?");
+        lua_pushnumber(L, 1);
+        return 2;
+    }
+	const char *payload = lua_tostring(L, -2);
+    printf("%lld: %s\n", consumer->seq, payload);
+    lua_settop(L, 0);
+    lua_pushnumber(L, 0);
+
+    multi_queue_persist(sp->spname, consumer->seq, payload); 
+
+    return 1;
 }
 
 static int db_multi_emit(Lua L) {
     luaL_checktype(L, 1, LUA_TUSERDATA);
-    lua_remove(L, 1);
 
     SP sp = getsp(L);
     char spname[strlen(sp->spname) + 1];
@@ -6660,7 +6679,7 @@ static int db_multi_emit(Lua L) {
         return luaL_error(L, "trigger not found for sp:%s", spname);
     }
 
-    if (lua_istable(L, 1))
+    if (lua_istable(L, 2))
         return db_multi_table_emit(L);
 
     return 0;

@@ -94,6 +94,10 @@ static int process_local_shadtbl_add(struct sqlclntstate *clnt, shad_tbl_t *tbl,
                                      int *bdberr, int crt_nops);
 static int process_local_shadtbl_upd(struct sqlclntstate *clnt, shad_tbl_t *tbl,
                                      int *bdberr, int crt_nops);
+
+static int process_local_shadtbl_multiq(struct sqlclntstate *clnt, shad_tbl_t *tbl,
+                                     int *bdberr, int crt_nops);
+
 static int process_local_shadtbl_recgenids(struct sqlclntstate *clnt,
                                            int *bdberr);
 static int process_local_shadtbl_sc(struct sqlclntstate *clnt, int *bdberr);
@@ -451,18 +455,14 @@ static shad_tbl_t *create_shadtbl(struct BtCursor *pCur,
     tbl->ix_partial = db->ix_partial;
 
     /* create table add and its cursor */
-    rc = create_tablecursor(env->bdb_env, &tbl->add_tbl, &tbl->add_cur, &bdberr,
-                            0);
+    rc = create_tablecursor(env->bdb_env, &tbl->add_tbl, &tbl->add_cur, &bdberr, 0);
     if (rc)
-        return NULL;
+        goto err;
 
     /* create update and its cursor */
-    rc = create_tablecursor(env->bdb_env, &tbl->upd_tbl, &tbl->upd_cur, &bdberr,
-                            0);
-    if (rc) {
-        destroy_tablecursor(env->bdb_env, tbl->add_cur, tbl->add_tbl, &bdberr);
-        return NULL;
-    }
+    rc = create_tablecursor(env->bdb_env, &tbl->upd_tbl, &tbl->upd_cur, &bdberr, 0);
+    if (rc)
+        goto err;
 
     tbl->nblobs = numblobs;
     tbl->updcols = 0;
@@ -473,33 +473,26 @@ static shad_tbl_t *create_shadtbl(struct BtCursor *pCur,
         tbl->dbnum = get_dbnum_by_handle(db->handle);
     }
 
+
     /* We store updCols in the blob-table so always create this- it's generally
      * useful */
-    rc = create_tablecursor(env->bdb_env, &tbl->blb_tbl, &tbl->blb_cur, &bdberr,
-                            0);
-    if (rc) {
-        destroy_tablecursor(env->bdb_env, tbl->upd_cur, tbl->upd_tbl, &bdberr);
-        destroy_tablecursor(env->bdb_env, tbl->add_cur, tbl->add_tbl, &bdberr);
-        return NULL;
-    }
-    rc = create_tablecursor(env->bdb_env, &tbl->delidx_tbl, &tbl->delidx_cur,
-                            &bdberr, 0);
-    if (rc) {
-        destroy_tablecursor(env->bdb_env, tbl->upd_cur, tbl->upd_tbl, &bdberr);
-        destroy_tablecursor(env->bdb_env, tbl->add_cur, tbl->add_tbl, &bdberr);
-        destroy_tablecursor(env->bdb_env, tbl->blb_cur, tbl->blb_tbl, &bdberr);
-        return NULL;
-    }
-    rc = create_tablecursor(env->bdb_env, &tbl->insidx_tbl, &tbl->insidx_cur,
-                            &bdberr, 0);
-    if (rc) {
-        destroy_tablecursor(env->bdb_env, tbl->upd_cur, tbl->upd_tbl, &bdberr);
-        destroy_tablecursor(env->bdb_env, tbl->add_cur, tbl->add_tbl, &bdberr);
-        destroy_tablecursor(env->bdb_env, tbl->blb_cur, tbl->blb_tbl, &bdberr);
-        destroy_tablecursor(env->bdb_env, tbl->delidx_cur, tbl->delidx_tbl,
-                            &bdberr);
-        return NULL;
-    }
+    rc = create_tablecursor(env->bdb_env, &tbl->blb_tbl, &tbl->blb_cur, &bdberr, 0);
+    if (rc)
+        goto err;
+
+    rc = create_tablecursor(env->bdb_env, &tbl->delidx_tbl, &tbl->delidx_cur, &bdberr, 0);
+    if (rc)
+        goto err;
+
+    rc = create_tablecursor(env->bdb_env, &tbl->insidx_tbl, &tbl->insidx_cur, &bdberr, 0);
+    if (rc)
+        goto err;
+
+    /* create table add and its cursor */
+    rc = create_tablecursor(env->bdb_env, &tbl->multiq_tbl, &tbl->multiq_cur, &bdberr, 0);
+    if (rc)
+        goto err;
+
     assert(tbl->blb_cur);
     bdb_temp_table_set_cmp_func(tbl->blb_tbl->table, blb_tbl_cmp);
     bdb_temp_table_set_cmp_func(tbl->delidx_tbl->table, idx_tbl_cmp);
@@ -525,6 +518,19 @@ static shad_tbl_t *create_shadtbl(struct BtCursor *pCur,
     /*fprintf(stdout, "++++ Created shattbl for %d\n", pthread_self());*/
 
     return tbl;
+err:
+    if (tbl->upd_tbl)
+        destroy_tablecursor(env->bdb_env, tbl->upd_cur, tbl->upd_tbl, &bdberr);
+    if (tbl->add_tbl)
+        destroy_tablecursor(env->bdb_env, tbl->add_cur, tbl->add_tbl, &bdberr);
+    if (tbl->blb_tbl)
+        destroy_tablecursor(env->bdb_env, tbl->blb_cur, tbl->blb_tbl, &bdberr);
+    if (tbl->delidx_tbl)
+        destroy_tablecursor(env->bdb_env, tbl->delidx_cur, tbl->delidx_tbl, &bdberr);
+    if (tbl->multiq_tbl)
+        destroy_tablecursor(env->bdb_env, tbl->multiq_cur, tbl->multiq_tbl, &bdberr);
+    free(tbl);
+    return NULL;
 }
 
 static int destroy_tablecursor(bdb_state_type *bdb_env, struct temp_cursor *cur,
@@ -1497,6 +1503,16 @@ int osql_shadtbl_process(struct sqlclntstate *clnt, int *nops, int *bdberr,
     if (rc)
         return -1;
 
+#define PROCESS_SHADTBL_RC()       \
+    do {                           \
+        if (rc == SQLITE_TOOBIG) { \
+            *nops += tbl->nops;    \
+            return rc;             \
+        }                          \
+        else if (rc)               \
+            return -1;             \
+    } while(0)
+
     LISTC_FOR_EACH(&osql->shadtbls, tbl, linkv)
     {
         /* we need to reset any cached nops in tbl */
@@ -1509,28 +1525,16 @@ int osql_shadtbl_process(struct sqlclntstate *clnt, int *nops, int *bdberr,
             return -1;
 
         rc = process_local_shadtbl_skp(clnt, tbl, bdberr, *nops);
-        if (rc == SQLITE_TOOBIG) {
-            *nops += tbl->nops;
-            return rc;
-        }
-        if (rc)
-            return -1;
+        PROCESS_SHADTBL_RC();
 
         rc = process_local_shadtbl_add(clnt, tbl, bdberr, *nops);
-        if (rc == SQLITE_TOOBIG) {
-            *nops += tbl->nops;
-            return rc;
-        }
-        if (rc)
-            return -1;
+        PROCESS_SHADTBL_RC();
 
         rc = process_local_shadtbl_upd(clnt, tbl, bdberr, *nops);
-        if (rc == SQLITE_TOOBIG) {
-            *nops += tbl->nops;
-            return rc;
-        }
-        if (rc)
-            return -1;
+        PROCESS_SHADTBL_RC();
+
+        rc = process_local_shadtbl_multiq(clnt, tbl, bdberr, *nops);
+        PROCESS_SHADTBL_RC();
 
         *nops += tbl->nops;
     }
@@ -3390,6 +3394,54 @@ static int process_local_delrec_dbq(struct sqlclntstate *clnt, int *bdberr, int 
     return hash_for(h, resend_delreq_dbq, clnt);
 }
 
+/* TODO */
+/* TODO: there's a lot of boilerplate code here - should just have a callback for
+ * shadtbl routines */
+static int process_local_shadtbl_multiq(struct sqlclntstate *clnt, shad_tbl_t *tbl,
+                                     int *bdberr, int crt_nops)
+{
+    int rc = bdb_temp_table_first(tbl->env->bdb_env, tbl->add_cur, bdberr);
+    osqlstate_t *osql = &clnt->osql;
+
+    if (rc == IX_EMPTY)
+        return 0;
+    if (rc) {
+        logmsg(LOGMSG_ERROR, "%s: bdb_temp_table_first failed rc=%d bdberr=%d\n",
+                __func__, rc, *bdberr);
+        return SQLITE_INTERNAL;
+    }
+
+    while (rc == 0) {
+        char *data = bdb_temp_table_data(tbl->add_cur);
+        int ldata = bdb_temp_table_datasize(tbl->add_cur);
+        unsigned long long seq;
+        seq = *(unsigned long long *)bdb_temp_table_key(tbl->add_cur);
+
+        rc = osql_send_multiq(osql->host, osql->uuid, NULL, seq, data, ldata);
+        if (rc) {
+            logmsg(LOGMSG_USER,
+                    "%s: error writting record to master in offload mode!\n",
+                    __func__);
+            return SQLITE_INTERNAL;
+        }
+
+        rc = bdb_temp_table_next(tbl->env->bdb_env, tbl->add_cur, bdberr);
+    }
+    if (rc == IX_PASTEOF || rc == IX_EMPTY) {
+        rc = 0;
+    } else {
+        logmsg(LOGMSG_ERROR,
+               "%s:%d bdb_temp_table_next failed rc=%d bdberr=%d\n", __func__,
+               __LINE__, rc, *bdberr);
+        /* fall-through */
+    }
+
+    return rc;
+
+    return 0;
+}
+
+
 int osql_save_delrec_qdb(struct sqlclntstate *clnt, char *qname, genid_t id)
 {
     osqlstate_t *osql = &clnt->osql;
@@ -3419,4 +3471,23 @@ int osql_save_delrec_qdb(struct sqlclntstate *clnt, char *qname, genid_t id)
     g->id = id;
     SLIST_INSERT_HEAD(genids, g, entry);
     return 0;
+}
+
+/* TODO */
+int osql_save_multiq(struct BtCursor *pCur, struct sql_thread *thd, long long seq, char *pData, int nData) {
+    shad_tbl_t *tbl = NULL;
+    unsigned long long tmp = 0;
+    int bdberr = BDBERR_NOERROR;
+
+    tbl = open_shadtbl(pCur);
+    if (!tbl || !tbl->multiq_cur) {
+        logmsg(LOGMSG_ERROR, "%s: error getting shadtbl for \'%s\'\n", __func__,
+               pCur->db->tablename);
+        return -1;
+    }
+
+    int rc = bdb_temp_table_put(tbl->env->bdb_env, tbl->multiq_tbl->table, &tmp,
+                            sizeof(tmp), (char *)pData, nData, NULL, &bdberr);
+
+    return rc;
 }

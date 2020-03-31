@@ -3978,6 +3978,55 @@ int osql_send_updstat(char *tohost, unsigned long long rqid, uuid_t uuid,
     return rc;
 }
 
+enum { MAX_QUEUE_NAME=128 };
+
+typedef struct osql_multi {
+    long long seq; /* Queue sequence number */
+    char qname[MAX_QUEUE_NAME];
+} osql_multi_t;
+
+typedef struct osql_multi_rpl {
+    osql_uuid_rpl_t hd;
+    osql_multi_t dt;
+} osql_multi_rpl_t;
+
+enum { OSQLCOMM_MULTIQ_UUID_RPL_TYPE_LEN = sizeof(osql_uuid_rpl_t) + 8 + MAX_QUEUE_NAME };
+BB_COMPILE_TIME_ASSERT(osql_multi_rpl,
+                       sizeof(osql_multi_rpl_t) == OSQLCOMM_MULTIQ_UUID_RPL_TYPE_LEN);
+
+
+/* TODO */
+int osql_send_multiq(const char *tohost, uuid_t uuid, const char *qname, long long seq, void *pData, int nData) {
+    if (check_master(tohost))
+        return OSQL_SEND_ERROR_WRONGMASTER;
+
+    osql_multi_rpl_t rpl = {{0}};
+    rpl.hd.type = OSQL_MULTIQ;
+    comdb2uuidcpy(rpl.hd.uuid, uuid);
+    // TODO: pass queue name all the way down...
+    if (qname)
+        strcpy(rpl.dt.qname, qname);
+    else
+        /* TODO: debug - didn't save name yet */
+        strcpy(rpl.dt.qname, "test");
+
+    uint8_t *p_buf, *p_buf_end, buf[OSQLCOMM_MULTIQ_UUID_RPL_TYPE_LEN];
+    p_buf = buf;
+    p_buf_end = p_buf + sizeof(osql_multi_rpl_t);
+
+    p_buf = osqlcomm_uuid_rpl_type_put(&rpl.hd, p_buf, p_buf_end);
+    p_buf = buf_put(&rpl.dt.seq, sizeof(rpl.dt.seq), p_buf, p_buf_end);
+    p_buf = buf_no_net_put(rpl.dt.qname, sizeof(rpl.dt.qname), p_buf, p_buf_end);
+    if (p_buf == NULL) {
+        logmsg(LOGMSG_ERROR, "%s:%d can't serialized multiq request?\n", __func__, __LINE__);
+        return -1;
+    }
+    /* TODO: different types needed for snapshot/serializable? */
+    int rc = offload_net_send(tohost, NET_OSQL_SOCK_RPL, buf, p_buf_end - buf, 0, pData, nData);
+
+    return rc;
+}
+
 /**
  * Send INSREC op
  * It handles remote/local connectivity

@@ -393,6 +393,48 @@ static int osql_send_ins_logic(struct BtCursor *pCur, struct sql_thread *thd,
     return SQLITE_OK;
 }
 
+/* TODO */
+int osql_send_multiq_logic(struct BtCursor *pCur, struct sql_thread *thd, long long seq, char *pData, int nData) {
+    osqlstate_t *osql = &thd->clnt->osql;
+
+    int rc = osql_send_multiq(osql->host, osql->uuid, NULL, seq, pData, nData);
+    if (rc) {
+        logmsg(LOGMSG_ERROR,
+                "%s:%d %s - failed to send multiq row seq %lld rc=%d\n", __FILE__,
+                __LINE__, __func__, seq, rc);
+        return rc;
+    }
+
+
+    osql->replicant_numops++;
+    DEBUG_PRINT_NUMOPS();
+    return SQLITE_OK;
+}
+
+int osql_insmultiq(struct BtCursor *pCur, struct sql_thread *thd, long long sequence, char *pData, int nData) {
+    struct sqlclntstate *clnt = thd->clnt;
+    int restarted;
+    int rc = 0;
+
+    if (clnt->dbtran.mode == TRANLEVEL_SOSQL) {
+        START_SOCKSQL;
+        do {
+            rc = osql_send_multiq_logic(pCur, thd, sequence, pData, nData);
+            RESTART_SOCKSQL;
+        } while (restarted);
+        if (rc) {
+            logmsg(LOGMSG_ERROR,
+                   "%s:%d %s - failed to send socksql insrec rc=%d\n", __FILE__,
+                   __LINE__, __func__, rc);
+            return rc;
+        }
+    }
+
+    rc = osql_save_multiq(pCur, thd, sequence, pData, nData);
+
+    return rc;
+}
+
 /**
  * Process a sqlite insert row request
  * Row is provided by (pData, nData, blobs, maxblobs)

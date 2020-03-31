@@ -381,4 +381,7 @@ void signal_replicant_error(const char *host, unsigned long long rqid,
                             uuid_t uuid, int rc, const char *msg);
 
 int osql_send_del_qdb_logic(struct sqlclntstate *, char *, genid_t);
+
+int osql_send_multiq(const char *host, uuid_t uuid, const char *qname, long long seq, void *pData, int nData);
+
 #endif
