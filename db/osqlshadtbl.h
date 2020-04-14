@@ -58,9 +58,6 @@ struct shad_tbl {
     struct temp_cursor *upd_cur;
     struct temp_cursor *blb_cur;
 
-    struct tmp_table *multiq_tbl;
-    struct temp_cursor *multiq_cur;
-
     unsigned long long seq; /* used to generate uniq row ids */
     struct dbenv *env;
     char tablename[MAXTABLELEN];
@@ -100,8 +97,7 @@ int osql_save_index(struct BtCursor *pCur, struct sql_thread *thd,
 int osql_save_updcols(struct BtCursor *pCur, struct sql_thread *thd,
                      int *updCols);
 int osql_save_dbq_consume(struct sqlclntstate *, const char *spname, genid_t);
-int osql_save_multiq(struct BtCursor *pCur, struct sql_thread *thd, long long seq, 
-                     char *pData, int nData); 
+int osql_save_multiq(struct sqlclntstate *clnt, long long seq, const char *pData, int nData); 
 
 void *osql_get_shadow_bydb(struct sqlclntstate *clnt, struct dbtable *db);
 int osql_fetch_shadblobs_by_genid(struct BtCursor *pCur, int *blobnum,

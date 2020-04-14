@@ -68,6 +68,8 @@
 
 #include <bdb_api.h>
 
+#include "osqlsqlthr.h"
+
 #ifdef WITH_RDKAFKA    
 
 #include "librdkafka/rdkafka.h"  /* for Kafka driver */
@@ -907,7 +909,7 @@ static int dbconsumer_consume_int(Lua L, dbconsumer_t *q)
         return -1;
     }
     enum consumer_t type = dbqueue_consumer_type(q->consumer);
-    int rc = (type == CONSUMER_TYPE_LUA) ? lua_trigger_impl(L, q)
+    int rc = (type == CONSUMER_TYPE_LUA || type == CONSUMER_TYPE_MULTICONSUMER) ? lua_trigger_impl(L, q)
                                          : lua_consumer_impl(L, q);
     reset_consumer_cursor(q);
     return rc;
@@ -6641,8 +6643,10 @@ static int exec_procedure_int(struct sqlthdstate *thd,
     return flush_sp(sp, err);
 }
 
-int multi_queue_persist(char *pname, long long seq, const char *payload) {
-    return 0;
+int multi_queue_persist(Lua L, char *pname, long long seq, const char *payload) {
+    SP sp = getsp(L);
+
+    return osql_insmultiq(sp->clnt, seq, payload, strlen(payload));
 }
 
 static int db_multi_table_emit(Lua L) {
@@ -6662,7 +6666,7 @@ static int db_multi_table_emit(Lua L) {
     lua_settop(L, 0);
     lua_pushnumber(L, 0);
 
-    multi_queue_persist(sp->spname, consumer->seq, payload); 
+    multi_queue_persist(L, sp->spname, consumer->seq, payload); 
 
     return 1;
 }

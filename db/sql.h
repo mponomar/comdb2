@@ -174,6 +174,10 @@ typedef struct osqlstate {
     struct temp_cursor *bpfunc_cur; /* bpfunc cursor */
     int bpfunc_seq;
 
+    /* storage for multiq records */
+    struct temp_table *multiq_tbl;
+    struct temp_cursor *multiq_cur; /* schemachange cursor */
+
     struct errstat xerr; /* extended error */
 
     /* performance */

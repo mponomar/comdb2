@@ -34,6 +34,7 @@ set(src
   lrucache.c
   marshal.c
   memdebug.c
+  multiq.c
   osql_srs.c
   osqlblkseq.c
   osqlblockproc.c

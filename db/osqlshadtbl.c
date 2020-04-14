@@ -125,6 +125,13 @@ static int osql_create_schemachange_temptbl(bdb_state_type *bdb_state,
 static int osql_destroy_schemachange_temptbl(bdb_state_type *bdb_state,
                                              struct sqlclntstate *clnt);
 
+static int osql_create_multiq_temptbl(bdb_state_type *bdb_state,
+                                            struct sqlclntstate *clnt,
+                                            int *bdberr);
+static int osql_destroy_multiq_temptbl(bdb_state_type *bdb_state,
+                                             struct sqlclntstate *clnt);
+
+
 static int osql_create_bpfunc_temptbl(bdb_state_type *bdb_state,
                                       struct sqlclntstate *clnt, int *bdberr);
 static int osql_destroy_bpfunc_temptbl(bdb_state_type *bdb_state,
@@ -359,6 +366,7 @@ int osql_shadtbl_reset_for_selectv(struct sqlclntstate *clnt)
     }
     osql_destroy_schemachange_temptbl(thedb->bdb_env, clnt);
     osql_destroy_bpfunc_temptbl(thedb->bdb_env, clnt);
+    osql_destroy_multiq_temptbl(thedb->bdb_env, clnt);
 
     LISTC_FOR_EACH_SAFE(&osql->shadtbls, tbl, tmp, linkv)
     {
@@ -488,11 +496,6 @@ static shad_tbl_t *create_shadtbl(struct BtCursor *pCur,
     if (rc)
         goto err;
 
-    /* create table add and its cursor */
-    rc = create_tablecursor(env->bdb_env, &tbl->multiq_tbl, &tbl->multiq_cur, &bdberr, 0);
-    if (rc)
-        goto err;
-
     assert(tbl->blb_cur);
     bdb_temp_table_set_cmp_func(tbl->blb_tbl->table, blb_tbl_cmp);
     bdb_temp_table_set_cmp_func(tbl->delidx_tbl->table, idx_tbl_cmp);
@@ -527,8 +530,6 @@ err:
         destroy_tablecursor(env->bdb_env, tbl->blb_cur, tbl->blb_tbl, &bdberr);
     if (tbl->delidx_tbl)
         destroy_tablecursor(env->bdb_env, tbl->delidx_cur, tbl->delidx_tbl, &bdberr);
-    if (tbl->multiq_tbl)
-        destroy_tablecursor(env->bdb_env, tbl->multiq_cur, tbl->multiq_tbl, &bdberr);
     free(tbl);
     return NULL;
 }
@@ -1480,7 +1481,7 @@ int osql_shadtbl_process(struct sqlclntstate *clnt, int *nops, int *bdberr,
      */
     if (!restarting && !osql->dirty &&
         !bdb_attr_get(thedb->bdb_attr, BDB_ATTR_DISABLE_SELECTVONLY_TRAN_NOP) &&
-        !osql->sc_tbl && !osql->bpfunc_tbl &&
+        !osql->sc_tbl && !osql->bpfunc_tbl && !osql->multiq_cur &&
         !gbl_serialize_reads_like_writes) {
         return -3;
     }
@@ -1583,6 +1584,10 @@ int osql_shadtbl_cleartbls(struct sqlclntstate *clnt)
         truncate_tablecursor(thedb->bdb_env, &osql->bpfunc_cur,
                              osql->bpfunc_tbl, &bdberr);
         osql->bpfunc_seq = 0;
+    }
+    if (osql->multiq_tbl) {
+        truncate_tablecursor(thedb->bdb_env, &osql->multiq_cur,
+                             osql->multiq_tbl, &bdberr);
     }
 
     /* close the temporary bdb structures first */
@@ -2378,6 +2383,7 @@ void osql_shadtbl_close(struct sqlclntstate *clnt)
 
     osql_destroy_schemachange_temptbl(thedb->bdb_env, clnt);
     osql_destroy_bpfunc_temptbl(thedb->bdb_env, clnt);
+    osql_destroy_schemachange_temptbl(thedb->bdb_env, clnt);
 
     LISTC_FOR_EACH_SAFE(&osql->shadtbls, tbl, tmp, linkv)
     {
@@ -2429,6 +2435,8 @@ int osql_shadtbl_begin_query(bdb_state_type *bdb_env, struct sqlclntstate *clnt)
         return -1;
     if (reopen_shadtbl_cursors(bdb_env, osql, osql->bpfunc_tbl,
                                &osql->bpfunc_cur))
+        return -1;
+    if (reopen_shadtbl_cursors(bdb_env, osql, osql->multiq_tbl, &osql->multiq_cur))
         return -1;
 
     /* close the temporary bdb structures first */
@@ -2494,6 +2502,7 @@ int osql_shadtbl_done_query(bdb_state_type *bdb_env, struct sqlclntstate *clnt)
     close_shadtbl_cursors(bdb_env, osql, osql->verify_tbl, &osql->verify_cur);
     close_shadtbl_cursors(bdb_env, osql, osql->sc_tbl, &osql->sc_cur);
     close_shadtbl_cursors(bdb_env, osql, osql->bpfunc_tbl, &osql->bpfunc_cur);
+    close_shadtbl_cursors(bdb_env, osql, osql->multiq_tbl, &osql->multiq_cur);
 
     /* close the temporary bdb structures first */
     LISTC_FOR_EACH(&osql->shadtbls, tbl, linkv)
@@ -3234,7 +3243,7 @@ static int osql_destroy_schemachange_temptbl(bdb_state_type *bdb_state,
 {
     osqlstate_t *osql = &clnt->osql;
     osql->running_ddl = 0;
-    return osql_destroy_temptbl(bdb_state, &osql->sc_tbl, &osql->sc_cur);
+    return osql_destroy_temptbl(bdb_state, &osql->multiq_tbl, &osql->multiq_cur);
 }
 
 static int osql_create_bpfunc_temptbl(bdb_state_type *bdb_state,
@@ -3255,10 +3264,29 @@ static int osql_destroy_bpfunc_temptbl(bdb_state_type *bdb_state,
                                 &osql->bpfunc_cur);
 }
 
+static int osql_create_multiq_temptbl(bdb_state_type *bdb_state,
+                                            struct sqlclntstate *clnt,
+                                            int *bdberr)
+{
+    osqlstate_t *osql = &clnt->osql;
+    osql->running_ddl = 1;
+    return osql_create_temptbl(bdb_state, &osql->multiq_tbl, &osql->multiq_cur, bdberr);
+}
+
+static int osql_destroy_multiq_temptbl(bdb_state_type *bdb_state,
+                                             struct sqlclntstate *clnt)
+{
+    osqlstate_t *osql = &clnt->osql;
+    osql->running_ddl = 0;
+    return osql_destroy_temptbl(bdb_state, &osql->multiq_tbl, &osql->multiq_cur);
+}
+
+
+
 int osql_shadtbl_empty(struct sqlclntstate *clnt)
 {
     return listc_empty(&clnt->osql.shadtbls) && !clnt->osql.verify_tbl &&
-           !clnt->osql.sc_tbl && !clnt->osql.bpfunc_tbl;
+           !clnt->osql.sc_tbl && !clnt->osql.bpfunc_tbl && !clnt->osql.multiq_tbl;
 }
 
 int osql_shadtbl_usedb_only(struct sqlclntstate *clnt)
@@ -3287,7 +3315,7 @@ int osql_shadtbl_usedb_only(struct sqlclntstate *clnt)
             return 0;
     }
 
-    if (!osql->verify_tbl && !osql->sc_tbl && !osql->bpfunc_tbl)
+    if (!osql->verify_tbl && !osql->sc_tbl && !osql->bpfunc_tbl && !osql->multiq_tbl)
         return 1;
 
     if (osql->verify_tbl) {
@@ -3300,6 +3328,13 @@ int osql_shadtbl_usedb_only(struct sqlclntstate *clnt)
     if (osql->sc_tbl) {
         assert(osql->sc_cur);
         rc = bdb_temp_table_first(thedb->bdb_env, osql->sc_cur, &bdberr);
+        if (rc != IX_EMPTY)
+            return 0;
+    }
+
+    if (osql->multiq_tbl) {
+        assert(osql->sc_cur);
+        rc = bdb_temp_table_first(thedb->bdb_env, osql->multiq_cur, &bdberr);
         if (rc != IX_EMPTY)
             return 0;
     }
@@ -3474,20 +3509,24 @@ int osql_save_delrec_qdb(struct sqlclntstate *clnt, char *qname, genid_t id)
 }
 
 /* TODO */
-int osql_save_multiq(struct BtCursor *pCur, struct sql_thread *thd, long long seq, char *pData, int nData) {
-    shad_tbl_t *tbl = NULL;
-    unsigned long long tmp = 0;
-    int bdberr = BDBERR_NOERROR;
+int osql_save_multiq(struct sqlclntstate *clnt, long long seq, const char *pData, int nData) {
+    osqlstate_t *osql = &clnt->osql;
+    int rc;
+    int bdberr;
 
-    tbl = open_shadtbl(pCur);
-    if (!tbl || !tbl->multiq_cur) {
-        logmsg(LOGMSG_ERROR, "%s: error getting shadtbl for \'%s\'\n", __func__,
-               pCur->db->tablename);
-        return -1;
+    if (!osql->multiq_tbl) {
+        rc = osql_create_multiq_temptbl(thedb->bdb_env, clnt,
+                                              &bdberr);
+        if (rc) {
+            logmsg(LOGMSG_ERROR, "%s: failed to create sc rc=%d bdberr=%d\n",
+                   __func__, rc, bdberr);
+            return -1;
+        }
     }
 
-    int rc = bdb_temp_table_put(tbl->env->bdb_env, tbl->multiq_tbl->table, &tmp,
-                            sizeof(tmp), (char *)pData, nData, NULL, &bdberr);
+    struct temp_table *tbl = osql->multiq_tbl;
+    rc = bdb_temp_table_put(thedb->bdb_env, tbl, &seq,
+                            sizeof(seq), (char *)pData, nData, NULL, &bdberr);
 
-    return rc;
+    return 0;
 }

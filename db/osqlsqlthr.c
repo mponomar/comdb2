@@ -394,8 +394,8 @@ static int osql_send_ins_logic(struct BtCursor *pCur, struct sql_thread *thd,
 }
 
 /* TODO */
-int osql_send_multiq_logic(struct BtCursor *pCur, struct sql_thread *thd, long long seq, char *pData, int nData) {
-    osqlstate_t *osql = &thd->clnt->osql;
+static int osql_send_multiq_logic(struct sqlclntstate *clnt, long long seq, const char *pData, int nData) {
+    osqlstate_t *osql = &clnt->osql;
 
     int rc = osql_send_multiq(osql->host, osql->uuid, NULL, seq, pData, nData);
     if (rc) {
@@ -405,21 +405,30 @@ int osql_send_multiq_logic(struct BtCursor *pCur, struct sql_thread *thd, long l
         return rc;
     }
 
-
     osql->replicant_numops++;
     DEBUG_PRINT_NUMOPS();
     return SQLITE_OK;
 }
 
-int osql_insmultiq(struct BtCursor *pCur, struct sql_thread *thd, long long sequence, char *pData, int nData) {
-    struct sqlclntstate *clnt = thd->clnt;
+int osql_insmultiq(struct sqlclntstate *clnt, long long sequence, const char *pData, int nData) {
     int restarted;
     int rc = 0;
+
+    if (!clnt->intrans) {
+        int rc;
+        if ((rc = osql_sock_start(clnt, OSQL_SOCK_REQ, 0)) != 0) {
+            return rc;
+        }
+        clnt->intrans = 1;
+    }
+    sql_set_sqlengine_state(clnt, __FILE__, __LINE__,
+                            SQLENG_INTRANS_STATE);
+
 
     if (clnt->dbtran.mode == TRANLEVEL_SOSQL) {
         START_SOCKSQL;
         do {
-            rc = osql_send_multiq_logic(pCur, thd, sequence, pData, nData);
+            rc = osql_send_multiq_logic(clnt, sequence, pData, nData);
             RESTART_SOCKSQL;
         } while (restarted);
         if (rc) {
@@ -430,7 +439,7 @@ int osql_insmultiq(struct BtCursor *pCur, struct sql_thread *thd, long long sequ
         }
     }
 
-    rc = osql_save_multiq(pCur, thd, sequence, pData, nData);
+    rc = osql_save_multiq(clnt, sequence, pData, nData);
 
     return rc;
 }

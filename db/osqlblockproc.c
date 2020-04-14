@@ -451,6 +451,7 @@ const char *osql_reqtype_str(int type)
         "INSIDX",
         "DBQ_CONSUME_UUID",
         "STARTGEN",
+        "MULTIQ",
     };
     return typestr[type];
 }
@@ -603,6 +604,14 @@ int osql_bplog_saveop(osql_sess_t *sess, blocksql_tran_t *tran, char *rpl,
     int rc = 0;
     oplog_key_t key = {0};
     int bdberr;
+
+    uuidstr_t us;
+    comdb2uuidstr(sess->uuid, us);
+    printf("saving uuid=%s type=%d (%s) seq=%d\n", us, type,
+             osql_reqtype_str(type), tran->seq);
+
+    if (type == 28)
+        printf("multiq\n");
 
 #if DEBUG_REORDER
     logmsg(LOGMSG_DEBUG, "REORDER: saving for sess %p\n", sess);

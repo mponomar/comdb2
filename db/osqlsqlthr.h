@@ -206,4 +206,6 @@ int osql_bpfunc_logic(struct sql_thread *thd, BpfuncArg *arg);
 int osql_dbq_consume_logic(struct sqlclntstate *, const char *spname, genid_t);
 int osql_dbq_consume(struct sqlclntstate *, const char *spname, genid_t);
 
+int osql_insmultiq(struct sqlclntstate *clnt, long long sequence, const char *pData, int nData);
+
 #endif

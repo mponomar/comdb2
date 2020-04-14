@@ -934,3 +934,18 @@ int bdb_trigger_close(bdb_state_type *bdb_state)
     DB_ENV *dbenv = bdb_state->dbenv;
     return dbenv->trigger_close(dbenv, bdb_state->name);
 }
+
+int bdb_multiq_persist(bdb_state_type *bdb_state, tran_type *tran, long long seq, 
+        const uint8_t *buf, int buflen, int *bdberr) {
+    *bdberr = BDBERR_NOERROR;
+
+    DBT key = {0}, data = {0};
+
+    key.data = &seq;
+    key.size = sizeof(long long);
+    data.data = (uint8_t*) buf;
+    data.size = buflen; 
+
+    return bdb_state->multiq_persist->put(bdb_state->multiq_persist, tran->tid, &key, &data, 0);
+}
+

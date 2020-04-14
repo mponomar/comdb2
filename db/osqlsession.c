@@ -204,11 +204,14 @@ int osql_sess_rcvop(unsigned long long rqid, uuid_t uuid, int type, void *data,
     bool is_msg_done = false;
     struct errstat *perr = NULL;
 
+    printf("type %d len %d\n", type, datalen);
+
     /* get the session; dispatched sessions are ignored */
     osql_sess_t *sess = osql_repository_get(rqid, uuid);
     if (!sess) {
         /* in the current implementation we tolerate redundant ops from session
          * that have been already terminated--discard the packet in that case */
+        printf("unknown session?\n");
         *found = 0;
         return 0;
     }

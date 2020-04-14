@@ -2195,4 +2195,7 @@ int bdb_queue_is_multiconsumer(bdb_state_type *bdb_state);
 
 int bdb_qchk(bdb_state_type *bdb_state);
 
+int bdb_multiq_persist(bdb_state_type *bdb_state, tran_type *tran, 
+        long long seq, const uint8_t *buf, int buflen, int *bdberr);
+
 #endif

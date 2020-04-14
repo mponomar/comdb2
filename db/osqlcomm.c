@@ -48,6 +48,8 @@
 #include "views.h"
 #include "str0.h"
 #include "sc_struct.h"
+#include "multiq.h"
+
 #include <compat.h>
 #include <unistd.h>
 
@@ -3991,12 +3993,26 @@ typedef struct osql_multi_rpl {
 } osql_multi_rpl_t;
 
 enum { OSQLCOMM_MULTIQ_UUID_RPL_TYPE_LEN = sizeof(osql_uuid_rpl_t) + 8 + MAX_QUEUE_NAME };
-BB_COMPILE_TIME_ASSERT(osql_multi_rpl,
+BB_COMPILE_TIME_ASSERT(osql_multi_rpl_t_len,
                        sizeof(osql_multi_rpl_t) == OSQLCOMM_MULTIQ_UUID_RPL_TYPE_LEN);
 
 
+/* TODO: osqlcomm_multiq_put */
+static const uint8_t* osqlcomm_multiq_get(osql_multi_t *req, const uint8_t *p_buf, const uint8_t *p_buf_end) {
+    if (p_buf_end < p_buf || OSQLCOMM_MULTIQ_UUID_RPL_TYPE_LEN > (p_buf_end - p_buf))
+        return NULL;
+    p_buf = buf_get(&req->seq, sizeof(req->seq), p_buf, p_buf_end);
+    p_buf = buf_no_net_get(req->qname, sizeof(req->qname), p_buf, p_buf_end);
+    return p_buf;
+}
+
 /* TODO */
-int osql_send_multiq(const char *tohost, uuid_t uuid, const char *qname, long long seq, void *pData, int nData) {
+int osql_send_multiq(const char *tohost, uuid_t uuid, const char *qname, long long seq, const void *pData, int nData) {
+
+    char uuidstr[37];
+    printf("qname %s seq %lld nData %d uuid %s\n", qname, seq, nData, comdb2uuidstr(uuid, uuidstr));
+    fsnapf(stdout, pData, nData);
+
     if (check_master(tohost))
         return OSQL_SEND_ERROR_WRONGMASTER;
 
@@ -4009,6 +4025,7 @@ int osql_send_multiq(const char *tohost, uuid_t uuid, const char *qname, long lo
     else
         /* TODO: debug - didn't save name yet */
         strcpy(rpl.dt.qname, "test");
+    rpl.dt.seq = seq;
 
     uint8_t *p_buf, *p_buf_end, buf[OSQLCOMM_MULTIQ_UUID_RPL_TYPE_LEN];
     p_buf = buf;
@@ -4021,8 +4038,15 @@ int osql_send_multiq(const char *tohost, uuid_t uuid, const char *qname, long lo
         logmsg(LOGMSG_ERROR, "%s:%d can't serialized multiq request?\n", __func__, __LINE__);
         return -1;
     }
+    printf("buflen %d\n", (int) (p_buf_end - buf));
+    fsnapf(stdout, buf, p_buf_end - buf);
+
     /* TODO: different types needed for snapshot/serializable? */
-    int rc = offload_net_send(tohost, NET_OSQL_SOCK_RPL, buf, p_buf_end - buf, 0, pData, nData);
+    // TODO: offload_net_send should take const*
+    int type = osql_net_type_to_net_uuid_type(NET_OSQL_SOCK_RPL);
+    printf("type %d\n", type);
+    int rc = offload_net_send(tohost, type, buf, p_buf_end - buf, 0, (void*) pData, nData);
+    printf("offload_net_send rc %d\n", rc);
 
     return rc;
 }
@@ -5249,6 +5273,7 @@ static void signal_rtoff(void)
 static int net_local_route_packet_tail(int usertype, void *data, int datalen,
                                        void *tail, int taillen)
 {
+    printf("sending %d\n", usertype);
     switch (usertype) {
     case NET_OSQL_SOCK_REQ:
     case NET_OSQL_SOCK_REQ_COST:
@@ -6018,6 +6043,7 @@ int osql_process_packet(struct ireq *iq, unsigned long long rqid, uuid_t uuid,
                     passedus, us);
             abort();
         }
+        printf("hello type %d\n", rpl.type);
     } else {
         osql_rpl_t rpl;
         p_buf = (const uint8_t *)msg;
@@ -6785,6 +6811,27 @@ int osql_process_packet(struct ireq *iq, unsigned long long rqid, uuid_t uuid,
         free(rpl);
         return rc;
     } break;
+
+    case OSQL_MULTIQ: {
+        int bdberr = 0;
+        osql_multi_t rpl;
+        p_buf_end = p_buf + OSQLCOMM_MULTIQ_UUID_RPL_TYPE_LEN;
+        p_buf = osqlcomm_multiq_get(&rpl, p_buf, p_buf_end);
+
+        Q4SP(qname, rpl.qname);
+        dbtable *db = NULL; // TODO: inherit from USEDB
+        db = getqueuebyname(qname);
+        if (db == NULL) {
+            logmsg(LOGMSG_ERROR, "OSQL_MULTIQ request for unknown queue %s\n", rpl.qname);
+            rc = -1;
+            return conv_rc_sql2blkop(iq, step, -1, ERR_BADREQ, err, NULL, 0);
+        }
+
+        multiq_persist(db, trans, rpl.seq, p_buf, msglen - OSQLCOMM_MULTIQ_UUID_RPL_TYPE_LEN, &bdberr);
+        printf("seq %lld payload msglen %d\n", rpl.seq, msglen - OSQLCOMM_MULTIQ_UUID_RPL_TYPE_LEN);
+        fsnapf(stdout, p_buf, 10);
+    } break;
+
     default: {
         uuidstr_t us;
         logmsg(LOGMSG_ERROR, "%s [%llu %s] RECEIVED AN UNKNOWN OFF OPCODE %u, "
@@ -6840,6 +6887,8 @@ static int sorese_rcvreq(char *fromhost, void *dtap, int dtalen, int type,
         flags = ureq.flags;
         tzname = ureq.tzname;
         sqllen = ureq.sqlqlen;
+        if (sqllen < 0)
+            abort();
     } else {
         osql_req_t req;
         sql = (char *)osqlcomm_req_type_get(&req, p_req_buf, p_req_buf_end);
