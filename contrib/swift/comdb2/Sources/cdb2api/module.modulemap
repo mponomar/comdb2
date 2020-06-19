@@ -1,0 +1,4 @@
+module cdb2api {
+    umbrella header "cdb2api.h"
+    link "cdb2api"
+}
