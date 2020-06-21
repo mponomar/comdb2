@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "comdb2test",
     dependencies: [
-        .package(path: "/Users/mike/comdb2/src/contrib/swift/comdb2"),
+        .package(path: "/users/mike/comdb2/src/contrib/swift/comdb2"),
     ],
     targets: [
         .target(

@@ -32,6 +32,7 @@ else if case let Comdb2QueryResults.rows(rows) = result {
         }
         else if case let Comdb2Row.error(errcode: rc, errmsg: errmsg) = row {
             print("got rc \(rc): \(errmsg)")
+            break
         }
     }
 }
