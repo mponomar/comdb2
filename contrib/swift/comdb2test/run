@@ -3,4 +3,4 @@
 set -e
 swift build
 install_name_tool -change @rpath/libcdb2api.dylib /opt/bb/lib/libcdb2api.dylib .build/x86_64-apple-macosx/debug/comdb2test
-.build/x86_64-apple-macosx/debug/comdb2test
+.build/x86_64-apple-macosx/debug/comdb2test "$@"

@@ -1,7 +1,7 @@
 import XCTest
 
-import comdb2testTests
+import test2Tests
 
 var tests = [XCTestCaseEntry]()
-tests += comdb2testTests.allTests()
+tests += test2Tests.allTests()
 XCTMain(tests)

@@ -1,38 +1,49 @@
-import Darwin
 import comdb2
+import Foundation
 
-var db = Comdb2(dbname: "mikedb", tier: "local")
-if db == nil {
-    print("Can't connect to db")
-    exit(0)
-}
-var result = db!.run(sql: "select a, 'somestring' as b, null as c from t order by a limit 10")
-if case let Comdb2QueryResults.error(errcode: rc, errmsg: errmsg) = result {
-    print("got rc \(rc): \(errmsg)")
-    exit(0)
-}
-else if case let Comdb2QueryResults.rows(rows) = result {
-    for row in rows {
-        if case let Comdb2Row.values(rowValues) = row {
-            var colNum = 0
-            let colNames = rows.columnNames()
-            var sep = ""
-            for col in 0 ..< rowValues.count {
-                print("\(sep)\(colNames[colNum])=", terminator:"")
-                if rowValues[col] == nil {
-                    print("null", terminator: "")
-                }
-                else {
-                    print("\(rowValues[col]!)", terminator:"")
-                }
-                sep = ", "
-                colNum += 1
-            }
-            print("")
-        }
-        else if case let Comdb2Row.error(errcode: rc, errmsg: errmsg) = row {
-            print("got rc \(rc): \(errmsg)")
-            break
+import func Darwin.exit
+
+// mutating func write(_ string: String)
+
+struct StderrWriter: TextOutputStream {
+    public func write(_ str: String) {
+        if let data = str.data(using: String.Encoding.utf8) {
+            FileHandle.standardError.write(data)
         }
     }
+}
+var stderr: StderrWriter = StderrWriter()
+
+do {
+    let args = CommandLine.arguments
+    if args.count != 4 {
+        print("Usage: dbname tier query", to: &stderr)
+        exit(0)
+    }
+    let dbName = args[1]
+    let tier = args[2]
+    let sql = args[3]
+
+    let db = try Comdb2(dbName: dbName, tier: tier)
+    let rows = try db.run(sql: sql)
+    for row in rows {
+        if case let Comdb2Row.error(error: rc) = row {
+            print("rc \(rc.errorCode) \(rc.errorMessage)", to: &stderr)
+        }
+        else if case let Comdb2Row.values(columnValues: row) = row {
+            var sep = ""
+            var columnNum = 0
+            print("(", terminator: "")
+            for col in row {
+                print("\(sep)\(rows.columnNames[columnNum])=", terminator: "")
+                print("\(col!)", terminator: "")
+                sep = ", "
+                columnNum += 1
+            }
+            print(")")
+        }
+    }
+}
+catch let error {
+    print("error: \(error)")
 }

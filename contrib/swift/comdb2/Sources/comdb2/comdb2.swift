@@ -1,140 +1,142 @@
+import Foundation
 import cdb2api
 
-public enum Comdb2Value {
-    case integer(value: Int64)
-    case string(value: String)
-}
-
-public enum Comdb2Error: Int {
-    case OK = 0
-    case DONE = 1
-    case CONNECT_ERROR = -1
-    case SYNTAX_ERROR = -3
-    case UNKNOWN_ERROR = -5
-}
-
-public enum Comdb2QueryResults {
-    case rows(results: Comdb2Rows)
-    case error(errcode: Comdb2Error, errmsg: String)
-}
-
 public enum Comdb2Row {
-    case values([Comdb2Value?])
-    case error(errcode: Comdb2Error, errmsg: String)
+    case values(columnValues: [Any?])
+    case error(error: Comdb2Error)
 }
 
-public struct Comdb2Rows: Sequence, IteratorProtocol {
-    private var connection: Comdb2
+public struct Comdb2Error : Error {
+    // TODO: enum?
+    public let errorCode: Int
+    public let errorMessage: String
+
+    public init(errorCode: Int, errorMessage: String) {
+        self.errorCode = errorCode
+        self.errorMessage = errorMessage
+    }
+}
+
+public class Comdb2Rows: IteratorProtocol, Sequence {
+    private(set) var db: Comdb2
+    public private(set) var columnNames: [String]
+    private var columnValues: [Any?] = []
+
     public func next() -> Comdb2Row? {
-        connection.next()
+        columnValues.removeAll(keepingCapacity: true)
+        let rc = cdb2_next_record(db.db)
+        if rc == CDB2_OK_DONE.rawValue {
+            return nil
+        }
+        else if rc != 0 {
+            // It'd be preferable to throw an error instead,
+            // but then we couldn't use this as an interator
+            return .error(error: Comdb2Error(errorCode: Int(rc), errorMessage: String(cString: cdb2_errstr(db.db))))
+        }
+        else {
+            for i in 0 ..< cdb2_numcolumns(db.db) {
+                let opaqueValue = cdb2_column_value(db.db, i)
+                let type:UInt32 = UInt32(cdb2_column_type(db.db, i))
+                var subsecondMultiplier: UInt32 = 0
+                if opaqueValue == nil {
+                    columnValues.append(nil)
+                    continue
+                }
+                switch type {
+                    case CDB2_INTEGER.rawValue:
+                        columnValues.append(opaqueValue!.load(fromByteOffset: 0, as: Int64.self))
+
+                    case CDB2_CSTRING.rawValue:
+                        let ptr: UnsafeMutablePointer<Int8> = opaqueValue!.assumingMemoryBound(to: Int8.self)
+                        columnValues.append(String(cString: ptr))
+
+                    case CDB2_REAL.rawValue:
+                        var d: Double = 0
+                        withUnsafeMutablePointer(to: &d) { ptr in 
+                            let p: UnsafeMutableRawPointer = UnsafeMutableRawPointer(ptr)
+                            p.copyMemory(from: opaqueValue!, byteCount: 8)
+                        }
+                        columnValues.append(d)
+
+                    case CDB2_BLOB.rawValue:
+                        let sz = cdb2_column_size(db.db, i)
+                        let ptr: UnsafeBufferPointer<UInt8> = UnsafeBufferPointer(start: opaqueValue!.assumingMemoryBound(to: UInt8.self), count: Int(sz))
+                        columnValues.append(Array(ptr))
+
+                    case CDB2_DATETIME.rawValue:
+                        subsecondMultiplier = 1000000
+                        fallthrough
+                    case CDB2_DATETIMEUS.rawValue:
+                        subsecondMultiplier = 1000
+                        var cdate: cdb2_client_datetime_t = cdb2_client_datetime_t()
+                        let sz = MemoryLayout.size(ofValue: cdate)
+                        withUnsafeMutablePointer(to: &cdate) { ptr in 
+                            let p: UnsafeMutableRawPointer = UnsafeMutableRawPointer(ptr)
+                            p.copyMemory(from: opaqueValue!, byteCount: sz)
+                        }
+                        var tzname: String?
+                        withUnsafeBytes(of: cdate.tzname) { ptr in 
+                            let buf = ptr.bindMemory(to: UInt8.self)
+                            tzname = String(data: Data(buf), encoding: .utf8)
+                        }
+                        if tzname == nil {
+                            return .error(error: Comdb2Error(errorCode: -5, errorMessage: "Invalid timezone encoding"))
+                        }
+                        let timezone = TimeZone(identifier: tzname!)
+                        if timezone == nil {
+                            return .error(error: Comdb2Error(errorCode: -5, errorMessage: "Invalid timezone"))
+                        }
+
+                        let date = DateComponents(calendar: Calendar.current,
+                                    timeZone: timezone,
+                                    year: Int(cdate.tm.tm_year + 1900),
+                                    month: Int(cdate.tm.tm_mon + 1),
+                                    day: Int(cdate.tm.tm_mday),
+                                    hour: Int(cdate.tm.tm_hour),
+                                    minute: Int(cdate.tm.tm_min),
+                                    second: Int(cdate.tm.tm_sec),
+                                    nanosecond: Int(cdate.msec * subsecondMultiplier)
+                                    ).date
+                        columnValues.append(date)
+
+                    default:
+                        // TODO: interval types
+                        return .error(error: Comdb2Error(errorCode: -5, errorMessage: "Unsupported type \(type)"))
+
+                }
+            }
+            return .values(columnValues: columnValues)
+        }
     }
 
-    public func columnNames() -> [String] {
-        return connection.columnNames
-    }
-
-    init(connection: Comdb2) {
-        self.connection = connection
-    }
-}
-
-private enum ConnectionState {
-    case ready
-    case running
+    fileprivate init(db: Comdb2, columnNames: [String]) {
+        self.db = db
+        self.columnNames = columnNames
+    } 
 }
 
 public class Comdb2 {
-    private var dbname: String
-    private var tier: String
-    private var connection: OpaquePointer?
-    private(set) var columnNames: [String] = []
-    private var state: ConnectionState
-
-    public func lastErrorMessage() -> String {
-        String(cString: cdb2_errstr(connection!))
-    }
-
-    public init?(dbname: String, tier: String) {
-        self.dbname = dbname
-        self.tier = tier
-
-        let rc = cdb2_open(&connection, dbname, tier, 0);
-        if rc != CDB2_OK.rawValue {
-            return nil
-        }
-        state = .ready
-    }
-
-    private func columnValue(forColumn n: Int32) -> Comdb2Value? {
-        let val = cdb2_column_value(connection, n)
-        if val == nil {
-            return nil
-        }
-        let type: UInt32 = UInt32(cdb2_column_type(connection, n))
-        switch type {
-            case CDB2_INTEGER.rawValue:
-                return .integer(value: val!.load(fromByteOffset: 0, as: Int64.self))
-            case CDB2_CSTRING.rawValue:
-                let ptr: UnsafeMutablePointer<Int8> = val!.assumingMemoryBound(to: Int8.self)
-                return .string(value: String(cString: ptr))
-            default:
-                return nil
-        }
-    }
-
-    func next() -> Comdb2Row? {
-        let rc = cdb2_next_record(connection);
-        if rc == CDB2_OK.rawValue {
-            var values: [Comdb2Value?] = []
-            let ncols = cdb2_numcolumns(connection)
-            for col in 0 ..< ncols {
-                values.append(columnValue(forColumn: col))
-            }
-            return .values(values)
-        }
-        else if rc == CDB2_OK_DONE.rawValue {
-            return nil
-        }
-        else {
-            return .error(errcode: toError(rc), errmsg: String(cString:cdb2_errstr(connection!)))
-        }
-    }
-
-    public func run(sql: String) -> Comdb2QueryResults {
-        let rc = cdb2_run_statement(connection!, sql)
-        if rc != CDB2_OK.rawValue {
-            return .error(errcode: toError(rc), errmsg: String(cString:cdb2_errstr(connection!)))
-        }
-        state = .running
-
-        let ncols = cdb2_numcolumns(connection)
-        columnNames.removeAll(keepingCapacity: true)
-
-        for col in 0 ..< ncols {
-            columnNames.append(String(cString: cdb2_column_name(connection, col)))
-        }
-
-        return .rows(results: Comdb2Rows(connection: self))
-    }
-
-    deinit {
-        if let db = connection {
+    fileprivate var db: OpaquePointer
+    public init(dbName: String, tier: String = "default") throws {
+        var dbp: OpaquePointer?
+        let rc = cdb2_open(&dbp, dbName, tier, 0)
+        db = dbp!
+        if rc != 0 {
+            let err = Comdb2Error(errorCode: Int(rc), errorMessage: String(cString: cdb2_errstr(db)))
             cdb2_close(db)
+            throw err
         }
     }
-}
 
-private func toError(_ rc: Int32) -> Comdb2Error {
-    switch rc {
-        case 0:
-            return .OK
-        case 1:
-            return .DONE
-        case -1:
-            return .CONNECT_ERROR
-        case -3:
-            return .SYNTAX_ERROR
-        default:
-            return .UNKNOWN_ERROR
+    public func run(sql: String, params: [String : Any]? = nil) throws -> Comdb2Rows {
+        let rc = cdb2_run_statement(db, sql)
+        if rc != 0 {
+            throw Comdb2Error(errorCode: Int(rc), errorMessage: String(cString: cdb2_errstr(db)))
+        }
+        var colNames: [String] = []
+        for columnNumber in 0 ..< cdb2_numcolumns(db) {
+            colNames.append(String(cString: cdb2_column_name(db, columnNumber)))
+        }
+        return Comdb2Rows(db: self, columnNames: colNames)
     }
 }
