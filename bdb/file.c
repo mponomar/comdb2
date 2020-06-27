@@ -5450,40 +5450,6 @@ static void deadlock_happened(struct berkdb_deadlock_info *deadlock_info)
         ctrace("deadlk %u %x\n", deadlock_info->lid, (unsigned)pthread_self());
 }
 
-/* clone clone_bdb_state and then copy over the data file pointers from
- * data_files_bdb_state.
- * all the memory is still owned by clone_bdb_state and data_files_bdb_state so
- * only the state object itself needs to be free()'d */
-bdb_state_type *bdb_clone_handle_with_other_data_files(
-    const bdb_state_type *clone_bdb_state,
-    const bdb_state_type *data_files_bdb_state)
-{
-    int strnum;
-    int maxstrnum;
-    bdb_state_type *new_bdb_state;
-    if (!(new_bdb_state = malloc(sizeof(bdb_state_type))))
-        return NULL;
-
-    /* clone all data/pointers */
-    *new_bdb_state = *clone_bdb_state;
-
-    /* overwrite the data file pointers */
-    maxstrnum = (data_files_bdb_state->attr->dtastripe)
-                    ? data_files_bdb_state->attr->dtastripe
-                    : 1;
-    for (strnum = 0; strnum < maxstrnum; ++strnum)
-        new_bdb_state->dbp_data[0][strnum] =
-            data_files_bdb_state->dbp_data[0][strnum];
-
-    return new_bdb_state;
-}
-
-/* clean up after bdb_clone_handle_with_other_data_files() */
-void bdb_free_cloned_handle_with_other_data_files(bdb_state_type *bdb_state)
-{
-    free(bdb_state);
-}
-
 int bdb_is_open(bdb_state_type *bdb_state) { return bdb_state->isopen; }
 
 int create_master_lease_thread(bdb_state_type *bdb_state)
@@ -7012,13 +6978,6 @@ static int bdb_free_int(bdb_state_type *bdb_state, bdb_state_type *replace,
 {
     bdb_state_type *child = NULL;
 
-    /* dont free open bdb handles */
-    if (bdb_state->isopen) {
-        print(bdb_state, "bdb_free_int(%s) isopen, not freeing\n",
-              bdb_state->name);
-        return -1;
-    }
-
     bdb_state->exiting = 1;
 
     if (bdb_state->parent)
@@ -7124,13 +7083,6 @@ int bdb_open_again_tran_int(bdb_state_type *bdb_state, DB_TXN *tid,
     }
 
     parent = bdb_state->parent;
-
-    if (bdb_state->isopen == 1) {
-        print(bdb_state, "bdb_open_again_tran(%s) isopen, not opening again\n",
-              bdb_state->name);
-        *bdberr = BDBERR_BADARGS;
-        return -1;
-    }
 
     if (bdb_state->read_write)
         iammaster = 1;

@@ -500,8 +500,11 @@ struct thread_lock_info_tag;
 typedef struct thread_lock_info_tag thread_lock_info_type;
 
 #ifndef __bdb_api_h__
-struct bdb_state_tag;
-typedef struct bdb_state_tag bdb_state_type;
+struct bdb_env_tag;
+typedef struct bdb_env_tag bdb_env_type;
+
+struct bdb_table_tag;
+typedef struct bdb_table_tag bdb_table_type;
 
 struct bdb_callback_tag;
 typedef struct bdb_callback_tag bdb_callback_type;
@@ -954,7 +957,6 @@ struct bdb_state_tag {
     signed char exiting;
     signed char caught_up; /* if we passed the recovery phase */
 
-    signed char isopen;
     signed char envonly;
 
     signed char need_to_downgrade_and_lose;

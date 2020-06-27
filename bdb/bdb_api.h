@@ -48,7 +48,7 @@ typedef struct seqnum_t seqnum_type;
 struct filepage_t;
 typedef struct filepage_t filepage_type;
 
-struct bdb_state_tag;
+struct bdb_env_tag;
 
 struct bdb_callback_tag;
 typedef struct bdb_callback_tag bdb_callback_type;
@@ -297,7 +297,8 @@ int bdb_compr2algo(const char *a);
 const char *bdb_algo2compr(int a);
 
 /* retrieve the user pointer associated with a bdb_handle */
-void *bdb_get_usr_ptr(bdb_state_type *bdb_handle);
+void *bdb_env_usr_ptr(bdb_env_type *bdb_handle);
+void *bdb_table_usr_ptr(bdb_tablev_type *bdb_handle);
 
 /* CALLBACK ROUTINES */
 
@@ -315,7 +316,7 @@ typedef int (*PRINTFP)(const char *format, va_list ap);
   from the election pool when errors are occuring talking to this
   node.
 */
-typedef int (*NODEUPFP)(bdb_state_type *bdb_handle, const char *host);
+typedef int (*NODEUPFP)(bdb_env_type *bdb_handle, const char *host);
 
 /*
    provide a callback that gets called when a node disconnects.
@@ -337,7 +338,7 @@ typedef int (*SERIALCHECK)(char *tbname, int idxnum, void *key, int keylen,
   provide a routine that returns an integer specifying the "room"
   of a given node.  this is used to keep coherency within a room.
 */
-typedef int (*GETROOMFP)(bdb_state_type *bdb_handle, const char *host);
+typedef int (*GETROOMFP)(bdb_env_type *bdb_handle, const char *host);
 
 /*
   pass in a routine that will be called to tell you that someone
@@ -346,7 +347,7 @@ typedef int (*GETROOMFP)(bdb_state_type *bdb_handle, const char *host);
   updates directed elesewhere if you learned of a new master.
   do NOT call back into the bdb library from this routine.
 */
-typedef int (*WHOISMASTERFP)(bdb_state_type *bdb_handle, char *host,
+typedef int (*WHOISMASTERFP)(bdb_env_type *bdb_handle, char *host,
                              int assert_sc_clear);
 
 /*
@@ -364,28 +365,28 @@ typedef int (*WHOISMASTERFP)(bdb_state_type *bdb_handle, char *host,
   is at risk with being out of date with respect the the actual data
   as it exists on the master copy of the database.
 */
-typedef int (*REPFAILFP)(bdb_state_type *bdb_handle, char *host, int reason);
+typedef int (*REPFAILFP)(bdb_env_type *bdb_handle, char *host, int reason);
 
 /*
   pass in a routine that will handle a newly created socket.
   this routine must return immediately, and should create it's own
   thread if extended processing is needed.
   */
-typedef int (*BDBAPPSOCKFP)(bdb_state_type *bdb_handle, SBUF2 *sb);
+typedef int (*BDBAPPSOCKFP)(bdb_env_type *bdb_handle, SBUF2 *sb);
 
 /*
   pass in a routine that will return the current election preferences.
   for now the only thing it can change is the election timeout value,
   which is specified in seconds.  it should alays return 0.
   */
-typedef int (*BDBELECTSETTINGSFP)(bdb_state_type *bdb_handle,
+typedef int (*BDBELECTSETTINGSFP)(bdb_env_type *bdb_handle,
                                   int *elect_time_secs);
 
 /*
   pass in a routine that will be called when election has succeeded
   and the database starts catching up to the master
 */
-typedef int (*BDBCATCHUPFP)(bdb_state_type *bdb_handle,
+typedef int (*BDBCATCHUPFP)(bdb_env_type *bdb_handle,
                             unsigned long long ourlsn,
                             unsigned long long masterlsn);
 
@@ -416,7 +417,7 @@ void *bdb_attr_create(void);
   set an attribute in a bdb attribute object to the specfied value.
 */
 void bdb_attr_set(bdb_attr_type *bdb_attr, int attr, int value);
-int bdb_attr_set_by_name(bdb_state_type *bdb_handle, bdb_attr_type *bdb_attr,
+int bdb_attr_set_by_name(bdb__type *bdb_handle, bdb_attr_type *bdb_attr,
                          const char *attrname, int value);
 
 int bdb_attr_get(bdb_attr_type *bdb_attr, int attr);
@@ -424,15 +425,10 @@ int bdb_attr_get(bdb_attr_type *bdb_attr, int attr);
 void bdb_attr_dump(FILE *fh, const bdb_attr_type *bdb_attr);
 
 /* Get the type of this bdb-state object as a BDBTYPE_ constant */
-bdbtype_t bdb_get_type(bdb_state_type *bdb_state);
+bdbtype_t bdb_get_type(bdb_table_type *bdb_state);
 
-int bdb_get_qdb_adds(bdb_state_type *bdb_state);
-int bdb_get_qdb_cons(bdb_state_type *bdb_state);
-
-bdb_state_type *bdb_clone_handle_with_other_data_files(
-    const bdb_state_type *clone_bdb_state,
-    const bdb_state_type *data_files_bdb_state);
-void bdb_free_cloned_handle_with_other_data_files(bdb_state_type *bdb_state);
+int bdb_get_qdb_adds(bdb_table_type *bdb_state);
+int bdb_get_qdb_cons(bdb_table_type *bdb_state);
 
 /*
   bdb_open_more() : "open" a new database. associate this db transactionally
@@ -465,111 +461,105 @@ void bdb_free_cloned_handle_with_other_data_files(bdb_state_type *bdb_state);
 */
 
 /* open an existing table */
-bdb_state_type *
+bdb_table_type *
 bdb_open_more(const char name[], const char dir[], int lrl, short numix,
               const short ixlen[], const signed char ixdups[],
               const signed char ixrecnum[], const signed char ixdta[],
               const signed char ixcollattr[], const signed char ixnulls[],
-              int numdtafiles, bdb_state_type *parent_bdb_handle, int *bdberr);
+              int numdtafiles, bdb_env_type *parent_bdb_handle, int *bdberr);
 
 /* same, but using a transaction */
-bdb_state_type *
+bdb_table_type *
 bdb_open_more_tran(const char name[], const char dir[], int lrl, short numix,
                    const short ixlen[], const signed char ixdups[],
                    const signed char ixrecnum[], const signed char ixdta[],
                    const signed char ixcollattr[], const signed char ixnulls[],
-                   int numdtafiles, bdb_state_type *parent_bdb_handle,
+                   int numdtafiles, bdb_env_type *parent_bdb_handle,
                    tran_type *tran, uint32_t flags, int *bdberr);
 
 /* open an existing lite table */
-bdb_state_type *bdb_open_more_lite(const char name[], const char dir[], int lrl,
+bdb_table_type *bdb_open_more_lite(const char name[], const char dir[], int lrl,
                                    int ixlen, int pagesize,
-                                   bdb_state_type *parent_bdb_handle,
+                                   bdb_env_type *parent_bdb_handle,
                                    tran_type *tran, uint32_t flags,
                                    int *bdberr);
 
 /* open an existing queue */
-bdb_state_type *bdb_open_more_queue(const char name[], const char dir[],
+bdb_table_type *bdb_open_more_queue(const char name[], const char dir[],
                                     int item_size, int pagesize,
-                                    bdb_state_type *parent_bdb_state,
+                                    bdb_env_type *parent_bdb_state,
                                     int isqueuedb, tran_type *, int *bdberr);
 
 /* create a new queue */
-bdb_state_type *bdb_create_queue(const char name[], const char dir[],
+bdb_table_type *bdb_create_queue(const char name[], const char dir[],
                                  int item_size, int pagesize,
-                                 bdb_state_type *parent_bdb_state,
+                                 bdb_env_type *parent_bdb_state,
                                  int isqueuedb, int *bdberr);
-bdb_state_type *bdb_create_queue_tran(tran_type *, const char name[],
+bdb_table_type *bdb_create_queue_tran(tran_type *, const char name[],
                                       const char dir[], int item_size,
                                       int pagesize,
-                                      bdb_state_type *parent_bdb_state,
+                                      bdb_env_type *parent_bdb_state,
                                       int isqueuedb, int *bdberr);
 
 /* create a lite table */
-bdb_state_type *bdb_create_more_lite(const char name[], const char dir[],
+bdb_table_type *bdb_create_more_lite(const char name[], const char dir[],
                                      int lrl, int ixlen, int pagesize,
-                                     bdb_state_type *parent_bdb_handle,
+                                     bdb_table_type *parent_bdb_handle,
                                      int *bdberr);
 
 /* create and open a new table */
-bdb_state_type *
+bdb_table_type *
 bdb_create(const char name[], const char dir[], int lrl, short numix,
            const short ixlen[], const signed char ixdups[],
            const signed char ixrecnum[], const signed char ixdta[],
            const signed char ixcollattr[], const signed char ixnulls[],
-           int numdtafiles, bdb_state_type *parent_bdb_handle, int temp,
+           int numdtafiles, bdb_env_type *parent_bdb_handle, int temp,
            int *bdberr);
 
-bdb_state_type *
+bdb_table_type *
 bdb_create_tran(const char name[], const char dir[], int lrl, short numix,
                 const short ixlen[], const signed char ixdups[],
                 const signed char ixrecnum[], const signed char ixdta[],
                 const signed char ixcollattr[], const signed char ixnulls[],
-                int numdtafiles, bdb_state_type *parent_bdb_handle, int temp,
+                int numdtafiles, bdb_env_type *parent_bdb_handle, int temp,
                 int *bdberr, tran_type *);
 
 /* open a databasent.  no actual db files are created. */
-bdb_state_type *bdb_open_env(const char name[], const char dir[],
+bdb_env_type *bdb_open_env(const char name[], const char dir[],
                              bdb_attr_type *bdb_attr,
                              bdb_callback_type *bdb_callback, void *usr_ptr,
                              netinfo_type *netinfo, char *recoverlsn,
                              int *bdberr);
 
-int bdb_set_all_contexts(bdb_state_type *bdb_state, int *bdberr);
-int bdb_handle_reset(bdb_state_type *);
-int bdb_handle_reset_tran(bdb_state_type *, tran_type *, tran_type *);
-int bdb_handle_dbp_add_hash(bdb_state_type *bdb_state, int szkb);
-int bdb_handle_dbp_drop_hash(bdb_state_type *bdb_state);
-int bdb_handle_dbp_hash_stat(bdb_state_type *bdb_state);
-int bdb_handle_dbp_hash_stat_reset(bdb_state_type *bdb_state);
-int bdb_close_temp_state(bdb_state_type *bdb_state, int *bdberr);
+int bdb_handle_reset(bdb_table_type *);
+int bdb_handle_reset_tran(bdb_table_type *, tran_type *, tran_type *);
+int bdb_handle_dbp_add_hash(bdb_table_type *bdb_state, int szkb);
+int bdb_handle_dbp_drop_hash(bdb_table_type *bdb_state);
+int bdb_handle_dbp_hash_stat(bdb_table_type *bdb_state);
+int bdb_handle_dbp_hash_stat_reset(bdb_table_type *bdb_state);
+int bdb_close_temp_state(bdb_table_type *bdb_state, int *bdberr);
 
 /* get file sizes for indexes and data files */
-uint64_t bdb_index_size(bdb_state_type *bdb_state, int ixnum);
-uint64_t bdb_data_size(bdb_state_type *bdb_state, int dtanum);
-uint64_t bdb_queue_size(bdb_state_type *bdb_state, unsigned *num_extents);
-uint64_t bdb_logs_size(bdb_state_type *bdb_state, unsigned *num_logs);
-
-/*
-  bdb_close(): destroy a bdb_handle.
-*/
-int bdb_close(bdb_state_type *bdb_handle);
+uint64_t bdb_index_size(bdb_table_type *bdb_state, int ixnum);
+uint64_t bdb_data_size(bdb_table_type *bdb_state, int dtanum);
+uint64_t bdb_queue_size(bdb_table_type *bdb_state, unsigned *num_extents);
+uint64_t bdb_logs_size(bdb_env_type *bdb_state, unsigned *num_logs);
 
 /* see if a handle is open or not */
-int bdb_isopen(bdb_state_type *bdb_handle);
+int bdb_isopen(bdb_table_type *bdb_handle);
 
 /* you need to call this if you created the parent with bdb_open_env */
-int bdb_close_env(bdb_state_type *bdb_handle);
+int bdb_close_env(bdb_env_type *bdb_handle);
 
 /* get a context that can be used in fetches to ensure that we don't fetch
  * records added after the context of the original find. */
-unsigned long long bdb_get_cmp_context(bdb_state_type *bdb_state);
+unsigned long long bdb_get_cmp_context(bdb_env_type *bdb_state);
 
-unsigned long long bdb_get_cmp_context_local(bdb_state_type *bdb_state);
+unsigned long long bdb_get_cmp_context_local(bdb_env_type *bdb_state);
 
 /* Check that the given genid is older than the compare context being given.
  * Returns: 1 genid is older, 0 genid is newer */
-int bdb_check_genid_is_older(bdb_state_type *bdb_state,
+int bdb_check_genid_is_older(bdb_env_type *bdb_state,
                              unsigned long long genid,
                              unsigned long long context);
 
@@ -588,11 +578,11 @@ int bdb_cmp_genids(unsigned long long a, unsigned long long b);
  *    0     a == b
  *    1     a > b
  */
-int bdb_inplace_cmp_genids(bdb_state_type *bdb_state, unsigned long long g1,
+int bdb_inplace_cmp_genids(bdb_env_type *bdb_state, unsigned long long g1,
                            unsigned long long g2);
 
 /* using the bdb_state object, return the updateid for this genid */
-int get_updateid_from_genid(bdb_state_type *bdb_state,
+int get_updateid_from_genid(bdb_env_type *bdb_state,
                             unsigned long long genid);
 
 /* Retrieve the participant stripe id which is encoded in the genid.
@@ -600,21 +590,21 @@ int get_updateid_from_genid(bdb_state_type *bdb_state,
  *    -1    there are no bits allocated for participant stripe id
  *    otherwise, the stripe-id associated with the genid
  */
-int bdb_get_participant_stripe_from_genid(bdb_state_type *bdb_state,
+int bdb_get_participant_stripe_from_genid(bdb_env_type *bdb_state,
                                           unsigned long long genid);
 
 /* Mask a genid so that it can be used in an ondisk file.  With ODH
  * turned on this masks out the updateid field.  We use this in live schema
  * change since some old databases may have genids that have values in this
  * field, so we have to change those genids when we do this conversion. */
-unsigned long long bdb_mask_updateid(bdb_state_type *bdb_state,
+unsigned long long bdb_mask_updateid(bdb_env_type *bdb_state,
                                      unsigned long long genid);
 
 /* Normalize a genid so that we can find and delete it during a live
  * schema-change.  This is necessary if schema-change is removing ondisk
  * headers for a database table which had in-place updates enabled.  It's
  * used to locate and delete a record in the new, odh-less table. */
-unsigned long long bdb_normalise_genid(bdb_state_type *bdb_state,
+unsigned long long bdb_normalise_genid(bdb_env_type *bdb_state,
                                        unsigned long long genid);
 
 #define BDB_TRAN_RECOVERY 0x00000001
@@ -964,7 +954,6 @@ const struct bdb_queue_stats *bdb_queue_get_stats(bdb_state_type *bdb_state);
 int bdb_dumpdta(bdb_state_type *bdb_handle, SBUF2 *sb, int *bdberr);
 
 /* debug dump routines */
-void bdb_dumpit(bdb_state_type *bdb_state);
 void bdb_bulkdumpit(bdb_state_type *bdb_state);
 
 /*
@@ -1170,8 +1159,6 @@ int bdb_free_and_replace(bdb_state_type *bdb_handle, bdb_state_type *replace,
 int bdb_add_data_with_rrn(bdb_state_type *bdb_state, void *dta, int rrn,
                           unsigned long long genid, int dtalen, int *bdberr);
 
-int bdb_zap_freerec(bdb_state_type *bdb_handle, int *bdberr);
-
 /* temptables */
 enum { BDB_TEMP_TABLE_DONT_USE_INMEM = 1 };
 struct temp_table;
@@ -1287,18 +1274,8 @@ int bdb_fstdumpdta_sendsz(bdb_state_type *bdb_state, SBUF2 *sb,
                           int timeoutms, int close_cursor, int *bdberr,
                           const char *tzname, int getgenids);
 
-/* Get the length of the first data item/first item in given index in this
- * table.  This can be used by
- * the db on startup as a sanity check to make sure that the length of the
- * stored data is the same as that required by the schema.  This is, of
- * course, a huge asusmption that the rest of the data will be of a consistent
- * length, and it doesn't help if we have the right data length but wrong
- * schema, but it catches a lot of problems easily. */
-int bdb_get_first_data_length(bdb_state_type *bdb_state, int *bdberr);
-int bdb_get_first_index_length(bdb_state_type *, int ixnum, int *bdberr);
 void bdb_start_request(bdb_state_type *bdb_state);
 void bdb_end_request(bdb_state_type *bdb_state);
-void bdb_start_exclusive_request(bdb_state_type *bdb_state);
 
 dtadump *bdb_dtadump_start(bdb_state_type *bdb_state, int *bdberr, int is_blob,
                            int nr);
@@ -1795,7 +1772,7 @@ tran_type *bdb_tran_begin_set_retries(bdb_state_type *, tran_type *parent,
                                       int retries, int *bdberr);
 uint32_t bdb_readonly_lock_id(bdb_state_type *bdb_state);
 void bdb_free_lock_id(bdb_state_type *bdb_state, uint32_t lid);
-void bdb_lockspeed(bdb_state_type *bdb_state);
+void bdb_lockspeed(bdb_env_type *bdb_state);
 int bdb_lock_table_write(bdb_state_type *bdb_state, tran_type *tran);
 int bdb_lock_tablename_write(bdb_state_type *bdb_state, const char *tblname,
                              tran_type *tran);

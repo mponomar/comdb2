@@ -26,7 +26,7 @@ typedef struct bdb_access_tag bdb_access_t;
  * Returns -1 if error
  *
  */
-int bdb_access_tbl_write_by_mach_get(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_access_tbl_write_by_mach_get(bdb_env_type *bdb_state, tran_type *tran,
                                      char *table, int hostnum, int *bdberr);
 
 /**
@@ -35,42 +35,42 @@ int bdb_access_tbl_write_by_mach_get(bdb_state_type *bdb_state, tran_type *tran,
  * Returns -1 if error
  *
  */
-int bdb_access_tbl_read_by_mach_get(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_access_tbl_read_by_mach_get(bdb_env_type *bdb_state, tran_type *tran,
                                     char *table, int hostnum, int *bdberr);
 
 /**
  * Sets the right to write for (table, hostname)
  *
  */
-int bdb_access_tbl_write_by_mach_set(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_access_tbl_write_by_mach_set(bdb_env_type *bdb_state, tran_type *tran,
                                      char *table, int hostnum, int *bdberr);
 
 /**
  * Sets the right to read for (table, hostname)
  *
  */
-int bdb_access_tbl_read_by_mach_set(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_access_tbl_read_by_mach_set(bdb_env_type *bdb_state, tran_type *tran,
                                     char *table, int hostnum, int *bdberr);
 
 /**
  * Enable access control for tableXnode
  *
  */
-int bdb_accesscontrol_tableXnode_set(bdb_state_type *bdb_state,
+int bdb_accesscontrol_tableXnode_set(bdb_env_type *bdb_state,
                                      tran_type *input_trans, int *bdberr);
 
 /**
  * Init/Destroy functions per table
  *
  */
-bdb_access_t *bdb_access_create(bdb_state_type *bdb_state, int *bdberr);
-void bdb_access_destroy(bdb_state_type *bdb_state);
+bdb_access_t *bdb_access_create(bdb_env_type *bdb_state, int *bdberr);
+void bdb_access_destroy(bdb_env_type *bdb_state);
 
 /**
  * Remove the "write" right for table "tblname: and user/machine "username"
  *
  */
-int bdb_tbl_access_write_delete(bdb_state_type *bdb_state,
+int bdb_tbl_access_write_delete(bdb_env_type *bdb_state,
                                 tran_type *input_trans, const char *tblname,
                                 const char *username, int *bdberr);
 
@@ -78,7 +78,7 @@ int bdb_tbl_access_write_delete(bdb_state_type *bdb_state,
  * Remove the "read" right for table "tblname: and user/machine "username"
  *
  */
-int bdb_tbl_access_read_delete(bdb_state_type *bdb_state,
+int bdb_tbl_access_read_delete(bdb_env_type *bdb_state,
                                tran_type *input_trans, const char *tblname,
                                const char *username, int *bdberr);
 
@@ -86,7 +86,7 @@ int bdb_tbl_access_read_delete(bdb_state_type *bdb_state,
  * Remove the userschema right for user "username"
  *
  */
-int bdb_tbl_access_userschema_delete(bdb_state_type *bdb_state,
+int bdb_tbl_access_userschema_delete(bdb_env_type *bdb_state,
                                      tran_type *input_trans, const char *userschema,
                                      const char *username, int *bdberr);
 
@@ -94,6 +94,6 @@ int bdb_tbl_access_userschema_delete(bdb_state_type *bdb_state,
  * Invalidate the cache when deleting
  *
  */
-void bdb_access_tbl_invalidate(bdb_state_type *bdb_state);
+void bdb_access_tbl_invalidate(bdb_env_type *bdb_state);
 
 #endif

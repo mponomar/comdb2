@@ -5479,42 +5479,9 @@ retry:
     return numrrns;
 }
 
-void diagnostics_dump_dta(struct dbtable *db, int dtanum)
-{
-    void *bdb_handle;
-    int rc;
-    FILE *fh;
-
-    bdb_handle = get_bdb_handle(db, AUXDB_NONE);
-    if (!bdb_handle)
-        return;
-
-    char *filename;
-    filename =
-        comdb2_location("debug", "%s.dump_dta%d.txt", db->tablename, dtanum);
-    fh = fopen(filename, "w");
-    if (!fh) {
-        logmsg(LOGMSG_ERROR, "diagnostics_dump_dta: cannot open %s: %s\n", filename,
-                strerror(errno));
-        free(filename);
-        return;
-    }
-
-    rc = bdb_dump_dta_file_n(bdb_handle, dtanum, fh);
-
-    fclose(fh);
-    logmsg(LOGMSG_INFO, "dumped to %s rcode %d\n", filename, rc);
-    free(filename);
-}
-
 void start_backend_request(struct dbenv *env)
 {
     bdb_start_request(env->bdb_env);
-}
-
-void start_exclusive_backend_request(struct dbenv *env)
-{
-    bdb_start_exclusive_request(env->bdb_env);
 }
 
 void end_backend_request(struct dbenv *env) { bdb_end_request(env->bdb_env); }
@@ -5709,67 +5676,6 @@ long long get_unique_longlong(struct dbenv *env)
 
     return id;
 }
-
-void debug_traverse_data(char *tbl)
-{
-    struct dbtable *db;
-    db = get_dbtable_by_name(tbl);
-    if (db == NULL) {
-        logmsg(LOGMSG_ERROR, "Unknown table %s\n", tbl);
-        return;
-    }
-    bdb_dumpit(db->handle);
-}
-
-void debug_bulktraverse_data(char *tbl)
-{
-    struct dbtable *db;
-    db = get_dbtable_by_name(tbl);
-    if (db == NULL) {
-        logmsg(LOGMSG_ERROR, "Unknown table %s\n", tbl);
-        return;
-    }
-    bdb_bulkdumpit(db->handle);
-}
-
-#ifdef BERKDB_46
-
-int bdb_compact_table(bdb_state_type *bdb_state, int *bdberr, int timeout,
-                      int freefs);
-
-int compact_db(struct dbtable *db, int timeout, int freefs)
-{
-    int bdberr;
-    void *bdb_handle;
-    int numrrns;
-    int retries = 0;
-
-    bdb_handle = get_bdb_handle(db, AUXDB_NONE);
-    if (!bdb_handle)
-        return ERR_NO_AUXDB;
-
-/* there are also retries for the mini transactions */
-retry:
-    numrrns = bdb_compact_table(bdb_handle, &bdberr, timeout, freefs);
-    if (numrrns == -1) {
-        if (bdberr == BDBERR_DEADLOCK) {
-            if (++retries < gbl_maxretries) {
-                n_retries++;
-                goto retry;
-            }
-            logmsg(LOGMSG_ERROR, 
-                   "*ERROR* bdb_compact_table too much contention %d count %d\n",
-                   bdberr, retries);
-            return -1;
-        }
-        logmsg(LOGMSG_ERROR, 
-               "*ERROR* bdb_compact_table return unhandled rc %d\n", bdberr);
-        return -1;
-    }
-
-    return numrrns;
-}
-#endif
 
 int find_record_older_than(struct ireq *iq, void *tran, int timestamp,
                            void *rec, int *reclen, int maxlen,

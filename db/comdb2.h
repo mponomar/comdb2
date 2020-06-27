@@ -2616,9 +2616,6 @@ uint64_t calc_table_size(struct dbtable *db, int skip_blobs);
 
 enum { WHOLE_BUFFER = -1 };
 
-void diagnostics_dump_rrn(struct dbtable *tbl, int rrn);
-void diagnostics_dump_dta(struct dbtable *db, int dtanum);
-
 /* queue stuff */
 void dbqueuedb_coalesce(struct dbenv *dbenv);
 void dbqueuedb_admin(struct dbenv *dbenv);
@@ -2860,7 +2857,6 @@ void watchdog_disable(void);
 void watchdog_enable(void);
 
 void create_old_blkseq_thread(struct dbenv *dbenv);
-void debug_traverse_data(char *tbl);
 int add_gtid(struct ireq *iq, int source_db, tranid_t id);
 int rem_gtid(struct ireq *iq, tranid_t id);
 

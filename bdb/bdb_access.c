@@ -49,15 +49,15 @@ struct bdb_access_tag {
     char hosts_cache[MAX_HOSTS * BITS_PER_HOST / sizeof(char)];
 };
 
-static int bdb_access_table_by_mach_get_disk(bdb_state_type *bdb_state,
+static int bdb_access_table_by_mach_get_disk(bdb_env_type *bdb_state,
                                              tran_type *tran, char *table,
                                              int hostnum, int *bdberr);
-static int bdb_access_table_by_mach_put_disk(bdb_state_type *bdb_state,
+static int bdb_access_table_by_mach_put_disk(bdb_env_type *bdb_state,
                                              tran_type *tran, char *table,
                                              int hostnum, int allow,
                                              int *bdberr);
 
-bdb_access_t *bdb_access_create(bdb_state_type *bdb_state, int *bdberr)
+bdb_access_t *bdb_access_create(bdb_env_type *bdb_state, int *bdberr)
 {
     int i = 0;
 
@@ -78,7 +78,7 @@ bdb_access_t *bdb_access_create(bdb_state_type *bdb_state, int *bdberr)
     return bdb_state->access;
 }
 
-void bdb_access_destroy(bdb_state_type *bdb_state)
+void bdb_access_destroy(bdb_env_type *bdb_state)
 {
     if (bdb_state->access) {
         free(bdb_state->access);
@@ -86,7 +86,7 @@ void bdb_access_destroy(bdb_state_type *bdb_state)
     }
 }
 
-static int bdb_access_tbl_by_mach_get_int(bdb_state_type *bdb_state,
+static int bdb_access_tbl_by_mach_get_int(bdb_env_type *bdb_state,
                                           tran_type *tran, char *table,
                                           int hostnum, int *bdberr)
 {
@@ -121,7 +121,7 @@ static int bdb_access_tbl_by_mach_get_int(bdb_state_type *bdb_state,
     return bits;
 }
 
-int bdb_access_tbl_read_by_mach_get(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_access_tbl_read_by_mach_get(bdb_env_type *bdb_state, tran_type *tran,
                                     char *table, int hostnum, int *bdberr)
 {
     int bits =
@@ -133,7 +133,7 @@ int bdb_access_tbl_read_by_mach_get(bdb_state_type *bdb_state, tran_type *tran,
     return (bits & ACCESS_READ) != 0;
 }
 
-int bdb_access_tbl_write_by_mach_get(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_access_tbl_write_by_mach_get(bdb_env_type *bdb_state, tran_type *tran,
                                      char *table, int hostnum, int *bdberr)
 {
     int bits =
@@ -145,7 +145,7 @@ int bdb_access_tbl_write_by_mach_get(bdb_state_type *bdb_state, tran_type *tran,
     return (bits & ACCESS_WRITE) != 0;
 }
 
-static int bdb_access_table_by_mach_get_disk(bdb_state_type *bdb_state,
+static int bdb_access_table_by_mach_get_disk(bdb_env_type *bdb_state,
                                              tran_type *tran, char *table,
                                              int hostnum, int *bdberr)
 {
@@ -166,7 +166,7 @@ static int bdb_access_table_by_mach_get_disk(bdb_state_type *bdb_state,
     return (bits) ? bits : -1;
 }
 
-static int bdb_access_table_by_mach_put_disk(bdb_state_type *bdb_state,
+static int bdb_access_table_by_mach_put_disk(bdb_env_type *bdb_state,
                                              tran_type *tran, char *table,
                                              int hostnum, int allow,
                                              int *bdberr)
@@ -200,7 +200,7 @@ static int bdb_access_table_by_mach_put_disk(bdb_state_type *bdb_state,
  * Sets the right to write for (table, hostname)
  *
  */
-int bdb_access_tbl_write_by_mach_set(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_access_tbl_write_by_mach_set(bdb_env_type *bdb_state, tran_type *tran,
                                      char *table, int hostnum, int *bdberr)
 {
     return bdb_access_table_by_mach_put_disk(bdb_state, tran, table, hostnum,
@@ -211,7 +211,7 @@ int bdb_access_tbl_write_by_mach_set(bdb_state_type *bdb_state, tran_type *tran,
  * Sets the right to read for (table, hostname)
  *
  */
-int bdb_access_tbl_read_by_mach_set(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_access_tbl_read_by_mach_set(bdb_env_type *bdb_state, tran_type *tran,
                                     char *table, int hostnum, int *bdberr)
 {
     return bdb_access_table_by_mach_put_disk(bdb_state, tran, table, hostnum,
@@ -222,7 +222,7 @@ int bdb_access_tbl_read_by_mach_set(bdb_state_type *bdb_state, tran_type *tran,
  * Invalidate the cache when deleting
  *
  */
-void bdb_access_tbl_invalidate(bdb_state_type *bdb_state)
+void bdb_access_tbl_invalidate(bdb_env_type *bdb_state)
 {
     if (!bdb_state->access)
         return;
@@ -235,7 +235,7 @@ void bdb_access_tbl_invalidate(bdb_state_type *bdb_state)
 int gbl_allow_user_schema;
 int gbl_uses_password;
 
-int bdb_check_user_tbl_access(bdb_state_type *bdb_state, char *user,
+int bdb_check_user_tbl_access(bdb_env_type *bdb_state, char *user,
                               char *table, int access_type, int *bdberr)
 {
     int rc = 0;

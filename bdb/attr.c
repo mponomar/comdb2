@@ -45,7 +45,7 @@
 
 #include <logmsg.h>
 
-static void bdb_attr_set_int(bdb_state_type *bdb_state, bdb_attr_type *bdb_attr,
+static void bdb_attr_set_int(bdb_env_type *bdb_state, bdb_attr_type *bdb_attr,
                              int attr, int value)
 {
     /* Overrides for special cases */
@@ -154,7 +154,7 @@ void bdb_attr_set(bdb_attr_type *bdb_attr, int attr, int value)
     bdb_attr_set_int(NULL, bdb_attr, attr, value);
 }
 
-int bdb_attr_set_by_name(bdb_state_type *bdb_handle, bdb_attr_type *bdb_attr,
+int bdb_attr_set_by_name(bdb_env_type *bdb_handle, bdb_attr_type *bdb_attr,
                          const char *attrname, int value)
 {
 #define DEF_ATTR(NAME, name, type, dflt, desc)                                 \

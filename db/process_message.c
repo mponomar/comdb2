@@ -1307,42 +1307,6 @@ clipper_usage:
         } else {
             logmsg(LOGMSG_ERROR, "unknown java command <%.*s>\n", ltok, tok);
         }
-    } else if (tokcmp(tok, ltok, "diag") == 0) {
-        tok = segtok(line, lline, &st, &ltok);
-        if (tokcmp(tok, ltok, "help") == 0) {
-            logmsg(LOGMSG_USER, "diag rrn <tablename> #  - dump record with given rrn\n");
-            logmsg(LOGMSG_USER, "diag dump <tablename> # - dump .dta# file of table\n");
-        } else if (tokcmp(tok, ltok, "dump") == 0) {
-            char table[MAXTABLELEN];
-            int dtanum;
-            struct dbtable *db;
-            tok = segtok(line, lline, &st, &ltok);
-            if (ltok == 0) {
-                logmsg(LOGMSG_ERROR, "Expected table\n");
-                return -1;
-            }
-            if (ltok >= MAXTABLELEN) {
-                logmsg(LOGMSG_ERROR, "Invalid table name: too long (max %d)\n",
-                       MAXTABLELEN - 1);
-                return -1;
-            }
-            tokcpy(tok, ltok, table);
-            tok = segtok(line, lline, &st, &ltok);
-            if (ltok == 0) {
-                logmsg(LOGMSG_ERROR, "Expected dtanum\n");
-                return -1;
-            }
-            dtanum = toknum(tok, ltok);
-
-            db = get_dbtable_by_name(table);
-            if (!db) {
-                logmsg(LOGMSG_ERROR, "Invalid table %s\n", table);
-            } else {
-                diagnostics_dump_dta(db, dtanum);
-            }
-        } else {
-            logmsg(LOGMSG_ERROR, "unknown diag command <%.*s>\n", ltok, tok);
-        }
     } else if (tokcmp(tok, ltok, "reset_blkmax") == 0) {
         reset_blkmax();
         logmsg(LOGMSG_USER, "Reset blkmax\n");
@@ -3107,26 +3071,6 @@ clipper_usage:
         } else
             print_help_page(HELP_MEMDEBUG);
         return 0;
-    } else if (tokcmp(tok, ltok, "bdbscan") == 0) {
-        char *tbl;
-        tok = segtok(line, lline, &st, &ltok);
-        if (ltok == 0) {
-            logmsg(LOGMSG_ERROR, "expected table name\n");
-            return 1;
-        }
-        tbl = tokdup(tok, ltok);
-        debug_traverse_data(tbl);
-        free(tbl);
-    } else if (tokcmp(tok, ltok, "bdbbulkscan") == 0) {
-        char *tbl;
-        tok = segtok(line, lline, &st, &ltok);
-        if (ltok == 0) {
-            logmsg(LOGMSG_ERROR, "expected table name\n");
-            return 1;
-        }
-        tbl = tokdup(tok, ltok);
-        debug_bulktraverse_data(tbl);
-        free(tbl);
     } else if (tokcmp(tok, ltok, "isthreadalive") == 0) {
         int rc;
         pthread_t tid;

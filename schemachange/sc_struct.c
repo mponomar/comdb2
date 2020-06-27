@@ -865,8 +865,7 @@ static int reload_csc2_schema(struct dbtable *db, tran_type *tran,
 
     old_bdb_handle = db->handle;
 
-    logmsg(LOGMSG_DEBUG, "%s isopen %d\n", db->tablename,
-           bdb_isopen(db->handle));
+    logmsg(LOGMSG_DEBUG, "%s\n", db->tablename)
 
     /* the master doesn't tell the replicants to close the db
      * ahead of time */

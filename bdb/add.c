@@ -49,7 +49,7 @@
 extern int gbl_debug_omit_dta_write;
 
 /* if dta is not null, it will be tailed after the genid in btree data part */
-static int bdb_prim_addkey_int(bdb_state_type *bdb_state, tran_type *tran,
+static int bdb_prim_addkey_int(bdb_table_type *bdb_state, tran_type *tran,
                                void *ixdta, int ixnum, int rrn,
                                unsigned long long genid, void *dta, int dtalen,
                                int isnull, int *bdberr)
@@ -196,7 +196,7 @@ static int bdb_prim_addkey_int(bdb_state_type *bdb_state, tran_type *tran,
     return 0;
 }
 
-int bdb_prim_addkey_genid(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_prim_addkey_genid(bdb_table_type *bdb_state, tran_type *tran,
                           void *ixdta, int ixnum, int rrn,
                           unsigned long long genid, void *dta, int dtalen,
                           int isnull, int *bdberr)
@@ -209,7 +209,7 @@ int bdb_prim_addkey_genid(bdb_state_type *bdb_state, tran_type *tran,
     return rc;
 }
 
-static int bdb_prim_allocdta_int(bdb_state_type *bdb_state, tran_type *tran,
+static int bdb_prim_allocdta_int(bdb_table_type *bdb_state, tran_type *tran,
                                  void *dta, int dtalen,
                                  unsigned long long *genid,
                                  int participantstripid, int *bdberr)
@@ -218,17 +218,17 @@ static int bdb_prim_allocdta_int(bdb_state_type *bdb_state, tran_type *tran,
     int rc;
     int rrn;
     int dtafile;
-    bdb_state_type *parent;
+    bdb_env_type *env;
     int *genid_dta;
     DB *dbp;
 
     if (bdb_write_preamble(bdb_state, bdberr))
         return -1;
 
-    if (bdb_state->parent)
-        parent = bdb_state->parent;
+    if (bdb_state->env)
+        env = bdb_state->env;
     else
-        parent = bdb_state;
+        env = bdb_state;
 
 #ifdef FOO
     /* we DO NOT support variable length dta.  (for dta[0], blobs are above
@@ -253,7 +253,7 @@ static int bdb_prim_allocdta_int(bdb_state_type *bdb_state, tran_type *tran,
        with the genid as the first 8 bytes and the data payload after it */
     *genid = get_genid(bdb_state, dtafile);
 
-    if (parent->attr->updategenids && participantstripid > 0) {
+    if (env->attr->updategenids && participantstripid > 0) {
         *genid =
             set_participant_stripeid(bdb_state, participantstripid, *genid);
     }
@@ -303,7 +303,7 @@ static int bdb_prim_allocdta_int(bdb_state_type *bdb_state, tran_type *tran,
     return rrn;
 }
 
-int bdb_prim_allocdta(bdb_state_type *bdb_state, tran_type *tran, void *dta,
+int bdb_prim_allocdta(bdb_table_type *bdb_state, tran_type *tran, void *dta,
                       int dtalen, int *bdberr)
 {
     int rc;
@@ -314,7 +314,7 @@ int bdb_prim_allocdta(bdb_state_type *bdb_state, tran_type *tran, void *dta,
     return rc;
 }
 
-int bdb_prim_allocdta_genid(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_prim_allocdta_genid(bdb_table_type *bdb_state, tran_type *tran,
                             void *dta, int dtalen, unsigned long long *genid,
                             int participantstripid, int *bdberr)
 {
@@ -326,7 +326,7 @@ int bdb_prim_allocdta_genid(bdb_state_type *bdb_state, tran_type *tran,
     return rc;
 }
 
-static int bdb_prim_adddta_n_genid_int(bdb_state_type *bdb_state,
+static int bdb_prim_adddta_n_genid_int(bdb_table_type *bdb_state,
                                        tran_type *tran, int dtanum,
                                        void *dtaptr, size_t dtalen, int rrn,
                                        unsigned long long genid, int *bdberr,
@@ -418,7 +418,7 @@ static int bdb_prim_adddta_n_genid_int(bdb_state_type *bdb_state,
     return 0;
 }
 
-int bdb_prim_adddta_n_genid(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_prim_adddta_n_genid(bdb_table_type *bdb_state, tran_type *tran,
                             int dtanum, void *dtaptr, size_t dtalen, int rrn,
                             unsigned long long genid, int *bdberr, int odhready)
 {
