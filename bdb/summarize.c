@@ -76,7 +76,7 @@
 extern int get_schema_change_in_progress(const char *func, int line);
 static double analyze_headroom = 6;
 
-void analyze_set_headroom(uint64_t headroom)
+void bdb_analyze_set_headroom(uint64_t headroom)
 {
     if (headroom < 1 || 100 < headroom) {
         logmsg(LOGMSG_ERROR,

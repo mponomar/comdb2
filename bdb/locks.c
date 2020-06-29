@@ -662,30 +662,30 @@ static int bdb_lock_row_int(bdb_state_type *bdb_state, tran_type *tran, int idx,
                                 dblk, lkname, trylock);
 }
 
-int bdb_lock_stripe_read(bdb_state_type *bdb_state, int stripe, tran_type *tran)
+int bdb_lock_stripe_read(bdb_table_type *bdb_state, int stripe, tran_type *tran)
 {
     return bdb_lock_stripe_int(bdb_state, tran, stripe, BDB_LOCK_READ);
 }
 
-int bdb_lock_stripe_write(bdb_state_type *bdb_state, int stripe,
+int bdb_lock_stripe_write(bdb_table_type *bdb_state, int stripe,
                           tran_type *tran)
 {
     return bdb_lock_stripe_int(bdb_state, tran, stripe, BDB_LOCK_WRITE);
 }
 
-int bdb_lock_table_read_fromlid(bdb_state_type *bdb_state, int lid)
+int bdb_lock_table_read_fromlid(bdb_table_type *bdb_state, int lid)
 {
     return bdb_lock_table_int(bdb_state->dbenv, bdb_state->name, lid,
                               BDB_LOCK_READ);
 }
 
-int bdb_lock_table_write_fromlid(bdb_state_type *bdb_state, int lid)
+int bdb_lock_table_write_fromlid(bdb_table_type *bdb_state, int lid)
 {
     return bdb_lock_table_int(bdb_state->dbenv, bdb_state->name, lid,
                               BDB_LOCK_WRITE);
 }
 
-int bdb_lock_table_read(bdb_state_type *bdb_state, tran_type *tran)
+int bdb_lock_table_read(bdb_table_type *bdb_state, tran_type *tran)
 {
     int rc;
 

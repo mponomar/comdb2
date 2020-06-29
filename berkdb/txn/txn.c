@@ -86,7 +86,6 @@ static const char revid[] = "$Id: txn.c,v 11.219 2003/12/03 14:33:06 bostic Exp 
 void bdb_get_writelock(void *bdb_state,
 	const char *idstr, const char *funcname, int line);
 void bdb_rellock(void *bdb_state, const char *funcname, int line);
-int bdb_is_open(void *bdb_state);
 
 int comdb2_time_epoch(void);
 void ctrace(char *format, ...);

@@ -611,29 +611,29 @@ unsigned long long bdb_normalise_genid(bdb_env_type *bdb_state,
 #define BDB_TRAN_NOLOG 0x00000002
 
 /* return a new tran handle, begin a transaction */
-tran_type *bdb_tran_begin_flags(bdb_state_type *bdb_handle,
+tran_type *bdb_tran_begin_flags(bdb_env_type *bdb_handle,
                                 tran_type *parent_tran, int *bdberr,
                                 uint32_t flags);
 
-tran_type *bdb_tran_begin(bdb_state_type *bdb_handle, tran_type *parent_tran,
+tran_type *bdb_tran_begin(bdb_env_type *bdb_handle, tran_type *parent_tran,
                           int *bdberr);
 
-tran_type *bdb_tran_begin_mvcc(bdb_state_type *bdb_handle,
+tran_type *bdb_tran_begin_mvcc(bdb_env_type *bdb_handle,
                                tran_type *parent_tran, int *bdberr);
 
-tran_type *bdb_tran_begin_stable(bdb_state_type *bdb_handle,
+tran_type *bdb_tran_begin_stable(bdb_env_type *bdb_handle,
                                  tran_type *parent_tran, int *bdberr);
 
-tran_type *bdb_tran_begin_dirty(bdb_state_type *bdb_handle,
+tran_type *bdb_tran_begin_dirty(bdb_env_type *bdb_handle,
                                 tran_type *parent_tran, int *bdberr);
 
-tran_type *bdb_tran_begin_logical(bdb_state_type *bdb_state, int trak,
+tran_type *bdb_tran_begin_logical(bdb_env_type *bdb_state, int trak,
                                   int *bdberr);
 
-tran_type *bdb_start_ltran(bdb_state_type *bdb_state,
+tran_type *bdb_start_ltran(bdb_env_type *bdb_state,
                            unsigned long long ltranid, void *firstlsn,
                            unsigned int flags);
-tran_type *bdb_start_ltran_rep_sc(bdb_state_type *bdb_state,
+tran_type *bdb_start_ltran_rep_sc(bdb_env_type *bdb_state,
                                   unsigned long long ltranid);
 void bdb_set_tran_lockerid(tran_type *tran, uint32_t lockerid);
 void bdb_get_tran_lockerid(tran_type *tran, uint32_t *lockerid);
@@ -642,29 +642,29 @@ void *bdb_get_sc_parent_tran(tran_type *ltran);
 void bdb_ltran_get_schema_lock(tran_type *ltran);
 void bdb_ltran_put_schema_lock(tran_type *ltran);
 
-tran_type *bdb_tran_begin_socksql(bdb_state_type *, int trak, int *bdberr);
+tran_type *bdb_tran_begin_socksql(bdb_env_type *, int trak, int *bdberr);
 
-tran_type *bdb_tran_begin_readcommitted(bdb_state_type *, int trak,
+tran_type *bdb_tran_begin_readcommitted(bdb_env_type *, int trak,
                                         int *bdberr);
 
-tran_type *bdb_tran_begin_serializable(bdb_state_type *bdb_state, int trak,
+tran_type *bdb_tran_begin_serializable(bdb_env_type *bdb_state, int trak,
                                        int *bdberr, int epoch, int file,
                                        int offset, int is_ha_retry);
-tran_type *bdb_tran_begin_snapisol(bdb_state_type *bdb_state, int trak,
+tran_type *bdb_tran_begin_snapisol(bdb_env_type *bdb_state, int trak,
                                    int *bdberr, int epoch, int file, int offset,
                                    int is_ha_retry);
 
 /* commit the transaction referenced by the tran handle */
-int bdb_tran_commit(bdb_state_type *bdb_handle, tran_type *tran, int *bdberr);
+int bdb_tran_commit(bdb_env_type *bdb_handle, tran_type *tran, int *bdberr);
 
-int bdb_tran_commit_logical_with_seqnum_size(bdb_state_type *bdb_state,
+int bdb_tran_commit_logical_with_seqnum_size(bdb_env_type *bdb_state,
                                              tran_type *tran, void *blkseq,
                                              int blklen, void *blkkey,
                                              int blkkeylen, seqnum_type *seqnum,
                                              uint64_t *out_txnsize,
                                              int *bdberr);
 
-int bdb_tran_get_start_file_offset(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_tran_get_start_file_offset(bdb_env_type *bdb_state, tran_type *tran,
                                    int *file, int *offset);
 
 /* commit the transaction referenced by the tran handle.  return a
@@ -672,75 +672,75 @@ int bdb_tran_get_start_file_offset(bdb_state_type *bdb_state, tran_type *tran,
    needed to have this commit reflected in your database
    also return an estimate of the transaction size in unspecified
    units */
-int bdb_tran_commit_with_seqnum_size(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_tran_commit_with_seqnum_size(bdb_env_type *bdb_state, tran_type *tran,
                                      seqnum_type *seqnum, uint64_t *out_txnsize,
                                      int *bdberr);
 
 /* abort the transaction referenced by the tran handle */
-int bdb_tran_abort(bdb_state_type *bdb_handle, tran_type *tran, int *bdberr);
-int bdb_tran_abort_priority(bdb_state_type *bdb_handle, tran_type *tran,
+int bdb_tran_abort(bdb_env_type *bdb_handle, tran_type *tran, int *bdberr);
+int bdb_tran_abort_priority(bdb_env_type *bdb_handle, tran_type *tran,
                             int *bdberr, int *priority);
 
 /* english doesn't have curses vile enough */
-int bdb_tran_abort_logical(bdb_state_type *bdb_handle, tran_type *tran,
+int bdb_tran_abort_logical(bdb_env_type *bdb_handle, tran_type *tran,
                            int *bdberr, void *blkseq, int blklen, void *blkkey,
                            int blkkeylen, seqnum_type *seqnum);
 
 /* prim operations all require a valid tran to be held */
-int bdb_prim_allocdta_genid(bdb_state_type *bdb_handle, tran_type *tran,
+int bdb_prim_allocdta_genid(bdb_table_type *bdb_handle, tran_type *tran,
                             void *dtaptr, int dtalen, unsigned long long *genid,
                             int updateid, int *bdberr);
-int bdb_prim_adddta_n_genid(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_prim_adddta_n_genid(bdb_table_type *bdb_state, tran_type *tran,
                             int dtanum, void *dtaptr, size_t dtalen, int rrn,
                             unsigned long long genid, int *bdberr,
                             int odhready);
 
-int bdb_prim_deallocdta_genid(bdb_state_type *bdb_handle, tran_type *tran,
+int bdb_prim_deallocdta_genid(bdb_table_type *bdb_handle, tran_type *tran,
                               int rrn, unsigned long long genid, int *bdberr);
-int bdb_prim_deallocdta_n_genid(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_prim_deallocdta_n_genid(bdb_table_type *bdb_state, tran_type *tran,
                                 int rrn, unsigned long long genid, int dtanum,
                                 int *bdberr);
 
-int bdb_prim_updvrfy_genid(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_prim_updvrfy_genid(bdb_table_type *bdb_state, tran_type *tran,
                            void *olddta, int oldlen, void *newdta, int newdtaln,
                            int rrn, unsigned long long oldgenid,
                            unsigned long long *newgenid, int verifydta,
                            int participantstripeid, int use_new_genid,
                            int *bdberr);
 
-int bdb_prim_add_upd_genid(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_prim_add_upd_genid(bdb_table_type *bdb_state, tran_type *tran,
                            int dtanum, void *newdta, int newdtaln, int rrn,
                            unsigned long long oldgenid,
                            unsigned long long newgenid, int participantstripeid,
                            int *bdberr, int odhready);
 
-int bdb_prim_no_upd(bdb_state_type *bdb_state, tran_type *tran, int rrn,
+int bdb_prim_no_upd(bdb_table_type *bdb_state, tran_type *tran, int rrn,
                     unsigned long long oldgenid, unsigned long long newgenid,
                     int blobmap, int *bdberr);
 
-int bdb_prim_updvrfy_genid(bdb_state_type *bdb_handle, tran_type *tran,
+int bdb_prim_updvrfy_genid(bdb_table_type *bdb_handle, tran_type *tran,
                            void *olddta, int oldlen, void *newdta, int newdtaln,
                            int rrn, unsigned long long oldgenid,
                            unsigned long long *newgenid, int verifydta,
                            int participantstripeid, int use_new_genid,
                            int *bdberr);
-int bdb_upd_genid(bdb_state_type *bdb_state, tran_type *tran, int dtanum,
+int bdb_upd_genid(bdb_table_type *bdb_state, tran_type *tran, int dtanum,
                   int rrn, unsigned long long oldgenid,
                   unsigned long long newgenid, int has_blob_opt, int *bdberr);
 
-int bdb_prim_addkey_genid(bdb_state_type *bdb_handle, tran_type *tran,
+int bdb_prim_addkey_genid(bdb_table_type *bdb_handle, tran_type *tran,
                           void *ixdta, int ixnum, int rrn,
                           unsigned long long genid, void *dta, int dtalen,
                           int isnull, int *bdberr);
-int bdb_prim_delkey_genid(bdb_state_type *bdb_handle, tran_type *tran,
+int bdb_prim_delkey_genid(bdb_table_type *bdb_handle, tran_type *tran,
                           void *ixdta, int ixnum, int rrn,
                           unsigned long long genid, int isnull, int *bdberr);
-int bdb_prim_updkey_genid(bdb_state_type *bdb_state, tran_type *tran, void *key,
+int bdb_prim_updkey_genid(bdb_table_type *bdb_state, tran_type *tran, void *key,
                           int keylen, int ixnum, unsigned long long oldgenid,
                           unsigned long long genid, void *dta, int dtalen,
                           int isnull, int *bdberr);
 
-int bdb_prim_upgrade(bdb_state_type *bdb_state, tran_type *tran, void *newdta,
+int bdb_prim_upgrade(bdb_table_type *bdb_state, tran_type *tran, void *newdta,
                      int newdtaln, unsigned long long oldgenid, int *bdberr);
 
 /* Callbacks for use with range delete. */
@@ -811,7 +811,7 @@ typedef int (*bdb_post_delete_callback_t)(void *, size_t, int,
  *
  * Returns the number of records deleted, or -1 on error (check *bdberr)
  */
-int bdb_prim_range_delete(bdb_state_type *bdb_handle, tran_type *tran,
+int bdb_prim_range_delete(bdb_table_type *bdb_handle, tran_type *tran,
                           size_t dtalen, int index, const void *start_key,
                           const void *end_key, size_t keylength,
                           bdb_formkey_callback_t formkey_callback,
@@ -822,40 +822,40 @@ int bdb_prim_range_delete(bdb_state_type *bdb_handle, tran_type *tran,
                           int max_time_ms, int *bdberr);
 
 /* lite operations give you direct access to bdb tables with minimum overhead */
-int bdb_lite_add(bdb_state_type *bdb_handle, tran_type *tran, void *dtaptr,
+int bdb_lite_add(bdb_table_type *bdb_handle, tran_type *tran, void *dtaptr,
                  int dtalen, void *key, int *bdberr);
-int bdb_lite_exact_del(bdb_state_type *bdb_handle, tran_type *tran, void *key,
+int bdb_lite_exact_del(bdb_table_type *bdb_handle, tran_type *tran, void *key,
                        int *bdberr);
-int bdb_lite_exact_fetch(bdb_state_type *bdb_handle, void *key, void *fnddta,
+int bdb_lite_exact_fetch(bdb_table_type *bdb_handle, void *key, void *fnddta,
                          int maxlen, int *fndlen, int *bdberr);
-int bdb_lite_exact_fetch_alloc(bdb_state_type *bdb_handle, void *key,
+int bdb_lite_exact_fetch_alloc(bdb_table_type *bdb_handle, void *key,
                                void **fnddta, int *fndlen, int *bdberr);
-int bdb_lite_exact_fetch_alloc_tran(bdb_state_type *bdb_handle, tran_type *tran,
+int bdb_lite_exact_fetch_alloc_tran(bdb_table_type *bdb_handle, tran_type *tran,
                                     void *key, void **fnddta, int *fndlen,
                                     int *bdberr);
-int bdb_lite_exact_fetch_tran(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_lite_exact_fetch_tran(bdb_table_type *bdb_state, tran_type *tran,
                               void *key, void *fnddta, int maxlen, int *fndlen,
                               int *bdberr);
-int bdb_lite_exact_var_fetch(bdb_state_type *bdb_handle, void *key,
+int bdb_lite_exact_var_fetch(bdb_table_type *bdb_handle, void *key,
                              void **fnddta, int *fndlen, int *bdberr);
-int bdb_lite_exact_var_fetch_tran(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_lite_exact_var_fetch_tran(bdb_table_type *bdb_state, tran_type *tran,
                                   void *key, void **fnddta, int *fndlen,
                                   int *bdberr);
-int bdb_lite_fetch_keys_fwd(bdb_state_type *bdb_state, void *firstkey,
+int bdb_lite_fetch_keys_fwd(bdb_table_type *bdb_state, void *firstkey,
                             void *fndkeys, int maxfnd, int *numfnd,
                             int *bdberr);
-int bdb_lite_fetch_keys_fwd_tran(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_lite_fetch_keys_fwd_tran(bdb_table_type *bdb_state, tran_type *tran,
                                  void *firstkey, void *fndkeys, int maxfnd,
                                  int *numfnd, int *bdberr);
-int bdb_lite_fetch_keys_bwd(bdb_state_type *bdb_state, void *firstkey,
+int bdb_lite_fetch_keys_bwd(bdb_table_type *bdb_state, void *firstkey,
                             void *fndkeys, int maxfnd, int *numfnd,
                             int *bdberr);
-int bdb_lite_fetch_keys_bwd_tran(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_lite_fetch_keys_bwd_tran(bdb_table_type *bdb_state, tran_type *tran,
                                  void *firstkey, void *fndkeys, int maxfnd,
                                  int *numfnd, int *bdberr);
-int bdb_lite_fetch_partial(bdb_state_type *bdb_state, void *key_in, int klen_in,
+int bdb_lite_fetch_partial(bdb_table_type *bdb_state, void *key_in, int klen_in,
                            void *key_out, int *fnd, int *bdberr);
-int bdb_lite_fetch_partial_tran(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_lite_fetch_partial_tran(bdb_table_type *bdb_state, tran_type *tran,
                                 void *key_in, int klen_in, void *key_out,
                                 int *fnd, int *bdberr);
 
@@ -873,20 +873,20 @@ struct bdb_queue_cursor {
 BB_COMPILE_TIME_ASSERT(queue_cursor_size, sizeof(struct bdb_queue_cursor) == 16);
 
 /* mark a consumer as active or inactive.  this grabs the bdb write lock. */
-int bdb_queue_consumer(bdb_state_type *bdb_state, int consumer, int active,
+int bdb_queue_consumer(bdb_table_type *bdb_state, int consumer, int active,
                        int *bdberr);
 
 /* add an item to the end of the queue. */
-int bdb_queue_add(bdb_state_type *bdb_state, tran_type *tran, const void *dta,
+int bdb_queue_add(bdb_table_type *bdb_state, tran_type *tran, const void *dta,
                   size_t dtalen, int *bdberr, unsigned long long *out_genid);
 
 /* add/consume dummy records to aid extent reclaimation.  winner of the
  * May 2006 "Most Absurd Hack" award. */
-int bdb_queue_check_goose(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_queue_check_goose(bdb_table_type *bdb_state, tran_type *tran,
                           int *bdberr);
-int bdb_queue_add_goose(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_queue_add_goose(bdb_table_type *bdb_state, tran_type *tran,
                         int *bdberr);
-int bdb_queue_consume_goose(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_queue_consume_goose(bdb_table_type *bdb_state, tran_type *tran,
                             int *bdberr);
 
 /* get the first item unconsumed by this consumer number, AFTER the previously
@@ -894,7 +894,7 @@ int bdb_queue_consume_goose(bdb_state_type *bdb_state, tran_type *tran,
  * be set to point to memory that the caller must free.  The actual item data
  * will be at ((const char *)*fnd) + *fnddtaoff). */
 struct bdb_queue_found;
-int bdb_queue_get(bdb_state_type *bdb_state, tran_type *tran, int consumer,
+int bdb_queue_get(bdb_table_type *bdb_state, tran_type *tran, int consumer,
                   const struct bdb_queue_cursor *prevcursor,
                   struct bdb_queue_found **fnd, size_t *fnddtalen,
                   size_t *fnddtaoff, struct bdb_queue_cursor *fndcursor,
@@ -922,23 +922,23 @@ typedef int (*bdb_queue_stats_callback_t)(int consumern, size_t item_length,
                                           unsigned int epoch,
                                           unsigned int depth, void *userptr);
 
-int bdb_queuedb_stats(bdb_state_type *bdb_state,
+int bdb_queuedb_stats(bdb_table_type *bdb_state,
                       bdb_queue_stats_callback_t callback, tran_type *tran,
                       void *userptr, int *bdberr);
 
 typedef int (*bdb_queue_walk_callback_t)(int consumern, size_t item_length,
                                          unsigned int epoch, void *userptr);
 
-int bdb_queue_walk(bdb_state_type *bdb_state, int flags, bbuint32_t *lastitem,
+int bdb_queue_walk(bdb_table_type *bdb_state, int flags, bbuint32_t *lastitem,
                    bdb_queue_walk_callback_t callback, tran_type *tran,
                    void *userptr, int *bdberr);
 
 /* debug aid - dump the entire queue */
-int bdb_queue_dump(bdb_state_type *bdb_state, FILE *out, int *bdberr);
+int bdb_queue_dump(bdb_table_type *bdb_state, FILE *out, int *bdberr);
 
 /* consume a queue item previously found by bdb_queue_get. */
 struct bdb_queue_found;
-int bdb_queue_consume(bdb_state_type *bdb_state, tran_type *tran, int consumer,
+int bdb_queue_consume(bdb_table_type *bdb_state, tran_type *tran, int consumer,
                       const struct bdb_queue_found *prevfnd, int *bdberr);
 
 /* work out the best page size to use for the given average item size */
@@ -948,13 +948,7 @@ int bdb_queue_best_pagesize(int avg_item_sz);
 void bdb_queue_get_found_info(const void *fnd, size_t *dtaoff, size_t *dtalen);
 
 /* Get queue stats */
-const struct bdb_queue_stats *bdb_queue_get_stats(bdb_state_type *bdb_state);
-
-/* dump dta contents of bdb_handle to stream sb */
-int bdb_dumpdta(bdb_state_type *bdb_handle, SBUF2 *sb, int *bdberr);
-
-/* debug dump routines */
-void bdb_bulkdumpit(bdb_state_type *bdb_state);
+const struct bdb_queue_stats *bdb_queue_get_stats(bdb_table_type *bdb_state);
 
 /*
   compare seqnum1 with seqnum2.
@@ -965,48 +959,45 @@ void bdb_bulkdumpit(bdb_state_type *bdb_state);
 int bdb_seqnum_compare(void *inbdb_state, seqnum_type *seqnum1,
                        seqnum_type *seqnum2);
 char *bdb_format_seqnum(const seqnum_type *seqnum, char *buf, size_t bufsize);
-int bdb_get_seqnum(bdb_state_type *bdb_state, seqnum_type *seqnum);
+int bdb_get_seqnum(bdb_env_type *bdb_state, seqnum_type *seqnum);
 void bdb_make_seqnum(seqnum_type *seqnum, uint32_t logfile, uint32_t logbyte);
 
-int bdb_wait_for_seqnum_from_all(bdb_state_type *bdb_state,
+int bdb_wait_for_seqnum_from_all(bdb_env_type *bdb_state,
                                  seqnum_type *seqnum);
-int bdb_wait_for_seqnum_from_node(bdb_state_type *bdb_state,
+int bdb_wait_for_seqnum_from_node(bdb_env_type *bdb_state,
                                   seqnum_type *seqnum, const char *host);
-int bdb_wait_for_seqnum_from_node_timeout(bdb_state_type *bdb_state,
+int bdb_wait_for_seqnum_from_node_timeout(bdb_env_type *bdb_state,
                                           seqnum_type *seqnum, const char *host,
                                           int timeoutms);
-int bdb_wait_for_seqnum_from_all_timeout(bdb_state_type *bdb_state,
+int bdb_wait_for_seqnum_from_all_timeout(bdb_env_type *bdb_state,
                                          seqnum_type *seqnum, int timeoutms);
-int bdb_wait_for_seqnum_from_room(bdb_state_type *bdb_state,
+int bdb_wait_for_seqnum_from_room(bdb_env_type *bdb_state,
                                   seqnum_type *seqnum);
-int bdb_wait_for_seqnum_from_all_adaptive(bdb_state_type *bdb_state,
+int bdb_wait_for_seqnum_from_all_adaptive(bdb_env_type *bdb_state,
                                           seqnum_type *seqnum, uint64_t txnsize,
                                           int *timeoutms);
 
-int bdb_wait_for_seqnum_from_all_adaptive_newcoh(bdb_state_type *bdb_state,
+int bdb_wait_for_seqnum_from_all_adaptive_newcoh(bdb_env_type *bdb_state,
                                                  seqnum_type *seqnum,
                                                  uint64_t txnsize,
                                                  int *timeoutms);
 
-int bdb_wait_for_seqnum_from_n(bdb_state_type *bdb_state, seqnum_type *seqnum,
+int bdb_wait_for_seqnum_from_n(bdb_env_type *bdb_state, seqnum_type *seqnum,
                                int n);
 
 /* returns 1 if you are the master, 0 if you are not */
-int bdb_amimaster(bdb_state_type *bdb_handle);
+int bdb_amimaster(bdb_env_type *bdb_handle);
 
 /* returns nodeid of master, -1 if there is no master */
-char *bdb_whoismaster(bdb_state_type *bdb_handle);
+char *bdb_whoismaster(bdb_env_type *bdb_handle);
 
-int bdb_get_rep_master(bdb_state_type *bdb_state, char **master_out,
+int bdb_get_rep_master(bdb_env_type *bdb_state, char **master_out,
                        uint32_t *gen, uint32_t *egen);
 
 /* get current sanc list.  pass in size of array.  returns number of sanc
  * nodes (may be > passed in list length). */
-int bdb_get_sanc_list(bdb_state_type *bdb_state, int max_nodes,
+int bdb_get_sanc_list(bdb_env_type *bdb_state, int max_nodes,
                       const char *nodes[REPMAX]);
-
-/* return the highest rrn in the db */
-int bdb_get_highest_rrn(bdb_state_type *bdb_handle, int *rrn, int *bdberr);
 
 int bdb_get_lua_highest(tran_type *trans, /* transaction to use, may be NULL */
                         const char *sp_name,
@@ -1018,35 +1009,13 @@ int bdb_get_sp_name(tran_type *trans, /* transaction to use, may be NULL */
                     char *new_sp_name, /* will be set to the highest version*/
                     int *bdberr);
 
-/* return 1 if this key is update-able, 0 otherwise */
-int bdb_ix_updk_allowed(bdb_state_type *bdb_handle, int ixnum);
-
-void bdb_process_user_command(bdb_state_type *bdb_handle, char *line, int lline,
+void bdb_process_user_command(bdb_env_type *bdb_handle, char *line, int lline,
                               int st);
 
-void bdb_short_netinfo_dump(FILE *out, bdb_state_type *bdb_state);
-
-/* DEBUG ONLY ROUTINES */
-/* Fetch record by RRN.  FOR DEBUGGING ONLY!!!
-   Fetched result goes into data.  Length of data fetched written to
-   found_data_len.
-   Returns 0 for success.
-   If size > data_len, returns 1 (size still written to found_data_len)
-   2 is a misc bdb error code.
- */
-int bdb_fetch_by_rrn(bdb_state_type *bdb_handle, int rrn, void *data,
-                     int data_len, int *found_data_len);
-/* Caller is responsible for freeing *data.  Offset of data is returned in
- * *found_data_off.  Returns 0 for success, -1 for not found, -2 for error. */
-int bdb_fetch_n_by_rrn(bdb_state_type *bdb_handle, int dtan, int rrn,
-                       void **data, int *found_data_len, int *found_data_off,
-                       unsigned long long *genid);
-/* Dumps a .dta file to stream given. */
-int bdb_dump_dta_file_n(bdb_state_type *bdb_state, int dtanum, FILE *out);
-/* END DEBUG ONLY ROUTINES */
+void bdb_short_netinfo_dump(FILE *out, bdb_env_type *bdb_state);
 
 /* read.c */
-int bdb_fetch_next_genids(bdb_state_type *bdb_state, int ixnum, int ixlen,
+int bdb_fetch_next_genids(bdb_table_type *bdb_state, int ixnum, int ixlen,
                           unsigned char *key, unsigned long long *genids,
                           int numgenids, int *num_genids_gotten, int *bdberr);
 
@@ -1054,159 +1023,159 @@ void bdb_set_io_control(void (*start)(), void (*cmplt)());
 
 void bdb_get_iostats(int *n_reads, int *l_reads, int *n_writes, int *l_writes);
 
-int bdb_rebuild_done(bdb_state_type *bdb_handle);
+int bdb_rebuild_done(bdb_env_type *bdb_handle);
 
 /* force a flush to disk of all in memory stuff */
-int bdb_flush(bdb_state_type *bdb_handle, int *bdberr);
+int bdb_flush(bdb_env_type *bdb_handle, int *bdberr);
 
 /* Serialize cache to this file */
-int bdb_dump_cache_to_file(bdb_state_type *bdb_state, const char *file,
+int bdb_dump_cache_to_file(bdb_env_type *bdb_state, const char *file,
                            int max_pages);
 
 /* Load from serialized cache */
-int bdb_load_cache(bdb_state_type *bdb_state, const char *file);
+int bdb_load_cache(bdb_env_type *bdb_state, const char *file);
 
 /* Load default cache */
-int bdb_load_cache_default(bdb_state_type *bdb_state);
+int bdb_load_cache_default(bdb_env_type *bdb_state);
 
 /* Flush default cache */
-int bdb_dump_cache_default(bdb_state_type *bdb_state);
+int bdb_dump_cache_default(bdb_env_type *bdb_state);
 
 /* force a flush to disk of all in memory stuff , but don't force a checkpoint
  */
-int bdb_flush_noforce(bdb_state_type *bdb_handle, int *bdberr);
+int bdb_flush_noforce(bdb_env_type *bdb_handle, int *bdberr);
 
-int bdb_purge_freelist(bdb_state_type *bdb_handle, int *bdberr);
+int bdb_purge_freelist(bdb_env_type *bdb_handle, int *bdberr);
 
-/* close the underlying files used byt the bdb_handle */
-int bdb_close_only(bdb_state_type *bdb_handle, int *bdberr);
+/* close the underlying files used by the bdb_handle */
+int bdb_close_only(bdb_table_type *bdb_handle, int *bdberr);
 
-int bdb_close_only_sc(bdb_state_type *bdb_handle, tran_type *tran, int *bdberr);
+int bdb_close_only_sc(bdb_table_type *bdb_handle, tran_type *tran, int *bdberr);
 
 /* you must call bdb_close_only before a rename.
    if you want to rename a file that is in use and continue to use it, you
    need to:
    1) bdb_close_only.  2) begin tran. 3) rename 4) commit 5) bdb_open_again.
 */
-int bdb_rename(bdb_state_type *bdb_handle, tran_type *tran, char newtablename[],
+int bdb_rename(bdb_table_type *bdb_handle, tran_type *tran, char newtablename[],
                int *bdberr);
-int bdb_rename_table(bdb_state_type *bdb_handle, tran_type *tran, char *newname,
+int bdb_rename_table(bdb_table_type *bdb_handle, tran_type *tran, char *newname,
                      int *bdberr);
-int bdb_rename_table_metadata(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_rename_table_metadata(bdb_table_type *bdb_state, tran_type *tran,
                               const char *newname, int version, int *bdberr);
-int bdb_rename_data(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_rename_data(bdb_table_type *bdb_state, tran_type *tran,
                     char newtablename[], int fromdtanum, int todtanum,
                     int *bdberr);
-int bdb_rename_ix(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_rename_ix(bdb_table_type *bdb_state, tran_type *tran,
                   char newtablename[], int fromixnum, int toixnum, int *bdberr);
-void bdb_state_rename(bdb_state_type *bdb_state, char *newname);
+void bdb_state_rename(bdb_table_type *bdb_state, char *newname);
 
 /* rename all the blob files for dynamic upgrade to blobstripe */
-int bdb_rename_blob1(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_rename_blob1(bdb_table_type *bdb_state, tran_type *tran,
                      unsigned long long *genid, int *bdberr);
 
 /* Set the genid timestamp at which a blobstripe conversion was done.  This is
  * necessary to find records that were inserted pre-blobstripe. */
-void bdb_set_blobstripe_genid(bdb_state_type *bdb_state,
+void bdb_set_blobstripe_genid(bdb_env_type *bdb_state,
                               unsigned long long genid);
 
 /* set various options for the ondisk header. */
-void bdb_set_odh_options(bdb_state_type *bdb_state, int odh, int compression,
+void bdb_set_odh_options(bdb_table_type *bdb_state, int odh, int compression,
                          int blob_compression);
 
-void bdb_set_queue_odh_options(bdb_state_type *bdb_state, int odh,
+void bdb_set_queue_odh_options(bdb_table_type *bdb_state, int odh,
                                int compression, int persistseq);
 
-void bdb_get_compr_flags(bdb_state_type *bdb_state, int *odh, int *compr,
+void bdb_get_compr_flags(bdb_table_type *bdb_state, int *odh, int *compr,
                          int *blob_compr);
 
 /* delete a table from disk.  must already be closed but NOT freed */
-int bdb_del(bdb_state_type *bdb_state, tran_type *tran, int *bdberr);
-int bdb_del_temp(bdb_state_type *bdb_state, tran_type *tran, int *bdberr);
-int bdb_del_data(bdb_state_type *bdb_state, tran_type *tran, int dtanum,
+int bdb_del(bdb_table_type *bdb_state, tran_type *tran, int *bdberr);
+int bdb_del_temp(bdb_table_type *bdb_state, tran_type *tran, int *bdberr);
+int bdb_del_data(bdb_table_type *bdb_state, tran_type *tran, int dtanum,
                  int *bdberr);
-int bdb_del_ix(bdb_state_type *bdb_state, tran_type *tran, int ixnum,
+int bdb_del_ix(bdb_table_type *bdb_state, tran_type *tran, int ixnum,
                int *bdberr);
 
-int bdb_del_unused_files(bdb_state_type *bdb_state, int *bdberr);
-int bdb_del_unused_files_tran(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_del_unused_files(bdb_table_type *bdb_state, int *bdberr);
+int bdb_del_unused_files_tran(bdb_table_type *bdb_state, tran_type *tran,
                               int *bdberr);
-int bdb_list_unused_files(bdb_state_type *bdb_state, int *bdberr, char *powner);
-int bdb_list_unused_files_tran(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_list_unused_files(bdb_table_type *bdb_state, int *bdberr, char *powner);
+int bdb_list_unused_files_tran(bdb_table_type *bdb_state, tran_type *tran,
                                int *bdberr, char *powner);
-int bdb_list_dropped_files(bdb_state_type *bdb_state, int *bdberr);
+int bdb_list_dropped_files(bdb_table_type *bdb_state, int *bdberr);
 
 /* make new stripes */
-int bdb_create_stripes(bdb_state_type *bdb_state, int newdtastripe,
+int bdb_create_stripes(bdb_env_type *bdb_state, int newdtastripe,
                        int newblobstripe, int *bdberr);
-int bdb_create_stripes_tran(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_create_stripes_tran(bdb_env_type *bdb_state, tran_type *tran,
                             int newdtastripe, int newblobstripe, int *bdberr);
 
 /* re-open bdb handle that has been bdb_close_only'ed
    as master/client depending on how it used to be */
-int bdb_open_again(bdb_state_type *bdb_handle, int *bdberr);
-int bdb_open_again_tran(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_open_again(bdb_env_type *bdb_handle, int *bdberr);
+int bdb_open_again_tran(bdb_env_type *bdb_state, tran_type *tran,
                         int *bdberr);
-int bdb_open_again_tran_queue(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_open_again_tran_queue(bdb_env_type *bdb_state, tran_type *tran,
                               uint32_t flags, int *bdberr);
 
 /* destroy resources related to bdb_handle.  assumes that bdb_close_only
    was called */
-int bdb_free(bdb_state_type *bdb_handle, int *bdberr);
-int bdb_free_and_replace(bdb_state_type *bdb_handle, bdb_state_type *replace,
-                         int *bdberr);
+// TODOw
+int bdb_free(bdb_xxx_type *bdb_handle, int *bdberr);
 
-int bdb_add_data_with_rrn(bdb_state_type *bdb_state, void *dta, int rrn,
-                          unsigned long long genid, int dtalen, int *bdberr);
+
+int bdb_free_and_replace(bdb_table_type *bdb_handle, bdb_table_type *replace,
+                         int *bdberr);
 
 /* temptables */
 enum { BDB_TEMP_TABLE_DONT_USE_INMEM = 1 };
 struct temp_table;
 struct temp_cursor;
-struct temp_table *bdb_temp_table_create(bdb_state_type *bdb_state,
+struct temp_table *bdb_temp_table_create(bdb_env_type *bdb_state,
                                          int *bdberr);
-struct temp_table *bdb_temp_list_create(bdb_state_type *bdb_state, int *bdberr);
-struct temp_table *bdb_temp_hashtable_create(bdb_state_type *bdb_state,
+struct temp_table *bdb_temp_list_create(bdb_env_type *bdb_state, int *bdberr);
+struct temp_table *bdb_temp_hashtable_create(bdb_env_type *bdb_state,
                                              int *bdberr);
-struct temp_table *bdb_temp_array_create(bdb_state_type *bdb_state,
+struct temp_table *bdb_temp_array_create(bdb_env_type *bdb_state,
                                          int *bdberr);
-struct temp_table *bdb_temp_table_create_flags(bdb_state_type *bdb_state,
+struct temp_table *bdb_temp_table_create_flags(bdb_env_type *bdb_state,
                                                int flags, int *bdberr);
 
-int bdb_temp_table_close(bdb_state_type *bdb_state, struct temp_table *table,
+int bdb_temp_table_close(bdb_env_type *bdb_state, struct temp_table *table,
                          int *bdberr);
 
-int bdb_temp_table_truncate(bdb_state_type *bdb_state, struct temp_table *tbl,
+int bdb_temp_table_truncate(bdb_env_type *bdb_state, struct temp_table *tbl,
                             int *bdberr);
 
-struct temp_cursor *bdb_temp_table_cursor(bdb_state_type *bdb_state,
+struct temp_cursor *bdb_temp_table_cursor(bdb_env_type *bdb_state,
                                           struct temp_table *table,
                                           void *usermem, int *bdberr);
-int bdb_temp_table_close_cursor(bdb_state_type *bdb_state,
+int bdb_temp_table_close_cursor(bdb_env_type *bdb_state,
                                 struct temp_cursor *cursor, int *bdberr);
 
-int bdb_temp_table_insert(bdb_state_type *bdb_state, struct temp_cursor *cursor,
+int bdb_temp_table_insert(bdb_env_type *bdb_state, struct temp_cursor *cursor,
                           void *key, int keylen, void *data, int dtalen,
                           int *bdberr);
-int bdb_temp_table_update(bdb_state_type *bdb_state, struct temp_cursor *cur,
+int bdb_temp_table_update(bdb_env_type *bdb_state, struct temp_cursor *cur,
                           void *key, int keylen, void *data, int dtalen,
                           int *bdberr);
-int bdb_temp_table_delete(bdb_state_type *bdb_state, struct temp_cursor *cursor,
+int bdb_temp_table_delete(bdb_env_type *bdb_state, struct temp_cursor *cursor,
                           int *bdberr);
 
-int bdb_temp_table_first(bdb_state_type *bdb_state, struct temp_cursor *cursor,
+int bdb_temp_table_first(bdb_env_type *bdb_state, struct temp_cursor *cursor,
                          int *bdberr);
-int bdb_temp_table_last(bdb_state_type *bdb_state, struct temp_cursor *cursor,
+int bdb_temp_table_last(bdb_env_type *bdb_state, struct temp_cursor *cursor,
                         int *bdberr);
-int bdb_temp_table_next(bdb_state_type *bdb_state, struct temp_cursor *cursor,
+int bdb_temp_table_next(bdb_env_type *bdb_state, struct temp_cursor *cursor,
                         int *bdberr);
-int bdb_temp_table_prev(bdb_state_type *bdb_state, struct temp_cursor *cursor,
+int bdb_temp_table_prev(bdb_env_type *bdb_state, struct temp_cursor *cursor,
                         int *bdberr);
-int bdb_temp_table_move(bdb_state_type *bdb_state, struct temp_cursor *cursor,
+int bdb_temp_table_move(bdb_env_type *bdb_state, struct temp_cursor *cursor,
                         int how, int *bdberr);
-int bdb_temp_table_next_norewind(bdb_state_type *bdb_state,
+int bdb_temp_table_next_norewind(bdb_env_type *bdb_state,
                                  struct temp_cursor *cursor, int *bdberr);
-int bdb_temp_table_prev_norewind(bdb_state_type *bdb_state,
+int bdb_temp_table_prev_norewind(bdb_env_type *bdb_state,
                                  struct temp_cursor *cursor, int *bdberr);
 
 void *bdb_temp_table_get_usermem(struct temp_table *table);
@@ -1220,29 +1189,29 @@ void *bdb_temp_table_data(struct temp_cursor *cursor);
 typedef int (*tmptbl_cmp)(void *, int, const void *, int, const void *);
 void bdb_temp_table_set_cmp_func(struct temp_table *table, tmptbl_cmp);
 
-int bdb_temp_table_find(bdb_state_type *bdb_state, struct temp_cursor *cursor,
+int bdb_temp_table_find(bdb_env_type *bdb_state, struct temp_cursor *cursor,
                         const void *key, int keylen, void *unpacked,
                         int *bdberr);
-int bdb_temp_table_find_exact(bdb_state_type *bdb_state,
+int bdb_temp_table_find_exact(bdb_env_type *bdb_state,
                               struct temp_cursor *cursor, void *key, int keylen,
                               int *bdberr);
 void bdb_temp_table_reset_datapointers(struct temp_cursor *cur);
 
 void *bdb_temp_table_get_cur(struct temp_cursor *skippy);
 
-void bdb_get_cache_stats(bdb_state_type *bdb_state, uint64_t *hits,
+void bdb_get_cache_stats(bdb_env_type *bdb_state, uint64_t *hits,
                          uint64_t *misses, uint64_t *reads, uint64_t *writes,
                          uint64_t *thits, uint64_t *tmisses);
-void bdb_thread_event(bdb_state_type *bdb_state, int event);
+void bdb_thread_event(bdb_env_type *bdb_state, int event);
 
-void bdb_stripe_get(bdb_state_type *bdb_state);
-void bdb_stripe_done(bdb_state_type *bdb_state);
+void bdb_stripe_get(bdb_env_type *bdb_state);
+void bdb_stripe_done(bdb_env_type *bdb_state);
 
-int bdb_count(bdb_state_type *bdb_state, int *bdberr);
+int bdb_count(bdb_table_type *bdb_state, int *bdberr);
 
-struct bdb_temp_hash *bdb_temp_hash_create(bdb_state_type *bdb_state,
+struct bdb_temp_hash *bdb_temp_hash_create(bdb_env_type *bdb_state,
                                            char *tmpname, int *bdberr);
-struct bdb_temp_hash *bdb_temp_hash_create_cache(bdb_state_type *bdb_state,
+struct bdb_temp_hash *bdb_temp_hash_create_cache(bdb_env_type *bdb_state,
                                                  int cachekb, char *tmpname,
                                                  int *bdberr);
 int bdb_temp_hash_destroy(bdb_temp_hash *h);
@@ -1251,14 +1220,14 @@ int bdb_temp_hash_insert(bdb_temp_hash *h, void *key, int keylen, void *dta,
 int bdb_temp_hash_lookup(bdb_temp_hash *h, void *key, int keylen, void *dta,
                          int *dtalen, int maxlen);
 
-int bdb_temp_table_maybe_set_priority_thread(bdb_state_type *bdb_state);
-int bdb_temp_table_maybe_reset_priority_thread(bdb_state_type *bdb_state,
+int bdb_temp_table_maybe_set_priority_thread(bdb_env_type *bdb_state);
+int bdb_temp_table_maybe_reset_priority_thread(bdb_env_type *bdb_state,
                                                int notify);
 
-bulk_dump *bdb_start_fstdump(bdb_state_type *bdb_state, int *bdberr);
+bulk_dump *bdb_start_fstdump(bdb_table_type *bdb_state, int *bdberr);
 int bdb_next_fstdump(bulk_dump *dmp, void *buf, int sz, int *bdberr);
 int bdb_close_fstdump(bulk_dump *dmp);
-int bdb_fstdumpdta(bdb_state_type *bdb_state, SBUF2 *sb, int *bdberr);
+int bdb_fstdumpdta(bdb_table_type *bdb_state, SBUF2 *sb, int *bdberr);
 
 /* fast dump and callback to convert records from ondisk to requested tag.
  * callback returns 0 for ok, -1 for could not convert. */
@@ -1267,60 +1236,54 @@ typedef int (*bdb_fstdumpdta_callback_t)(void *rec, size_t reclen,
                                          void *userptr, void *userptr2,
                                          const char *tzname, uint8_t ver,
                                          int flags);
-int bdb_fstdumpdta_sendsz(bdb_state_type *bdb_state, SBUF2 *sb,
+int bdb_fstdumpdta_sendsz(bdb_table_type *bdb_state, SBUF2 *sb,
                           size_t sendrecsz,
                           bdb_fstdumpdta_callback_t convert_callback,
                           int callback_flags, void *userptr, void *userptr2,
                           int timeoutms, int close_cursor, int *bdberr,
                           const char *tzname, int getgenids);
 
-void bdb_start_request(bdb_state_type *bdb_state);
-void bdb_end_request(bdb_state_type *bdb_state);
+void bdb_start_request(bdb_env_type *bdb_state);
+void bdb_end_request(bdb_env_type *bdb_state);
 
-dtadump *bdb_dtadump_start(bdb_state_type *bdb_state, int *bdberr, int is_blob,
+dtadump *bdb_dtadump_start(bdb_table_type *bdb_state, int *bdberr, int is_blob,
                            int nr);
-int bdb_dtadump_next(bdb_state_type *bdb_state, dtadump *dump, void **dta,
+int bdb_dtadump_next(bdb_table_type *bdb_state, dtadump *dump, void **dta,
                      int *len, int *rrn, unsigned long long *genid,
                      uint8_t *ver, int *bdberr);
-void bdb_dtadump_done(bdb_state_type *bdb_state, struct dtadump *dump);
-int get_nr_dtastripe_files(bdb_state_type *bdb_state);
+void bdb_dtadump_done(bdb_table_type *bdb_state, struct dtadump *dump);
 
-unsigned long long bdb_get_timestamp(bdb_state_type *bdb_state);
+unsigned long long bdb_get_timestamp(bdb_env_type *bdb_state);
 unsigned long long bdb_genid_to_host_order(unsigned long long genid_net_order);
-unsigned long long bdb_increment_slot(bdb_state_type *bdb_state,
+unsigned long long bdb_increment_slot(bdb_env_type *bdb_state,
                                       unsigned long long a);
-unsigned long long bdb_mask_stripe(bdb_state_type *bdb_state,
+unsigned long long bdb_mask_stripe(bdb_env_type *bdb_state,
                                    unsigned long long a);
 
 int bdb_validate_compression_alg(int alg);
 
 void bdb_set_os_log_level(int level);
-void bdb_log_berk_tables(bdb_state_type *bdb_state);
+void bdb_log_berk_tables(bdb_env_type *bdb_state);
 
-int bdb_sync_cluster(bdb_state_type *bdb_state, int sync_all);
+int bdb_sync_cluster(bdb_env_type *bdb_state, int sync_all);
 
-int bdb_is_an_unconnected_master(bdb_state_type *bdb_state);
-void bdb_transfermaster(bdb_state_type *bdb_state);
-void bdb_losemaster(bdb_state_type *bdb_state);
-void bdb_transfermaster_tonode(bdb_state_type *bdb_state, char *tohost);
+int bdb_is_an_unconnected_master(bdb_env_type *bdb_state);
+void bdb_transfermaster(bdb_env_type *bdb_state);
+void bdb_losemaster(bdb_env_type *bdb_state);
+void bdb_transfermaster_tonode(bdb_env_type *bdb_state, char *tohost);
 
-void bdb_exiting(bdb_state_type *bdb_state);
+void bdb_exiting(bdb_env_type *bdb_state);
 
-int bdb_fetch_last_key_tran(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_fetch_last_key_tran(bdb_env_type *bdb_state, tran_type *tran,
                             int write, int idx, int keylen, void *fndkey,
                             int *fndlen, int *bdberr);
 
-int bdb_rowlock(bdb_state_type *bdb_state, tran_type *tran,
-                unsigned long long genid, int exclusive, int *bdberr);
-
-int bdb_get_low_headroom_count(bdb_state_type *bdb_state);
+int bdb_get_low_headroom_count(bdb_env_type *bdb_state);
 
 enum { BDB_LOCK_READ, BDB_LOCK_WRITE };
 
-int bdb_get_locker(bdb_state_type *bdb_state, unsigned int *lid);
-int bdb_lock_row(bdb_state_type *bdb_state, unsigned int lid,
-                 unsigned long long genid);
-int bdb_release_locker(bdb_state_type *bdb_state, unsigned int lid);
+int bdb_get_locker(bdb_env_type *bdb_state, unsigned int *lid);
+int bdb_release_locker(bdb_env_type *bdb_state, unsigned int lid);
 
 extern int gbl_bb_berkdb_enable_thread_stats;
 extern int gbl_bb_berkdb_enable_lock_timing;
@@ -1340,50 +1303,44 @@ void bdb_print_stats(const struct berkdb_thread_stats *st, const char *prefix,
 void bdb_fprintf_stats(const struct berkdb_thread_stats *st, const char *prefix,
                        FILE *out);
 
-int bdb_find_oldest_genid(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_find_oldest_genid(bdb_table_type *bdb_state, tran_type *tran,
                           int stripe, void *rec, int *reclen, int maxlen,
                           unsigned long long *genid, uint8_t *ver, int *bdberr);
-int bdb_find_newest_genid(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_find_newest_genid(bdb_table_type *bdb_state, tran_type *tran,
                           int stripe, void *rec, int *reclen, int maxlen,
                           unsigned long long *genid, uint8_t *ver, int *bdberr);
 
 int bdb_genid_timestamp(unsigned long long genid);
 unsigned long long bdb_recno_to_genid(int recno);
-int bdb_genid_is_recno(bdb_state_type *bdb_state, unsigned long long genid);
+int bdb_genid_is_recno(bdb_env_type *bdb_state, unsigned long long genid);
 
-int bdb_genid_exists(bdb_state_type *bdb_state, unsigned long long genid,
-                     int *bdberr);
-
-unsigned long long bdb_get_current_lsn(bdb_state_type *bdb_state,
+unsigned long long bdb_get_current_lsn(bdb_env_type *bdb_state,
                                        unsigned int *file,
                                        unsigned int *offset);
 
-int bdb_set_tran_lowpri(bdb_state_type *bdb_state, tran_type *tran);
+int bdb_set_tran_lowpri(bdb_env_type *bdb_state, tran_type *tran);
 
-int bdb_am_i_coherent(bdb_state_type *bdb_state);
+int bdb_am_i_coherent(bdb_env_type *bdb_state);
 
-int bdb_get_num_notcoherent(bdb_state_type *bdb_state);
-void bdb_get_notcoherent_list(bdb_state_type *bdb_state,
+int bdb_get_num_notcoherent(bdb_env_type *bdb_state);
+void bdb_get_notcoherent_list(bdb_env_type *bdb_state,
                               const char *nodes_list[REPMAX], size_t max_nodes,
                               int *num_notcoherent, int *since_epoch);
-int bdb_is_skip(bdb_state_type *bdb_state, int node);
-void set_skip(bdb_state_type *bdb_state, int node);
-void clear_skip(bdb_state_type *bdb_state, int node);
 
-void bdb_register_rtoff_callback(bdb_state_type *bdb_state, void (*func)(void));
+void bdb_register_rtoff_callback(bdb_env_type *bdb_state, void (*func)(void));
 
 /* Return the number of seconds that the current checkpoint has been running
  * for, or 0 if no checkpoint is currently running. */
-int bdb_get_checkpoint_time(bdb_state_type *bdb_state);
+int bdb_get_checkpoint_time(bdb_env_type *bdb_state);
 
 int bdb_have_llmeta();
-int bdb_llmeta_open(char name[], char dir[], bdb_state_type *parent_bdb_handle,
+int bdb_llmeta_open(char name[], char dir[], bdb_env_type *parent_bdb_handle,
                     int create_override, int *bdberr);
 int bdb_llmeta_set_tables(tran_type *input_trans, char **tblnames,
                           const int *dbnums, int numdbs, int *bdberr);
 int bdb_llmeta_get_tables(tran_type *input_trans, char **tblnames, int *dbnums,
                           size_t maxnumtbls, int *fndnumtbls, int *bdberr);
-bdb_state_type *bdb_llmeta_bdb_state(void);
+bdb_table_type *bdb_llmeta_bdb_state(void);
 
 int bdb_get_view_names(tran_type *t, char **names, int *num);
 int bdb_get_view(tran_type *t, const char *view_name, char **view_def);
@@ -1392,56 +1349,55 @@ int bdb_del_view(tran_type *t, const char *view_name);
 
 int bdb_append_file_version(char *str_buf, size_t buflen,
                             unsigned long long version_num, int *bdberr);
-int bdb_unappend_file_version(bdb_state_type *bdb_state, int *bdberr);
 const char *bdb_unprepend_new_prefix(const char *tablename, int *bdberr);
 
-int bdb_get_pagesize_data(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_get_pagesize_data(bdb_table_type *bdb_state, tran_type *tran,
                           int *pagesize, int *bdberr);
-int bdb_get_pagesize_blob(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_get_pagesize_blob(bdb_table_type *bdb_state, tran_type *tran,
                           int *pagesize, int *bdberr);
-int bdb_get_pagesize_index(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_get_pagesize_index(bdb_table_type *bdb_state, tran_type *tran,
                            int *pagesize, int *bdberr);
 
 int bdb_get_pagesize_alldata(tran_type *tran, int *pagesize, int *bdberr);
 int bdb_get_pagesize_allblob(tran_type *tran, int *pagesize, int *bdberr);
 int bdb_get_pagesize_allindex(tran_type *tran, int *pagesize, int *bdberr);
 
-int bdb_set_pagesize_data(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_set_pagesize_data(bdb_table_type *bdb_state, tran_type *tran,
                           int pagesize, int *bdberr);
-int bdb_set_pagesize_blob(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_set_pagesize_blob(bdb_table_type *bdb_state, tran_type *tran,
                           int pagesize, int *bdberr);
-int bdb_set_pagesize_index(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_set_pagesize_index(bdb_table_type *bdb_state, tran_type *tran,
                            int pagesize, int *bdberr);
 
 int bdb_set_pagesize_alldata(tran_type *tran, int pagesize, int *bdberr);
 int bdb_set_pagesize_allblob(tran_type *tran, int pagesize, int *bdberr);
 int bdb_set_pagesize_allindex(tran_type *tran, int pagesize, int *bdberr);
 
-int bdb_del_file_version_qdb(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_del_file_version_qdb(bdb_table_type *bdb_state, tran_type *tran,
                              int file_num, int *bdberr);
 
-int bdb_new_file_version_data(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_new_file_version_data(bdb_table_type *bdb_state, tran_type *tran,
                               int dtanum, unsigned long long version_num,
                               int *bdberr);
-int bdb_new_file_version_index(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_new_file_version_index(bdb_table_type *bdb_state, tran_type *tran,
                                int ixnum, unsigned long long version_num,
                                int *bdberr);
-int bdb_new_file_version_all(bdb_state_type *bdb_state, tran_type *input_tran,
+int bdb_new_file_version_all(bdb_table_type *bdb_state, tran_type *input_tran,
                              int *bdberr);
-int bdb_new_file_version_table(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_new_file_version_table(bdb_table_type *bdb_state, tran_type *tran,
                                unsigned long long version_num, int *bdberr);
-int bdb_new_file_version_qdb(bdb_state_type *, tran_type *, int file_num,
+int bdb_new_file_version_qdb(bdb_table_type *, tran_type *, int file_num,
                              unsigned long long version, int *bdberr);
 
-int bdb_get_file_version_data(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_get_file_version_data(bdb_table_type *bdb_state, tran_type *tran,
                               int dtanum, unsigned long long *version_num,
                               int *bdberr);
-int bdb_get_file_version_index(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_get_file_version_index(bdb_table_type *bdb_state, tran_type *tran,
                                int ixnum, unsigned long long *version_num,
                                int *bdberr);
-int bdb_get_file_version_table(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_get_file_version_table(bdb_table_type *bdb_state, tran_type *tran,
                                unsigned long long *version_num, int *bdberr);
-int bdb_get_file_version_qdb(bdb_state_type *, tran_type *, int file_num,
+int bdb_get_file_version_qdb(bdb_table_type *, tran_type *, int file_num,
                              unsigned long long *version, int *bdberr);
 int bdb_get_file_version_data_by_name(tran_type *tran, const char *name,
                                       int file_num,
@@ -1452,9 +1408,9 @@ int bdb_get_file_version_index_by_name(tran_type *tran, const char *name,
                                        unsigned long long *version_num,
                                        int *bdberr);
 
-int bdb_del_file_versions(bdb_state_type *bdb_state, tran_type *input_trans,
+int bdb_del_file_versions(bdb_table_type *bdb_state, tran_type *input_trans,
                           int *bdberr);
-int bdb_chg_file_versions(bdb_state_type *bdb_state, tran_type *input_trans,
+int bdb_chg_file_versions(bdb_table_type *bdb_state, tran_type *input_trans,
                           const char *new_tbl_name, int *bdberr);
 
 int bdb_new_csc2(tran_type *input_trans, const char *db_name, int csc2_vers,
@@ -1466,20 +1422,20 @@ int bdb_get_csc2_highest(tran_type *trans, const char *db_name, int *csc2_vers,
 
 int bdb_get_new_prefix(char *buf, size_t buflen, int *bdberr);
 
-int bdb_file_version_change_dtanum(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_file_version_change_dtanum(bdb_table_type *bdb_state, tran_type *tran,
                                    int fromdtanum, int todtanum, int *bdberr);
-int bdb_file_version_change_ixnum(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_file_version_change_ixnum(bdb_table_type *bdb_state, tran_type *tran,
                                   int fromixnum, int toixnum, int *bdberr);
 
-int bdb_commit_temp_file_version_data(bdb_state_type *bdb_state,
+int bdb_commit_temp_file_version_data(bdb_table_type *bdb_state,
                                       tran_type *tran, int dtanum, int *bdberr);
-int bdb_commit_temp_file_version_index(bdb_state_type *bdb_state,
+int bdb_commit_temp_file_version_index(bdb_table_type *bdb_state,
                                        tran_type *tran, int ixnum, int *bdberr);
-int bdb_commit_temp_file_version_all(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_commit_temp_file_version_all(bdb_table_type *bdb_state, tran_type *tran,
                                      int *bdberr);
 
 int bdb_bulk_import_copy_cmd_add_tmpdir_filenames(
-    bdb_state_type *bdb_state, unsigned long long src_data_genid,
+    bdb_table_type *bdb_state, unsigned long long src_data_genid,
     unsigned long long dst_data_genid,
     const unsigned long long *p_src_index_genids,
     const unsigned long long *p_dst_index_genids, size_t num_index_genids,
@@ -1487,18 +1443,17 @@ int bdb_bulk_import_copy_cmd_add_tmpdir_filenames(
     const unsigned long long *p_dst_blob_genids, size_t num_blob_genids,
     char *outbuf, size_t buflen, int *bdberr);
 
-int bdb_rename_file_versioning_table(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_rename_file_versioning_table(bdb_table_type *bdb_state, tran_type *tran,
                                      char *newtblname, int *bdberr);
-void bdb_remove_prefix(bdb_state_type *bdb_state);
+void bdb_remove_prefix(bdb_table_type *bdb_state);
 
 void *bdb_del_list_new(int *bdberr);
-int bdb_del_list_add_data(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_del_list_add_data(bdb_table_type *bdb_state, tran_type *tran,
                           void *list, int dtanum, int *bdberr);
-int bdb_del_list_add_index(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_del_list_add_index(bdb_table_type *bdb_state, tran_type *tran,
                            void *list, int ixnum, int *bdberr);
-int bdb_del_list_add_all(bdb_state_type *bdb_state, tran_type *tran, void *list,
+int bdb_del_list_add_all(bdb_table_type *bdb_state, tran_type *tran, void *list,
                          int *bdberr);
-int bdb_del_list(bdb_state_type *bdb_state, void *list, int *bdberr);
 int bdb_del_list_free(void *list, int *bdberr);
 
 int bdb_set_in_schema_change(tran_type *input_trans, const char *db_name,
@@ -1573,65 +1528,62 @@ int bdb_clear_high_genid(tran_type *input_trans, const char *db_name,
 int bdb_get_high_genid(const char *db_name, int stripe,
                        unsigned long long *genid, int *bdberr);
 
-void bdb_scdone_start(bdb_state_type *bdb_state);
-void bdb_scdone_end(bdb_state_type *bdb_state);
-
 unsigned long long increment_seq(unsigned long long crt);
 
-void bdb_get_cur_lsn_str(bdb_state_type *bdb_state, uint64_t *lsnbytes,
+void bdb_get_cur_lsn_str(bdb_env_type *bdb_state, uint64_t *lsnbytes,
                          char *lsnstr, size_t len);
 
 unsigned long long bdb_temp_table_new_rowid(struct temp_table *tbl);
 
-int bdb_temp_table_put(bdb_state_type *bdb_state, struct temp_table *tbl,
+int bdb_temp_table_put(bdb_env_type *bdb_state, struct temp_table *tbl,
                        void *key, int keylen, void *data, int dtalen,
                        void *unpacked, int *bdberr);
 
-void bdb_get_cur_lsn_str(bdb_state_type *bdb_state, uint64_t *lsnbytes,
+void bdb_get_cur_lsn_str(bdb_env_type *bdb_state, uint64_t *lsnbytes,
                          char *lsnstr, size_t len);
 
-void bdb_get_cur_lsn_str_node(bdb_state_type *bdb_state, uint64_t *lsnbytes,
+void bdb_get_cur_lsn_str_node(bdb_env_type *bdb_state, uint64_t *lsnbytes,
                               char *lsnstr, size_t len, char *host);
 
 /* Given a berkeley db lockid (i.e. some bytes of data), try to get
  * a human readable name for it.  This is based on __lock_printlock
  * in lock/lock_stat.c */
-void bdb_lock_name(bdb_state_type *bdb_state, char *s, size_t slen,
+void bdb_lock_name(bdb_env_type *bdb_state, char *s, size_t slen,
                    void *lockid, size_t lockid_len);
 
-int bdb_check_pageno(bdb_state_type *bdb_state, uint32_t pgno);
+int bdb_check_pageno(bdb_env_type *bdb_state, uint32_t pgno);
 
-int bdb_check_genid_is_newer(bdb_state_type *bdb_state,
+int bdb_check_genid_is_newer(bdb_env_type *bdb_state,
                              unsigned long long genid,
                              unsigned long long context);
 
-int bdb_lock_desired(bdb_state_type *bdb_state);
+int bdb_lock_desired(bdb_env_type *bdb_state);
 
-void bdb_bdblock_print(bdb_state_type *bdb_state, char *str);
+void bdb_bdblock_print(bdb_env_type *bdb_state, char *str);
 
 /* disable/re-enable inplace update code during schema change on a bit */
 enum { BDB_DISABLE_INPLACE_UPDATES = 1, BDB_ENABLE_INPLACE_UPDATES = 0 };
 
 void bdb_inplace_sc_disable_flag(int sc);
 
-int bdb_lock_stripe_read(bdb_state_type *bdb_state, int stripe,
+int bdb_lock_stripe_read(bdb_table_type *bdb_state, int stripe,
                          tran_type *tran);
-int bdb_lock_stripe_write(bdb_state_type *bdb_state, int stripe,
+int bdb_lock_stripe_write(bdb_table_type *bdb_state, int stripe,
                           tran_type *tran);
 
 /* init/destroy bdb osql support for snapshot/serializable sql transactions */
 int bdb_osql_init(int *bdberr);
 int bdb_osql_destroy(int *bdberr);
 
-void bdb_get_rep_stats(bdb_state_type *bdb_state,
+void bdb_get_rep_stats(bdb_env_type *bdb_state,
                        unsigned long long *msgs_processed,
                        unsigned long long *msgs_sent,
                        unsigned long long *txns_applied,
                        unsigned long long *retry, int *max_retry);
 
-int bdb_get_index_filename(bdb_state_type *bdb_state, int ixnum, char *nameout,
+int bdb_get_index_filename(bdb_table_type *bdb_state, int ixnum, char *nameout,
                            int namelen, int *bdberr);
-int bdb_get_data_filename(bdb_state_type *bdb_state, int stripe, int blob,
+int bdb_get_data_filename(bdb_table_type *bdb_state, int stripe, int blob,
                           char *nameout, int namelen, int *bdberr);
 
 /* Sampler interface */
@@ -1644,39 +1596,39 @@ void *sampler_key(sampler_t *);
 sampler_t *sampler_init();
 int sampler_close(sampler_t *);
 
-int bdb_summarize_table(bdb_state_type *bdb_state, int ixnum, int comp_pct,
+int bdb_summarize_table(bdb_table_type *bdb_state, int ixnum, int comp_pct,
                         sampler_t **samplerp, unsigned long long *outrecs,
                         unsigned long long *cmprecs, int *bdberr);
 
 void bdb_bdblock_debug(void);
-int bdb_env_init_after_llmeta(bdb_state_type *bdb_state);
+int bdb_env_init_after_llmeta(bdb_env_type *bdb_state);
 
-int bdb_rowlocks_check_commit_physical(bdb_state_type *bdb_state,
+int bdb_rowlocks_check_commit_physical(bdb_env_type *bdb_state,
                                        tran_type *tran, int blockop_count);
 int bdb_is_rowlocks_transaction(tran_type *tran);
 
 int bdb_get_sp_get_default_version(const char *sp_name, int *bdberr);
-int bdb_set_sp_lua_source(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_set_sp_lua_source(bdb_env_type *bdb_state, tran_type *tran,
                           const char *sp_name, char *lua_file, int size,
                           int version, int *bdberr);
-int bdb_get_sp_lua_source(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_get_sp_lua_source(bdb_env_type *bdb_state, tran_type *tran,
                           const char *sp_name, char **lua_file, int version,
                           int *size, int *bdberr);
-int bdb_delete_sp_lua_source(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_delete_sp_lua_source(bdb_env_type *bdb_state, tran_type *tran,
                              const char *sp_name, int lua_ver, int *bdberr);
-int bdb_set_sp_lua_default(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_set_sp_lua_default(bdb_env_type *bdb_state, tran_type *tran,
                            char *sp_name, int lua_ver, int *bdberr);
 int bdb_get_global_stripe_info(tran_type *tran, int *stripes, int *blobstripe,
                                int *bdberr);
 int bdb_set_global_stripe_info(tran_type *tran, int stripes, int blobstripe,
                                int *bdberr);
-int bdb_set_sc_seed(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_set_sc_seed(bdb_env_type *bdb_state, tran_type *tran,
                     const char *table, unsigned long long genid,
                     unsigned int host, int *bdberr);
-int bdb_get_sc_seed(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_get_sc_seed(bdb_env_type *bdb_state, tran_type *tran,
                     const char *tablename, unsigned long long *genid,
                     unsigned int *host, int *bdberr);
-int bdb_delete_sc_seed(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_delete_sc_seed(bdb_env_type *bdb_state, tran_type *tran,
                        const char *table, int *bdberr);
 
 int bdb_get_sc_start_lsn(tran_type *tran, const char *table, void *plsn,
@@ -1693,41 +1645,41 @@ enum {
     ACCESS_USERSCHEMA = 4
 };
 
-int bdb_tbl_access_write_set(bdb_state_type *bdb_state, tran_type *input_trans,
+int bdb_tbl_access_write_set(bdb_env_type *bdb_state, tran_type *input_trans,
                              char *tblname, char *username, int *bdberr);
-int bdb_tbl_access_write_get(bdb_state_type *bdb_state, tran_type *input_trans,
+int bdb_tbl_access_write_get(bdb_env_type *bdb_state, tran_type *input_trans,
                              char *tblname, char *username, int *bdberr);
 
-int bdb_tbl_access_read_set(bdb_state_type *bdb_state, tran_type *input_trans,
+int bdb_tbl_access_read_set(bdb_env_type *bdb_state, tran_type *input_trans,
                             char *tblname, char *username, int *bdberr);
-int bdb_tbl_access_read_get(bdb_state_type *bdb_state, tran_type *input_trans,
+int bdb_tbl_access_read_get(bdb_env_type *bdb_state, tran_type *input_trans,
                             char *tblname, char *username, int *bdberr);
 
-int bdb_tbl_access_userschema_set(bdb_state_type *bdb_state,
+int bdb_tbl_access_userschema_set(bdb_env_type *bdb_state,
                                   tran_type *input_trans, const char *schema,
                                   const char *username, int *bdberr);
 
-int bdb_tbl_access_userschema_get(bdb_state_type *bdb_state,
+int bdb_tbl_access_userschema_get(bdb_env_type *bdb_state,
                                   tran_type *input_trans, const char *username,
                                   char *userschema, int *bdberr);
 
-int bdb_tbl_op_access_set(bdb_state_type *bdb_state, tran_type *input_trans,
+int bdb_tbl_op_access_set(bdb_env_type *bdb_state, tran_type *input_trans,
                           int command_type, const char *tblname, const char *username,
                           int *bdberr);
 
-int bdb_tbl_op_access_get(bdb_state_type *bdb_state, tran_type *input_trans,
+int bdb_tbl_op_access_get(bdb_env_type *bdb_state, tran_type *input_trans,
                           int command_type, const char *tblname, const char *username,
                           int *bdberr);
 
-int bdb_tbl_op_access_delete(bdb_state_type *bdb_state, tran_type *input_trans,
+int bdb_tbl_op_access_delete(bdb_env_type *bdb_state, tran_type *input_trans,
                              int command_type, const char *tblname, const char *username,
                              int *bdberr);
 
-int bdb_authentication_set(bdb_state_type *bdb_state, tran_type *input_trans, int enable,
+int bdb_authentication_set(bdb_env_type *bdb_state, tran_type *input_trans, int enable,
                            int *bdberr);
-int bdb_authentication_get(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_authentication_get(bdb_env_type *bdb_state, tran_type *tran,
                            int *bdberr);
-int bdb_accesscontrol_tableXnode_get(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_accesscontrol_tableXnode_get(bdb_env_type *bdb_state, tran_type *tran,
                                      int *bdberr);
 
 int bdb_user_password_set(tran_type *, char *user, char *passwd);
@@ -1735,95 +1687,92 @@ int bdb_user_password_check(char *user, char *passwd, int *valid_user);
 int bdb_user_password_delete(tran_type *tran, char *user);
 int bdb_user_get_all(char ***users, int *num);
 
-void bdb_set_instant_schema_change(bdb_state_type *bdb_state, int isc);
-void bdb_set_inplace_updates(bdb_state_type *bdb_state, int ipu);
-void bdb_set_csc2_version(bdb_state_type *bdb_state, uint8_t version);
+void bdb_set_instant_schema_change(bdb_table_type *bdb_state, int isc);
+void bdb_set_inplace_updates(bdb_table_type *bdb_state, int ipu);
+void bdb_set_csc2_version(bdb_table_type *bdb_state, uint8_t version);
 
-int bdb_get_active_stripe(bdb_state_type *bdb_state);
+int bdb_get_active_stripe(bdb_env_type *bdb_state);
 
-void bdb_set_datacopy_odh(bdb_state_type *, int);
+void bdb_set_datacopy_odh(bdb_table_type *, int);
 
-extern void bdb_dump_active_locks(bdb_state_type *bdb_state, FILE *out);
+extern void bdb_dump_active_locks(bdb_env_type *bdb_state, FILE *out);
 
-int bdb_add_rep_blob(bdb_state_type *bdb_state, tran_type *tran, int session,
+int bdb_add_rep_blob(bdb_env_type *bdb_state, tran_type *tran, int session,
                      int seqno, void *blob, int sz, int *bdberr);
 
-const char *bdb_get_tmpdir(bdb_state_type *bdb_state);
+const char *bdb_get_tmpdir(bdb_env_type *bdb_state);
 
-int bdb_form_file_name(bdb_state_type *bdb_state, int is_data_file, int filenum,
+int bdb_form_file_name(bdb_table_type *bdb_state, int is_data_file, int filenum,
                        int stripenum, unsigned long long version_num,
                        char *outbuf, size_t buflen);
 
-void bdb_verify_dbreg(bdb_state_type *bdb_state);
+void bdb_verify_dbreg(bdb_env_type *bdb_state);
 
 int bdb_the_lock_desired(void);
 
 int bdb_is_hashtable(struct temp_table *);
 
-void analyze_set_headroom(uint64_t);
+void bdb_analyze_set_headroom(uint64_t);
 
-int bdb_is_open(bdb_state_type *bdb_state);
-
-void bdb_checklock(bdb_state_type *);
+void bdb_checklock(bdb_env_type *);
 int bdb_lockref(void);
 void berkdb_set_max_rep_retries(int max);
-void bdb_set_recovery(bdb_state_type *);
-tran_type *bdb_tran_begin_set_retries(bdb_state_type *, tran_type *parent,
+void bdb_set_recovery(bdb_env_type *);
+tran_type *bdb_tran_begin_set_retries(bdb_env_type *, tran_type *parent,
                                       int retries, int *bdberr);
-uint32_t bdb_readonly_lock_id(bdb_state_type *bdb_state);
-void bdb_free_lock_id(bdb_state_type *bdb_state, uint32_t lid);
+uint32_t bdb_readonly_lock_id(bdb_env_type *bdb_state);
+void bdb_free_lock_id(bdb_env_type *bdb_state, uint32_t lid);
 void bdb_lockspeed(bdb_env_type *bdb_state);
-int bdb_lock_table_write(bdb_state_type *bdb_state, tran_type *tran);
-int bdb_lock_tablename_write(bdb_state_type *bdb_state, const char *tblname,
+int bdb_lock_table_write(bdb_table_type *bdb_state, tran_type *tran);
+int bdb_lock_tablename_write(bdb_table_type *bdb_state, const char *tblname,
                              tran_type *tran);
-int bdb_lock_tablename_read(bdb_state_type *, const char *name, tran_type *);
+int bdb_lock_tablename_read(bdb_table_type *, const char *name, tran_type *);
 
 enum assert_lock_type {
     ASSERT_TABLENAME_LOCKED_WRITE = 1,
     ASSERT_TABLENAME_LOCKED_READ = 2,
     ASSERT_TABLENAME_LOCKED_EITHER = 3
 };
-int bdb_assert_tablename_locked(bdb_state_type *, const char *name, uint32_t lid, enum assert_lock_type type);
-int bdb_lock_row_write(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_assert_tablename_locked(bdb_env_type *, const char *name, uint32_t lid, enum assert_lock_type type);
+int bdb_lock_row_write(bdb_env_type *bdb_state, tran_type *tran,
                        unsigned long long genid);
-int bdb_trylock_row_write(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_trylock_row_write(bdb_env_type *bdb_state, tran_type *tran,
                           unsigned long long genid);
 int bdb_reset_csc2_version(tran_type *trans, const char *dbname, int ver);
-void bdb_set_skip(bdb_state_type *bdb_state, int node);
-unsigned long long get_id(bdb_state_type *bdb_state);
-int bdb_access_tbl_write_by_mach_get(bdb_state_type *bdb_state, tran_type *tran,
+unsigned long long get_id(bdb_env_type *bdb_state);
+int bdb_access_tbl_write_by_mach_get(bdb_env_type *bdb_state, tran_type *tran,
                                      char *table, int hostnum, int *bdberr);
-int bdb_access_tbl_read_by_mach_get(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_access_tbl_read_by_mach_get(bdb_env_type *bdb_state, tran_type *tran,
                                     char *table, int hostnum, int *bdberr);
-int bdb_flush_up_to_lsn(bdb_state_type *bdb_state, unsigned file,
+int bdb_flush_up_to_lsn(bdb_env_type *bdb_state, unsigned file,
                         unsigned offset);
-int bdb_set_parallel_recovery_threads(bdb_state_type *bdb_state, int nthreads);
-unsigned long long bdb_get_commit_genid(bdb_state_type *bdb_state, void *plsn);
-void bdb_set_commit_lsn_gen(bdb_state_type *bdb_state, const void *lsn, uint32_t gen);
-unsigned long long bdb_get_commit_genid_generation(bdb_state_type *bdb_state,
+int bdb_set_parallel_recovery_threads(bdb_env_type *bdb_state, int nthreads);
+unsigned long long bdb_get_commit_genid(bdb_env_type *bdb_state, void *plsn);
+void bdb_set_commit_lsn_gen(bdb_env_type *bdb_state, const void *lsn, uint32_t gen);
+unsigned long long bdb_get_commit_genid_generation(bdb_env_type *bdb_state,
                                                    void *plsn,
                                                    uint32_t *generation);
-void bdb_set_commit_genid(bdb_state_type *bdb_state, unsigned long long context,
+void bdb_set_commit_genid(bdb_env_type *bdb_state, unsigned long long context,
                           const uint32_t *generation, const void *plsn,
                           const void *args, unsigned int rectype);
-unsigned long long bdb_gen_commit_genid(bdb_state_type *bdb_state,
+unsigned long long bdb_gen_commit_genid(bdb_env_type *bdb_state,
                                         const void *plsn, uint32_t generation);
 
-int bdb_increment_num_sc_done(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_increment_num_sc_done(bdb_env_type *bdb_state, tran_type *tran,
                               int *bdberr);
-int bdb_get_num_sc_done(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_get_num_sc_done(bdb_env_type *bdb_state, tran_type *tran,
                         unsigned long long *num, int *bdberr);
 
-void udp_ping_ip(bdb_state_type *, char *ip);
-void udp_ping_all(bdb_state_type *);
-void udp_ping(bdb_state_type *, char *to);
-void udp_prefault_all(bdb_state_type *bdb_state, unsigned int fileid,
+void udp_ping_ip(bdb_env_type *, char *ip);
+void udp_ping_all(bdb_env_type *);
+void udp_ping(bdb_env_type *, char *to);
+void udp_prefault_all(bdb_env_type *bdb_state, unsigned int fileid,
                       unsigned int pgno);
-void tcp_ping_all(bdb_state_type *);
-void tcp_ping(bdb_state_type *, char *to);
-void ping_all(bdb_state_type *);
-void ping_node(bdb_state_type *, char *to);
-netinfo_type *get_rep_netinfo(bdb_state_type *);
+void tcp_ping_all(bdb_env_type *);
+void tcp_ping(bdb_env_type *, char *to);
+void ping_all(bdb_env_type *);
+void ping_node(bdb_env_type *, char *to);
+netinfo_type *get_rep_netinfo(bdb_env_type *);
 
 void udp_summary(void);
 void udp_reset(netinfo_type *);
@@ -1836,87 +1785,87 @@ int udppfault_thdpool_init(void);
 extern struct thdpool *gbl_pgcompact_thdpool;
 int pgcompact_thdpool_init(void);
 
-int get_dbnum_by_handle(bdb_state_type *bdb_state);
-int get_dbnum_by_name(bdb_state_type *bdb_state, const char *name);
-int send_myseqnum_to_master(bdb_state_type *, int nodelay);
+int get_dbnum_by_handle(bdb_table_type *bdb_state);
+int get_dbnum_by_name(bdb_env_type *bdb_state, const char *name);
+int send_myseqnum_to_master(bdb_env_type *, int nodelay);
 
 const char *bdb_temp_table_filename(struct temp_table *);
 void bdb_temp_table_flush(struct temp_table *);
 
-int bdb_tran_free_shadows(bdb_state_type *bdb_state, tran_type *tran);
+int bdb_tran_free_shadows(bdb_env_type *bdb_state, tran_type *tran);
 
 #ifdef NEWSI_STAT
 void bdb_newsi_stat_init();
 #endif
-int bdb_gbl_pglogs_init(bdb_state_type *bdb_state);
-int bdb_gbl_pglogs_mem_init(bdb_state_type *bdb_state);
+int bdb_gbl_pglogs_init(bdb_env_type *bdb_state);
+int bdb_gbl_pglogs_mem_init(bdb_env_type *bdb_state);
 
-int bdb_purge_unused_files(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_purge_unused_files(bdb_env_type *bdb_state, tran_type *tran,
                            int *bdberr);
 int bdb_have_unused_files(void);
 
-int bdb_nlocks_for_locker(bdb_state_type *bdb_state, int lid);
+int bdb_nlocks_for_locker(bdb_env_type *bdb_state, int lid);
 
-int bdb_llmeta_list_records(bdb_state_type *bdb_state, int *bdberr);
+int bdb_llmeta_list_records(bdb_env_type *bdb_state, int *bdberr);
 
-int bdb_have_ipu(bdb_state_type *bdb_state);
+int bdb_have_ipu(bdb_table_type *bdb_state);
 
-bdb_state_type *bdb_get_table_by_name(bdb_state_type *bdb_state, char *table);
-int bdb_osql_check_table_version(bdb_state_type *bdb_state, tran_type *tran,
+bdb_table_type *bdb_get_table_by_name(bdb_env_type *bdb_state, char *table);
+int bdb_osql_check_table_version(bdb_table_type *bdb_state, tran_type *tran,
                                  int trak, int *bdberr);
 
-int bdb_get_myseqnum(bdb_state_type *bdb_state, seqnum_type *seqnum);
+int bdb_get_myseqnum(bdb_env_type *bdb_state, seqnum_type *seqnum);
 
-void bdb_replace_handle(bdb_state_type *parent, int ix, bdb_state_type *handle);
+void bdb_replace_handle(bdb_env_type *parent, int ix, bdb_table_type *handle);
 
-int bdb_get_lock_counters(bdb_state_type *bdb_state, int64_t *deadlocks,
+int bdb_get_lock_counters(bdb_env_type *bdb_state, int64_t *deadlocks,
                           int64_t *deadlock_locks, int64_t *waits,
                           int64_t *requests);
 
-int bdb_get_bpool_counters(bdb_state_type *bdb_state, int64_t *bpool_hits,
+int bdb_get_bpool_counters(bdb_env_type *bdb_state, int64_t *bpool_hits,
                            int64_t *bpool_misses, int64_t *rw_evicts);
 
-int bdb_master_should_reject(bdb_state_type *bdb_state);
+int bdb_master_should_reject(bdb_env_type *bdb_state);
 
-void bdb_berkdb_iomap_set(bdb_state_type *bdb_state, int onoff);
+void bdb_berkdb_iomap_set(bdb_env_type *bdb_state, int onoff);
 
-int bdb_berkdb_get_attr(bdb_state_type *bdb_state, char *attr, char **value,
+int bdb_berkdb_get_attr(bdb_env_type *bdb_state, char *attr, char **value,
                         int *ivalue);
 
-int bdb_berkdb_set_attr(bdb_state_type *bdb_state, char *attr, char *value,
+int bdb_berkdb_set_attr(bdb_env_type *bdb_state, char *attr, char *value,
                         int ivalue);
 int bdb_berkdb_set_attr_after_open(bdb_attr_type *bdb_attr, char *attr,
                                    char *value, int ivalue);
 
-void bdb_berkdb_dump_attrs(bdb_state_type *bdb_state, FILE *out);
+void bdb_berkdb_dump_attrs(bdb_env_type *bdb_state, FILE *out);
 
-int bdb_berkdb_blobmem_yield(bdb_state_type *bdb_state);
+int bdb_berkdb_blobmem_yield(bdb_env_type *bdb_state);
 
-void bdb_dump_threads_and_maybe_abort(bdb_state_type *bdb_state, int fatal);
+void bdb_dump_threads_and_maybe_abort(bdb_env_type *bdb_state, int fatal);
 
 int calc_pagesize(int recsize);
 
 int getpgsize(void *handle_);
-void bdb_show_reptimes_compact(bdb_state_type *bdb_state);
+void bdb_show_reptimes_compact(bdb_env_type *bdb_state);
 
-void fill_dbinfo(void *dbinfo_response, bdb_state_type *bdb_state);
+void fill_dbinfo(void *dbinfo_response, bdb_env_type *bdb_state);
 
-void bdb_disable_replication_time_tracking(bdb_state_type *bdb_state);
-void bdb_set_key_compression(bdb_state_type *);
-void bdb_print_compression_flags(bdb_state_type *);
+void bdb_disable_replication_time_tracking(bdb_env_type *bdb_state);
+void bdb_set_key_compression(bdb_table_type *);
+void bdb_print_compression_flags(bdb_table_type *);
 
-int bdb_recovery_start_lsn(bdb_state_type *bdb_state, char *lsnout, int lsnlen);
+int bdb_recovery_start_lsn(bdb_env_type *bdb_state, char *lsnout, int lsnlen);
 /* We carefully pretend above bdb level that we don't know what an LSN looks
  * like.
  * Maintain the charade just a bit longer +---------V. */
-int bdb_recovery_set_lsn(bdb_state_type *bdb_state, char *lsn);
+int bdb_recovery_set_lsn(bdb_env_type *bdb_state, char *lsn);
 /* Magic strings that correspond to no master and dupe master. BDB makes every
  * effort
  * to never use berkdb eid values, these map to DB_EID_INVALID,
  * DB_EID_BROADCAST, DB_EID_DUPMASTER */
 extern char *bdb_master_dupe, *db_eid_broadcast, *db_eid_invalid;
 
-int bdb_is_timestamp_recoverable(bdb_state_type *bdb_state, int32_t timestamp);
+int bdb_is_timestamp_recoverable(bdb_env_type *bdb_state, int32_t timestamp);
 
 int bdb_get_analyzecoverage_table(tran_type *input_trans, const char *tbl_name,
                                   int *coveragevalue, int *bdberr);
@@ -1970,9 +1919,9 @@ int bdb_get_table_parameter_tran(const char *table, const char *parameter,
 int bdb_set_table_parameter(void *parent_tran, const char *table,
                             const char *parameter, const char *value);
 
-int bdb_disable_page_scan_for_table(bdb_state_type *bdb_state);
-int bdb_enable_page_scan_for_table(bdb_state_type *bdb_state);
-int bdb_get_page_scan_for_table(bdb_state_type *bdb_state);
+int bdb_disable_page_scan_for_table(bdb_table_type *bdb_state);
+int bdb_enable_page_scan_for_table(bdb_table_type *bdb_state);
+int bdb_get_page_scan_for_table(bdb_table_type *bdb_state);
 
 int llmeta_get_curr_analyze_count(uint64_t *value);
 int llmeta_set_curr_analyze_count(uint64_t value);
@@ -1981,7 +1930,7 @@ int llmeta_set_last_analyze_count(uint64_t value);
 int llmeta_get_last_analyze_epoch(uint64_t *value);
 int llmeta_set_last_analyze_epoch(uint64_t value);
 
-int bdb_osql_serial_check(bdb_state_type *bdb_state, void *ranges,
+int bdb_osql_serial_check(bdb_env_type *bdb_state, void *ranges,
                           unsigned int *file, unsigned int *offset,
                           int regop_only);
 
@@ -1991,36 +1940,36 @@ char *llmeta_get_tablename_alias(const char *tablename_alias, char **errstr);
 int llmeta_rem_tablename_alias(const char *tablename_alias, char **errstr);
 void llmeta_list_tablename_alias(void);
 
-void bdb_cleanup_private_blkseq(bdb_state_type *bdb_state);
-int bdb_create_private_blkseq(bdb_state_type *bdb_state);
-int bdb_blkseq_clean(bdb_state_type *bdb_state, uint8_t stripe);
-int bdb_blkseq_insert(bdb_state_type *bdb_state, tran_type *tran, void *key,
+void bdb_cleanup_private_blkseq(bdb_env_type *bdb_state);
+int bdb_create_private_blkseq(bdb_env_type *bdb_state);
+int bdb_blkseq_clean(bdb_env_type *bdb_state, uint8_t stripe);
+int bdb_blkseq_insert(bdb_env_type *bdb_state, tran_type *tran, void *key,
                       int klen, void *data, int datalen, void **dtaout,
                       int *lenout);
-int bdb_blkseq_find(bdb_state_type *bdb_state, tran_type *tran, void *key,
+int bdb_blkseq_find(bdb_env_type *bdb_state, tran_type *tran, void *key,
                     int klen, void **dtaout, int *lenout);
-void bdb_blkseq_dumpall(bdb_state_type *bdb_state);
-int bdb_recover_blkseq(bdb_state_type *bdb_state);
-int bdb_blkseq_dumplogs(bdb_state_type *bdb_state);
-int bdb_blkseq_can_delete_log(bdb_state_type *bdb_state, int lognum);
-void bdb_blkseq_for_each(bdb_state_type *bdb_state, void *arg,
+void bdb_blkseq_dumpall(bdb_env_type *bdb_state);
+int bdb_recover_blkseq(bdb_env_type *bdb_state);
+int bdb_blkseq_dumplogs(bdb_env_type *bdb_state);
+int bdb_blkseq_can_delete_log(bdb_env_type *bdb_state, int lognum);
+void bdb_blkseq_for_each(bdb_env_type *bdb_state, void *arg,
                          void (*func)(int, int, void *, void *, void *,
                                       void *));
 
 /* low level calls to add things to a single btree for debugging and emergency
  * repair */
-int bdb_llop_del(bdb_state_type *bdb_state, void *trans, int stripe,
+int bdb_llop_del(bdb_table_type *bdb_state, void *trans, int stripe,
                  int dtafile, int ix, void *key, int keylen, char **errstr);
-int bdb_llop_add(bdb_state_type *bdb_state, void *trans, int raw, int stripe,
+int bdb_llop_add(bdb_table_type *bdb_state, void *trans, int raw, int stripe,
                  int dtafile, int ix, void *key, int keylen, void *data,
                  int datalen, void *dtacopy, int dtacopylen, char **errstr);
-void *bdb_llop_find(bdb_state_type *bdb_state, void *trans, int raw, int stripe,
+void *bdb_llop_find(bdb_table_type *bdb_state, void *trans, int raw, int stripe,
                     int dtafile, int ix, void *key, int keylen, int *fndlen,
                     uint8_t *ver, char **errmstr);
 
-int bdb_panic(bdb_state_type *bdb_state);
+int bdb_panic(bdb_env_type *bdb_state);
 
-int bdb_debug_logreq(bdb_state_type *bdb_state, int file, int offset);
+int bdb_debug_logreq(bdb_env_type *bdb_state, int file, int offset);
 
 /**
  *  Increment the TABLE VERSION ENTRY for table "bdb_state->name".
@@ -2028,7 +1977,7 @@ int bdb_debug_logreq(bdb_state_type *bdb_state, int file, int offset);
  * non-existing)
  *
  */
-int bdb_table_version_upsert(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_table_version_upsert(bdb_table_type *bdb_state, tran_type *tran,
                              int *bdberr);
 
 /**
@@ -2036,14 +1985,14 @@ int bdb_table_version_upsert(bdb_state_type *bdb_state, tran_type *tran,
  * (It creates or, if existing, updates an entry)
  *
  */
-int bdb_table_version_update(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_table_version_update(bdb_table_type *bdb_state, tran_type *tran,
                              unsigned long long val, int *bdberr);
 
 /**
  *  Delete the TABLE VERSION ENTRY for table "bdb_state->name"
  *
  */
-int bdb_table_version_delete(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_table_version_delete(bdb_table_type *bdb_state, tran_type *tran,
                              int *bdberr);
 /**
  *  Select the TABLE VERSION ENTRY for table "bdb_state->name".
@@ -2056,7 +2005,7 @@ int bdb_table_version_select_verbose(const char *name, tran_type *tran,
                                      unsigned long long *version, int *bdberr,
                                      int verbose);
 
-void bdb_send_analysed_table_to_master(bdb_state_type *bdb_state, char *table);
+void bdb_send_analysed_table_to_master(bdb_env_type *bdb_state, char *table);
 /* get list of queues */
 int bdb_llmeta_get_queues(char **queue_names, size_t max_queues,
                           int *fnd_queues, int *bdberr);
@@ -2065,22 +2014,22 @@ int bdb_llmeta_get_queue(tran_type *tran, char *qname, char **config,
                          int *ndests, char ***dests, int *bdberr);
 
 /* manipulate queues */
-int bdb_llmeta_add_queue(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_llmeta_add_queue(bdb_env_type *bdb_state, tran_type *tran,
                          char *queue, char *config, int ndests, char **dests,
                          int *bdberr);
-int bdb_llmeta_alter_queue(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_llmeta_alter_queue(bdb_env_type *bdb_state, tran_type *tran,
                            char *queue, char *config, int ndests, char **dests,
                            int *bdberr);
-int bdb_llmeta_drop_queue(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_llmeta_drop_queue(bdb_env_type *bdb_state, tran_type *tran,
                           char *queue, int *bdberr);
 
 #include "bdb_queuedb.h"
 
-void lock_info_lockers(FILE *out, bdb_state_type *bdb_state);
+void lock_info_lockers(FILE *out, bdb_env_type *bdb_state);
 
-const char *bdb_find_net_host(bdb_state_type *bdb_state, const char *host);
+const char *bdb_find_net_host(bdb_env_type *bdb_state, const char *host);
 
-unsigned long long bdb_get_a_genid(bdb_state_type *bdb_state);
+unsigned long long bdb_get_a_genid(bdb_env_type *bdb_state);
 
 /* Return the timestamp of the replicants coherency lease */
 uint64_t get_coherency_timestamp(void);
@@ -2088,10 +2037,10 @@ uint64_t get_coherency_timestamp(void);
 /* Return the next timestamp that the master is allowed to commit */
 uint64_t next_commit_timestamp(void);
 
-int bdb_genid_format(bdb_state_type *bdb_state);
-int bdb_genid_set_format(bdb_state_type *bdb_state, int format);
-int bdb_genid_allow_original_format(bdb_state_type *bdb_state);
-int genid_contains_time(bdb_state_type *bdb_state);
+int bdb_genid_format(bdb_env_type *bdb_state);
+int bdb_genid_set_format(bdb_env_type *bdb_state, int format);
+int bdb_genid_allow_original_format(bdb_env_type *bdb_state);
+int genid_contains_time(bdb_env_type *bdb_state);
 
 int bdb_llmeta_get_lua_sfuncs(char ***, int *, int *bdberr);
 int bdb_llmeta_add_lua_sfunc(char *, int *bdberr);
@@ -2101,7 +2050,7 @@ int bdb_llmeta_add_lua_afunc(char *, int *bdberr);
 int bdb_llmeta_del_lua_afunc(char *, int *bdberr);
 
 /* IO smoke test */
-int bdb_watchdog_test_io(bdb_state_type *bdb_state);
+int bdb_watchdog_test_io(bdb_env_type *bdb_state);
 
 int bdb_add_versioned_sp(tran_type *, char *name, char *version, char *src);
 int bdb_get_versioned_sp(char *name, char *version, char **src);
@@ -2115,22 +2064,22 @@ int bdb_get_all_for_versioned_sp(char *name, char ***versions, int *num);
 int bdb_get_default_versioned_sps(char ***names, int *num);
 int bdb_get_versioned_sps(char ***names, int *num);
 
-int bdb_check_user_tbl_access(bdb_state_type *bdb_state, char *user,
+int bdb_check_user_tbl_access(bdb_env_type *bdb_state, char *user,
                               char *table, int access_type, int *bdberr);
-int bdb_first_user_get(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_first_user_get(bdb_env_type *bdb_state, tran_type *tran,
                        char *key_out, char *user_out, int *isop, int *bdberr);
-int bdb_next_user_get(bdb_state_type *bdb_state, tran_type *tran, char *key,
+int bdb_next_user_get(bdb_env_type *bdb_state, tran_type *tran, char *key,
                       char *user_out, int *isop, int *bdberr);
 int bdb_latest_commit_is_durable(void *bdb_state);
 int bdb_is_standalone(void *dbenv, void *in_bdb_state);
 int bdb_valid_lease(void *bdb_state);
 
-void bdb_get_txn_stats(bdb_state_type *bdb_state, int64_t *active,
+void bdb_get_txn_stats(bdb_env_type *bdb_state, int64_t *active,
                        int64_t *maxactive, int64_t *commits, int64_t *aborts);
 
-uint32_t bdb_get_rep_gen(bdb_state_type *bdb_state);
+uint32_t bdb_get_rep_gen(bdb_env_type *bdb_state);
 
-void send_newmaster(bdb_state_type *bdb_state, int online);
+void send_newmaster(bdb_env_type *bdb_state, int online);
 
 typedef struct bias_info bias_info;
 typedef int (*bias_cmp_t)(bias_info *, void *found);
@@ -2145,27 +2094,27 @@ struct bias_info {
     struct UnpackedRecord *unpacked;
 };
 
-void bdb_set_fld_hints(bdb_state_type *, uint16_t *);
-void bdb_cleanup_fld_hints(bdb_state_type *bdb_state);
-void rename_bdb_state(bdb_state_type *bdb_state, const char *newname);
+void bdb_set_fld_hints(bdb_table_type *, uint16_t *);
+void bdb_cleanup_fld_hints(bdb_table_type *bdb_state);
+void rename_bdb_state(bdb_table_type *bdb_state, const char *newname);
 
-int request_durable_lsn_from_master(bdb_state_type *, uint32_t *, uint32_t *,
+int request_durable_lsn_from_master(bdb_env_type *, uint32_t *, uint32_t *,
                                     uint32_t *);
 
-int bdb_process_each_table_version_entry(bdb_state_type *bdb_state,
-                                         int (*func)(bdb_state_type *bdb_state,
+int bdb_process_each_table_version_entry(bdb_env_type *bdb_state,
+                                         int (*func)(bdb_table_type *bdb_state,
                                                      const char *tblname,
                                                      int *bdberr),
                                          int *bdberr);
 
-int bdb_process_each_table_dta_entry(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_process_each_table_dta_entry(bdb_env_type *bdb_state, tran_type *tran,
                                      const char *tblname,
                                      unsigned long long version, int *bdberr);
-int bdb_process_each_table_idx_entry(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_process_each_table_idx_entry(bdb_env_type *bdb_state, tran_type *tran,
                                      const char *tblname,
                                      unsigned long long version, int *bdberr);
 
-int bdb_check_files_on_disk(bdb_state_type *bdb_state, const char *tblname,
+int bdb_check_files_on_disk(bdb_env_type *bdb_state, const char *tblname,
                             int *bdberr);
 
 /* Return per-node replication wait and net usage. */
@@ -2183,7 +2132,7 @@ typedef struct repl_wait_and_net_use {
     char lsn_text[LSN_TEXT_WIDTH];
     uint64_t lsn_bytes_behind;
 } repl_wait_and_net_use_t;
-repl_wait_and_net_use_t *bdb_get_repl_wait_and_net_stats(bdb_state_type *bdb_state, int *pnnodes);
+repl_wait_and_net_use_t *bdb_get_repl_wait_and_net_stats(bdb_env_type *bdb_state, int *pnnodes);
 
 
 struct cluster_info {
@@ -2194,42 +2143,42 @@ struct cluster_info {
 };
 
 int bdb_fill_cluster_info(void **data, int *num_nodes);
-int bdb_min_truncate(bdb_state_type *bdb_state, int *file, int *offset,
+int bdb_min_truncate(bdb_env_type *bdb_state, int *file, int *offset,
                      int32_t *timestamp);
-int bdb_dump_mintruncate_list(bdb_state_type *bdb_state);
-int bdb_clear_mintruncate_list(bdb_state_type *bdb_state);
-int bdb_build_mintruncate_list(bdb_state_type *bdb_state);
-int bdb_print_mintruncate_min(bdb_state_type *bdb_state);
+int bdb_dump_mintruncate_list(bdb_env_type *bdb_state);
+int bdb_clear_mintruncate_list(bdb_env_type *bdb_state);
+int bdb_build_mintruncate_list(bdb_env_type *bdb_state);
+int bdb_print_mintruncate_min(bdb_env_type *bdb_state);
 
 void wait_for_sc_to_stop(const char *operation, const char *func, int line);
 void allow_sc_to_run(void);
 
-int bdb_lock_stats(bdb_state_type *bdb_state, int64_t *nlocks);
+int bdb_lock_stats(bdb_env_type *bdb_state, int64_t *nlocks);
 
-int bdb_rep_stats(bdb_state_type *bdb_state, int64_t *nrep_deadlocks);
-int bdb_rep_deadlocks(bdb_state_type *bdb_state, int64_t *nrep_deadlocks);
+int bdb_rep_stats(bdb_env_type *bdb_state, int64_t *nrep_deadlocks);
+int bdb_rep_deadlocks(bdb_env_type *bdb_state, int64_t *nrep_deadlocks);
 
-int bdb_run_logical_recovery(bdb_state_type *bdb_state, int locks_only);
+int bdb_run_logical_recovery(bdb_env_type *bdb_state, int locks_only);
 
-int truncate_asof_pglogs(bdb_state_type *bdb_state, int file, int offset);
+int truncate_asof_pglogs(bdb_env_type *bdb_state, int file, int offset);
 
-int bdb_set_logical_live_sc(bdb_state_type *bdb_state, int lock);
-int bdb_clear_logical_live_sc(bdb_state_type *bdb_state, int lock);
+int bdb_set_logical_live_sc(bdb_table_type *bdb_state, int lock);
+int bdb_clear_logical_live_sc(bdb_table_type *bdb_state, int lock);
 
 /* Pack the payload into heap memory */
-int bdb_pack_heap(bdb_state_type *bdb_state, void *in, size_t inlen, void **out,
+int bdb_pack_heap(bdb_table_type *bdb_state, void *in, size_t inlen, void **out,
                   size_t *outlen, void **freeptr);
 /* If the payload is uncompressed, point `out' to where the record starts;
  * Otherwise unpack the payload into heap memory. */
-int bdb_unpack_heap(bdb_state_type *bdb_state, void *in, size_t inlen,
+int bdb_unpack_heap(bdb_table_type *bdb_state, void *in, size_t inlen,
                     void **out, size_t *outlen, void **freeptr);
 /* Abort if this thread has an open transaction */
-void bdb_assert_notran(bdb_state_type *bdb_state);
+void bdb_assert_notran(bdb_env_type *bdb_state);
 
-int bdb_debug_log(bdb_state_type *bdb_state, tran_type *tran, int op);
+int bdb_debug_log(bdb_env_type *bdb_state, tran_type *tran, int op);
 
 /* Return 1 if this node is master, 0 otherwise */
-int bdb_iam_master(bdb_state_type *bdb_state);
+int bdb_iam_master(bdb_env_type *bdb_state);
 
 int32_t bdb_get_dbopen_gen(void);
 

@@ -3003,7 +3003,7 @@ clipper_usage:
                 return 0;
             }
             headroom = toknum(tok, ltok);
-            analyze_set_headroom(headroom);
+            bdb_analyze_set_headroom(headroom);
         } else if (tokcmp(tok, ltok, "backout") == 0) {
             tok = segtok(line, lline, &st, &ltok);
             char * table = NULL;

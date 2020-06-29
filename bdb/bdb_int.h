@@ -1250,16 +1250,6 @@ void bdb_checkpoint_list_init();
 int bdb_checkpoint_list_push(DB_LSN lsn, DB_LSN ckp_lsn, int32_t timestamp);
 void bdb_checkpoint_list_get_ckplsn_before_lsn(DB_LSN lsn, DB_LSN *lsnout);
 
-/* rep.c */
-int bdb_is_skip(bdb_state_type *bdb_state, int node);
-
-void bdb_set_skip(bdb_state_type *bdb_state, int node);
-
-void bdb_clear_skip(bdb_state_type *bdb_state, int node);
-
-/* remove all nodes from skip list */
-void bdb_clear_skip_list(bdb_state_type *bdb_state);
-
 /* tran.c */
 int bdb_tran_rep_handle_dead(bdb_state_type *bdb_state);
 

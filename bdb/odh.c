@@ -122,10 +122,8 @@ static void write_odh(void *buf, const struct odh *odh, uint8_t flags);
 /* Return 1 if ip-updates are enabled.  Does not care about schema-change */
 inline int ip_updates_enabled(bdb_state_type *bdb_state)
 {
-    if ((bdb_state->attr
-             ->dtastripe) && /* non-dtastripe already update in-place */
-        (bdb_state
-             ->ondisk_header) && /* require the header to store the updateid */
+    if ((bdb_state->attr->dtastripe) && /* non-dtastripe already update in-place */
+        (bdb_state->ondisk_header) && /* require the header to store the updateid */
         (bdb_state->inplace_updates)) {
         return 1;
     } else {

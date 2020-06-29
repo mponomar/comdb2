@@ -4046,8 +4046,6 @@ low_headroom:
 
 int bdb_get_low_headroom_count(bdb_state_type *bdb_state)
 {
-    if (bdb_state->parent)
-        bdb_state = bdb_state->parent;
     return bdb_state->low_headroom_count;
 }
 
@@ -5449,8 +5447,6 @@ static void deadlock_happened(struct berkdb_deadlock_info *deadlock_info)
     if (debug_switch_verbose_deadlocks_log())
         ctrace("deadlk %u %x\n", deadlock_info->lid, (unsigned)pthread_self());
 }
-
-int bdb_is_open(bdb_state_type *bdb_state) { return bdb_state->isopen; }
 
 int create_master_lease_thread(bdb_state_type *bdb_state)
 {

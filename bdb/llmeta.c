@@ -37,7 +37,7 @@
 extern int gbl_maxretries;
 extern int gbl_disable_access_controls;
 
-static bdb_state_type *llmeta_bdb_state = NULL; /* the low level meta table */
+static bdb_table_type *llmeta_bdb_state = NULL; /* the low level meta table */
 
 enum {
     LLMETA_IXLEN = 120 /* length of a llmeta key */
@@ -8120,7 +8120,9 @@ void llmeta_list_tablename_alias(void)
     bdb_lite_list_records(llmeta_bdb_state, bdb_llmeta_print_alias, &bdberr);
 }
 
-bdb_state_type *bdb_llmeta_bdb_state(void) { return llmeta_bdb_state; }
+bdb_table_type *bdb_llmeta_bdb_state(void) { 
+    return llmeta_bdb_state;
+}
 
 static int bdb_table_version_upsert_int(bdb_state_type *bdb_state,
                                         tran_type *tran,

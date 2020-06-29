@@ -59,7 +59,6 @@ int bdb_am_i_coherent(void *bdb_state);
 void bdb_get_writelock(void *bdb_state,
 	const char *idstr, const char *funcname, int line);
 void bdb_rellock(void *bdb_state, const char *funcname, int line);
-int bdb_is_open(void *bdb_state);
 int rep_qstat_has_fills(void);
 
 extern int gbl_rep_printlock;
