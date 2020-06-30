@@ -445,7 +445,7 @@ struct tran_tag {
     /* cache the versions of dta files to catch schema changes and fastinits */
     int table_version_cache_sz;
     unsigned long long *table_version_cache;
-    bdb_state_type *parent_state;
+    bdb_env_type *parent_state;
 
     /* Send the master periodic 'acks' after this many physical commits */
     int request_ack;
@@ -555,7 +555,7 @@ struct bdb_cursor_impl_tag {
     int idx;                   /* BDBC_IX:ixnum, BDBC_DT:split_dta_num */
 
     /* transaction */
-    bdb_state_type *state;  /* state for */
+    bdb_table_type *state;  /* state for */
     cursor_tran_t *curtran; /* all cursors (but comdb2 mode have this */
     tran_type *shadow_tran; /* read committed and snapshot/serializable modes */
 
@@ -798,7 +798,7 @@ struct sc_redo_lsn {
     LINKC_T(struct sc_redo_lsn) lnk;
 };
 
-struct bdb_state_tag {
+struct bdb_env_tag {
     pthread_attr_t pthread_attr_detach;
     seqnum_info_type *seqnum_info;
     bdb_attr_type *attr;         /* attributes that have defaults */
@@ -806,39 +806,15 @@ struct bdb_state_tag {
     DB_ENV *dbenv;               /* transactional environment */
     int read_write;              /* if we opened the db with R/W access */
     repinfo_type *repinfo;       /* replication info */
-    signed char numdtafiles;
-
-    /* the berkeley db btrees underlying this "table" */
-    DB *dbp_data[MAXDTAFILES][MAXDTASTRIPE]; /* the data files. dbp_data[0] is
-                                     the primary data file which would contain
-                                     the record.  higher files are extra data
-                                     aka the blobs.  in blobstripe mode the
-                                     blob files are striped too, otherwise
-                                     they are not. */
-    DB *dbp_ix[MAXINDEX];                    /* handle for the ixN files */
 
     pthread_key_t tid_key;
 
     int numthreads;
     pthread_mutex_t numthreads_lock;
-
-    char *name;         /* name of the comdb */
+    char *dbname;         /* name of the comdb */
     char *txndir;       /* name of the transaction directory for log files */
     char *tmpdir;       /* name of directory for tempoarary dbs */
     char *dir;          /* directory the files go in (/bb/data /bb/data2) */
-    int lrl;            /* Logical Record Length (0 = variable) */
-    short numix;        /* number of indexes */
-    short ixlen[MAXINDEX];            /* size of each index */
-    signed char ixdta[MAXINDEX];      /* does this index contain the dta? */
-    signed char ixcollattr[MAXINDEX]; /* does this index contain the column
-                                         attributes? */
-    signed char ixnulls[MAXINDEX];    /*does this index contain any columns that
-                                         allow nulls?*/
-    signed char ixdups[MAXINDEX];     /* 1 if ix allows dupes, else 0 */
-    signed char
-        ixrecnum[MAXINDEX]; /* 1 if we turned on recnum mode for btrees */
-
-    short keymaxsz; /* size of the keymax buffer */
 
     /* the helper threads (only valid for a "parent" bdb_state) */
     pthread_t checkpoint_thread;
@@ -849,9 +825,10 @@ struct bdb_state_tag {
     pthread_t coherency_lease_thread;
     pthread_t master_lease_thread;
 
-    struct bdb_state_tag *parent; /* pointer to our parent */
+    /* table handles */
     short numchildren;
     struct bdb_state_tag *children[MAX_CHILDREN];
+
     pthread_rwlock_t *bdb_lock;   /* we need this to do safe upgrades.  fetch
                                      operations get a read lock, upgrade requires
                                      a write lock - this way we can close and
@@ -861,8 +838,6 @@ struct bdb_state_tag {
                                      fast dump should GET OUT! so that we can
                                      upgrade/downgrade */
 
-    void *usr_ptr;
-
     pthread_t bdb_lock_write_holder;
     thread_lock_info_type *bdb_lock_write_holder_ptr;
     char bdb_lock_write_idstr[80];
@@ -870,30 +845,7 @@ struct bdb_state_tag {
     unsigned int last_genid_epoch;
     pthread_mutex_t seed_lock;
 
-    /* One of the BDBTYPE_ constants */
-    int bdbtype;
-
-    /* How many total queue/queuedb add/consume operations total (ever)? */
-    int qdb_adds;
-    int qdb_cons;
-
-    /* Lite databases have no rrn cache, freerecs files, ix# files */
-    int pagesize_override; /* 0, or a power of 2 */
-
-    size_t queue_item_sz; /* size of a queue record in bytes (including
-                           * struct bdb_queue_header) */
-
-    /* bit mask of which consumers want to consume new queue items */
-    uint32_t active_consumers;
-
-    unsigned long long master_cmpcontext;
-
-    /* stuff for the genid->thread affinity logic */
-    int maxthreadid;
-    unsigned char stripe_pool[17];
-    unsigned char stripe_pool_start;
-    pthread_mutex_t last_dta_lk;
-    int last_dta;
+    void *usr_ptr;
 
     /* when did we convert to blobstripe? */
     unsigned long long blobstripe_convert_genid;
@@ -919,23 +871,22 @@ struct bdb_state_tag {
     pthread_mutex_t translist_lk;
     LISTC_T(struct tran_tag) logical_transactions_list;
 
-    /* for queues this points to extra stuff defined in queue.c */
-    bdb_queue_priv *qpriv;
+    unsigned long long master_cmpcontext;
 
+    /* temp tables */
     void *temp_list;
     pthread_mutex_t temp_list_lock;
     comdb2_objpool_t temp_table_pool; /* pooled temptables */
     pthread_t priosqlthr;
     int haspriosqlthr;
-
     int temp_table_id;
-
     int num_temp_tables;
 
     DB_MPOOL_STAT *temp_stats;
 
     pthread_mutex_t id_lock;
     unsigned int id;
+
     pthread_mutex_t gblcontext_lock;
     pthread_mutex_t children_lock;
     signed char have_children_lock;
@@ -943,20 +894,12 @@ struct bdb_state_tag {
     FILE *bdblock_debug_fp;
     pthread_mutex_t bdblock_debug_lock;
 
-    uint8_t version;
-
     /* access control */
     bdb_access_t *access;
 
-    char *origname; /* name before new.name shenanigans */
-
     pthread_mutex_t exit_lock;
-
-    signed char have_recnums; /* 1 if ANY index has recnums enabled */
-
     signed char exiting;
     signed char caught_up; /* if we passed the recovery phase */
-
     signed char envonly;
 
     signed char need_to_downgrade_and_lose;
@@ -965,15 +908,6 @@ struct bdb_state_tag {
     signed char berkdb_rep_startupdone;
 
     signed char rep_started;
-
-    signed char master_handle;
-
-    signed char sanc_ok;
-
-    signed char ondisk_header; /* boolean: give each record an ondisk header? */
-    signed char compress;      /* boolean: compress data? */
-    signed char compress_blobs; /*boolean: compress blobs? */
-    signed char persistent_seq; /* boolean: persistent seq for queue? */
 
     signed char got_gblcontext;
     signed char need_to_upgrade;
@@ -992,21 +926,10 @@ struct bdb_state_tag {
 
     pthread_mutex_t coherent_state_lock;
 
-    signed char
-        not_coherent; /*master sets this if it knows were not coherent */
+    signed char not_coherent; /*master sets this if it knows were not coherent */
     int not_coherent_time;
 
     uint64_t *last_downgrade_time;
-
-    /* old databases with datacopy don't have odh in index */
-    signed char datacopy_odh;
-
-    /* inplace updates setting */
-    signed char inplace_updates;
-
-    signed char instant_schema_change;
-
-    signed char rep_handle_dead;
 
     /* keep this as an int, it's read locklessly */
     int passed_dbenv_open;
@@ -1017,17 +940,6 @@ struct bdb_state_tag {
     pthread_mutex_t thread_lock_info_list_mutex;
     LISTC_T(thread_lock_info_type) thread_lock_info_list;
 
-    /* cache the version_num for the data; this is used to detect dta changes */
-    unsigned long long version_num;
-
-    pthread_cond_t temptable_wait;
-#ifdef DEBUG_TEMP_TABLES
-    LISTC_T(struct temp_table) busy_temptables;
-#endif
-    char *recoverylsn;
-
-    int disable_page_order_tablescan;
-
     pthread_mutex_t *blkseq_lk;
     DB_ENV **blkseq_env;
     DB **blkseq[2];
@@ -1037,12 +949,7 @@ struct bdb_state_tag {
     int pvt_blkseq_stripes;
     uint32_t genid_format;
 
-    /* we keep a per bdb_state copy to enhance locality */
-    unsigned int bmaszthresh;
-    comdb2bma bma;
-
     pthread_mutex_t durable_lsn_lk;
-    uint16_t *fld_hints;
 
     int logical_live_sc;
     pthread_mutex_t sc_redo_lk;
@@ -1050,9 +957,94 @@ struct bdb_state_tag {
     LISTC_T(struct sc_redo_lsn) sc_redo_list;
 };
 
+struct bdb_table_tag {
+    char *table_name;
+    signed char numdtafiles;
+
+    /* the berkeley db btrees underlying this "table" */
+    DB *dbp_data[MAXDTAFILES][MAXDTASTRIPE]; /* the data files. dbp_data[0] is
+                                     the primary data file which would contain
+                                     the record.  higher files are extra data
+                                     aka the blobs.  in blobstripe mode the
+                                     blob files are striped too, otherwise
+                                     they are not. */
+    DB *dbp_ix[MAXINDEX];                    /* handle for the ixN files */
+    int lrl;            /* Logical Record Length (0 = variable) */
+    short numix;        /* number of indexes */
+    short ixlen[MAXINDEX];            /* size of each index */
+    signed char ixdta[MAXINDEX];      /* does this index contain the dta? */
+    signed char ixcollattr[MAXINDEX]; /* does this index contain the column
+                                         attributes? */
+    signed char ixnulls[MAXINDEX];    /*does this index contain any columns that
+                                         allow nulls?*/
+    signed char ixdups[MAXINDEX];     /* 1 if ix allows dupes, else 0 */
+    signed char
+        ixrecnum[MAXINDEX]; /* 1 if we turned on recnum mode for btrees */
+    short keymaxsz; /* size of the keymax buffer */
+
+    struct bdb_env_tag *env; /* pointer to environment handle */
+    /* One of the BDBTYPE_ constants */
+    int bdbtype;
+
+    /* How many total queue/queuedb add/consume operations total (ever)? */
+    int qdb_adds;
+    int qdb_cons;
+
+    /* Lite databases have no rrn cache, freerecs files, ix# files */
+    int pagesize_override; /* 0, or a power of 2 */
+
+    size_t queue_item_sz; /* size of a queue record in bytes (including
+                           * struct bdb_queue_header) */
+
+    /* bit mask of which consumers want to consume new queue items */
+    uint32_t active_consumers;
+
+    /* for queues this points to extra stuff defined in queue.c */
+    bdb_queue_priv *qpriv;
+
+    uint8_t version;
+
+    char *origname; /* name before new.name shenanigans */
+
+    signed char have_recnums; /* 1 if ANY index has recnums enabled */
+
+    signed char master_handle;
+
+    signed char sanc_ok;
+
+    signed char ondisk_header; /* boolean: give each record an ondisk header? */
+    signed char compress;      /* boolean: compress data? */
+    signed char compress_blobs; /*boolean: compress blobs? */
+    signed char persistent_seq; /* boolean: persistent seq for queue? */
+
+    /* old databases with datacopy don't have odh in index */
+    signed char datacopy_odh;
+
+    /* inplace updates setting */
+    signed char inplace_updates;
+    signed char instant_schema_change;
+    signed char rep_handle_dead;
+
+    /* cache the version_num for the data; this is used to detect dta changes */
+    unsigned long long version_num;
+
+#ifdef DEBUG_TEMP_TABLES
+    LISTC_T(struct temp_table) busy_temptables;
+#endif
+    char *recoverylsn;
+
+    int disable_page_order_tablescan;
+
+    /* we keep a per bdb_state copy to enhance locality */
+    unsigned int bmaszthresh;
+    comdb2bma bma;
+
+    uint16_t *fld_hints;
+};
+
 #include <net_types.h>
 
-void print(bdb_state_type *bdb_state, char *format, ...);
+void print(bdb_env_type *bdb_state, char *format, ...);
 
 typedef struct {
     DB_LSN lsn;
@@ -1139,42 +1131,42 @@ void *mymalloc(size_t size);
 void myfree(void *ptr);
 void *myrealloc(void *ptr, size_t size);
 
-int bdb_upgrade(bdb_state_type *bdb_state, uint32_t newgen, int *done);
-int bdb_downgrade(bdb_state_type *bdb_state, uint32_t newgen, int *done);
-int bdb_downgrade_noelect(bdb_state_type *bdb_state);
-int get_seqnum(bdb_state_type *bdb_state, const char *host);
-void bdb_set_key(bdb_state_type *bdb_state);
+int bdb_upgrade(bdb_env_type *bdb_state, uint32_t newgen, int *done);
+int bdb_downgrade(bdb_env_type *bdb_state, uint32_t newgen, int *done);
+int bdb_downgrade_noelect(bdb_env_type *bdb_state);
+int get_seqnum(bdb_env_type *bdb_state, const char *host);
+void bdb_set_key(bdb_env_type *bdb_state);
 
-uint64_t subtract_lsn(bdb_state_type *bdb_state, DB_LSN *lsn1, DB_LSN *lsn2);
-void get_my_lsn(bdb_state_type *bdb_state, DB_LSN *lsnout);
-void rep_all_req(bdb_state_type *bdb_state);
-void get_master_lsn(bdb_state_type *bdb_state, DB_LSN *lsnout);
-void bdb_print_log_files(bdb_state_type *bdb_state);
+uint64_t subtract_lsn(bdb_env_type *bdb_state, DB_LSN *lsn1, DB_LSN *lsn2);
+void get_my_lsn(bdb_env_type *bdb_state, DB_LSN *lsnout);
+void rep_all_req(bdb_env_type *bdb_state);
+void get_master_lsn(bdb_env_type *bdb_state, DB_LSN *lsnout);
+void bdb_print_log_files(bdb_env_type *bdb_state);
 char *lsn_to_str(char lsn_str[], DB_LSN *lsn);
 
-int bdb_get_datafile_num_files(bdb_state_type *bdb_state, int dtanum);
+int bdb_get_datafile_num_files(bdb_table_type *bdb_state, int dtanum);
 
 /* genid related utilities */
-unsigned long long get_genid(bdb_state_type *bdb_state, unsigned int dtafile);
-DB *get_dbp_from_genid(bdb_state_type *bdb_state, int dtanum,
+unsigned long long get_genid(bdb_env_type *bdb_state, unsigned int dtafile);
+DB *get_dbp_from_genid(bdb_table_type *bdb_state, int dtanum,
                        unsigned long long genid, int *out_dtafile);
-unsigned long long set_participant_stripeid(bdb_state_type *bdb_state,
+unsigned long long set_participant_stripeid(bdb_env_type *bdb_state,
                                             int stripeid,
                                             unsigned long long genid);
-unsigned long long set_updateid(bdb_state_type *bdb_state, int updateid,
+unsigned long long set_updateid(bdb_env_type *bdb_state, int updateid,
                                 unsigned long long genid);
-int get_participant_stripe_from_genid(bdb_state_type *bdb_state,
+int get_participant_stripe_from_genid(bdb_env_type *bdb_state,
                                       unsigned long long genid);
-int get_updateid_from_genid(bdb_state_type *bdb_state,
+int get_updateid_from_genid(bdb_env_type *bdb_state,
                             unsigned long long genid);
-int max_participant_stripeid(bdb_state_type *bdb_state);
-int max_updateid(bdb_state_type *bdb_state);
-unsigned long long get_search_genid(bdb_state_type *bdb_state,
+int max_participant_stripeid(bdb_env_type *bdb_state);
+int max_updateid(bdb_env_type *bdb_state);
+unsigned long long get_search_genid(bdb_env_type *bdb_state,
                                     unsigned long long genid);
 
 unsigned long long get_search_genid_rowlocks(unsigned long long genid);
 
-int bdb_inplace_cmp_genids(bdb_state_type *bdb_state, unsigned long long g1,
+int bdb_inplace_cmp_genids(bdb_env_type *bdb_state, unsigned long long g1,
                            unsigned long long g2);
 
 /* prototype pinched from Berkeley DB internals. */
@@ -1183,75 +1175,70 @@ int __rep_send_message(DB_ENV *, char *, u_int32_t, DB_LSN *, const DBT *,
 
 /* Error handling utilities */
 int bdb_dbcp_close(DBC **dbcp_ptr, int *bdberr, const char *context_str);
-void bdb_cursor_error(bdb_state_type *bdb_state, DB_TXN *tid, int rc,
+void bdb_cursor_error(bdb_env_type *bdb_env, DB_TXN *tid, int rc,
                       int *bdberr, const char *context_str);
-void bdb_get_error(bdb_state_type *bdb_state, DB_TXN *tid, int rc,
+void bdb_get_error(bdb_env_type *bdb_env, DB_TXN *tid, int rc,
                    int not_found_rc, int *bdberr, const char *context_str);
-void bdb_c_get_error(bdb_state_type *bdb_state, DB_TXN *tid, DBC **dbcp, int rc,
+void bdb_c_get_error(bdb_env_type *bdb_env, DB_TXN *tid, DBC **dbcp, int rc,
                      int not_found_rc, int *bdberr, const char *context_str);
 
-/* compression wrappers for I/O */
-void bdb_maybe_compress_data(bdb_state_type *bdb_state, DBT *data, DBT *data2);
-void bdb_maybe_uncompress_data(bdb_state_type *bdb_state, DBT *data,
-                               DBT *data2);
-
-int bdb_cget_unpack(bdb_state_type *bdb_state, DBC *dbcp, DBT *key, DBT *data,
+int bdb_cget_unpack(bdb_table_type *bdb_state, DBC *dbcp, DBT *key, DBT *data,
                     uint8_t *ver, u_int32_t flags);
-int bdb_cget_unpack_blob(bdb_state_type *bdb_state, DBC *dbcp, DBT *key,
+int bdb_cget_unpack_blob(bdb_table_type *bdb_state, DBC *dbcp, DBT *key,
                          DBT *data, uint8_t *ver, u_int32_t flags);
-int bdb_get_unpack_blob(bdb_state_type *bdb_state, DB *db, DB_TXN *tid,
+int bdb_get_unpack_blob(bdb_table_type *bdb_state, DB *db, DB_TXN *tid,
                         DBT *key, DBT *data, uint8_t *ver, u_int32_t flags);
-int bdb_get_unpack(bdb_state_type *bdb_state, DB *db, DB_TXN *tid, DBT *key,
+int bdb_get_unpack(bdb_table_type *bdb_state, DB *db, DB_TXN *tid, DBT *key,
                    DBT *data, uint8_t *ver, u_int32_t flags);
-int bdb_put_pack(bdb_state_type *bdb_state, int is_blob, DB *db, DB_TXN *tid,
+int bdb_put_pack(bdb_table_type *bdb_state, int is_blob, DB *db, DB_TXN *tid,
                  DBT *key, DBT *data, u_int32_t flags, int odhready);
 
-int bdb_cput_pack(bdb_state_type *bdb_state, int is_blob, DBC *dbcp, DBT *key,
+int bdb_cput_pack(bdb_table_type *bdb_state, int is_blob, DBC *dbcp, DBT *key,
                   DBT *data, u_int32_t flags);
 
-int bdb_put(bdb_state_type *bdb_state, DB *db, DB_TXN *tid, DBT *key, DBT *data,
+int bdb_put(bdb_table_type *bdb_state, DB *db, DB_TXN *tid, DBT *key, DBT *data,
             u_int32_t flags);
 
-int bdb_cposition(bdb_state_type *bdb_state, DBC *dbcp, DBT *key,
+int bdb_cposition(bdb_table_type *bdb_state, DBC *dbcp, DBT *key,
                   u_int32_t flags);
 
-int bdb_update_updateid(bdb_state_type *bdb_state, DBC *dbcp,
+int bdb_update_updateid(bdb_env_type *bdb_state, DBC *dbcp,
                         unsigned long long oldgenid,
                         unsigned long long newgenid);
 
-int bdb_cget(bdb_state_type *bdb_state, DBC *dbcp, DBT *key, DBT *data,
+int bdb_cget(bdb_table_type *bdb_state, DBC *dbcp, DBT *key, DBT *data,
              u_int32_t flags);
 
-void init_odh(bdb_state_type *bdb_state, struct odh *odh, void *rec,
+void init_odh(bdb_table_type *bdb_state, struct odh *odh, void *rec,
               size_t reclen, int dtanum);
 
-int bdb_pack(bdb_state_type *bdb_state, const struct odh *odh, void *to,
+int bdb_pack(bdb_table_type *bdb_state, const struct odh *odh, void *to,
              size_t tolen, void **recptr, uint32_t *recsize, void **freeptr);
 
-int bdb_unpack(bdb_state_type *bdb_state, const void *from, size_t fromlen,
+int bdb_unpack(bdb_table_type *bdb_state, const void *from, size_t fromlen,
                void *to, size_t tolen, struct odh *odh, void **freeptr);
 
 /* This is used by */
-int bdb_unpack_force_odh(bdb_state_type *bdb_state, const void *from,
+int bdb_unpack_force_odh(bdb_table_type *bdb_state, const void *from,
                          size_t fromlen, void *to, size_t tolen,
                          struct odh *odh, void **freeptr);
 
-int bdb_retrieve_updateid(bdb_state_type *bdb_state, const void *from,
+int bdb_retrieve_updateid(bdb_env_type *bdb_state, const void *from,
                           size_t fromlen);
 
-int ip_updates_enabled_sc(bdb_state_type *bdb_state);
-int ip_updates_enabled(bdb_state_type *bdb_state);
+int ip_updates_enabled_sc(bdb_table_type *bdb_state);
+int ip_updates_enabled(bdb_table_type *bdb_state);
 
 /* file.c */
-void delete_log_files(bdb_state_type *bdb_state);
-void delete_log_files_list(bdb_state_type *bdb_state, char **list);
-void delete_log_files_chkpt(bdb_state_type *bdb_state);
+void delete_log_files(bdb_env_type *bdb_state);
+void delete_log_files_list(bdb_env_type *bdb_state, char **list);
+void delete_log_files_chkpt(bdb_env_type *bdb_state);
 void bdb_checkpoint_list_init();
 int bdb_checkpoint_list_push(DB_LSN lsn, DB_LSN ckp_lsn, int32_t timestamp);
 void bdb_checkpoint_list_get_ckplsn_before_lsn(DB_LSN lsn, DB_LSN *lsnout);
 
 /* tran.c */
-int bdb_tran_rep_handle_dead(bdb_state_type *bdb_state);
+int bdb_tran_rep_handle_dead(bdb_env_type *bdb_state);
 
 /* useful debug stuff we've exposed in berkdb */
 extern void __bb_dbreg_print_dblist(DB_ENV *dbenv,
@@ -1266,182 +1253,180 @@ extern void __bb_dbreg_print_all_dblist(DB_ENV *dbenv,
 extern void __db_cprint(DB *db);
 #endif
 
-void bdb_queue_init_priv(bdb_state_type *bdb_state);
+void bdb_queue_init_priv(bdb_table_type *bdb_state);
 
 int bdb_apprec(DB_ENV *dbenv, DBT *log_rec, DB_LSN *lsn, db_recops op);
 
 int bdb_rowlock_int(DB_ENV *dbenv, DB_TXN *txn, unsigned long long genid,
                     int exclusive);
 
-int rep_caught_up(bdb_state_type *bdb_state);
+int rep_caught_up(bdb_env_type *bdb_state);
 
-void call_for_election(bdb_state_type *bdb_state, const char *func, int line);
+void call_for_election(bdb_env_type *bdb_state, const char *func, int line);
 
-int bdb_next_dtafile(bdb_state_type *bdb_state);
+int bdb_next_dtafile(bdb_table_type *bdb_state);
 
-int ll_key_add(bdb_state_type *bdb_state, unsigned long long genid,
+int ll_key_add(bdb_table_type *bdb_state, unsigned long long genid,
                tran_type *tran, int ixnum, DBT *dbt_key, DBT *dbt_data);
-int ll_dta_add(bdb_state_type *bdb_state, unsigned long long genid, DB *dbp,
+int ll_dta_add(bdb_table_type *bdb_state, unsigned long long genid, DB *dbp,
                tran_type *tran, int dtafile, int dtastripe, DBT *dbt_key,
                DBT *dbt_data, int flags, int odhready);
 
-int ll_dta_upd(bdb_state_type *bdb_state, int rrn, unsigned long long oldgenid,
+int ll_dta_upd(bdb_table_type *bdb_state, int rrn, unsigned long long oldgenid,
                unsigned long long *newgenid, DB *dbp, tran_type *tran,
                int dtafile, int dtastripe, int participantstripid,
                int use_new_genid, DBT *verify_dta, DBT *dta, DBT *old_dta_out,
                int odhready);
 
-int ll_dta_upd_blob(bdb_state_type *bdb_state, int rrn,
+int ll_dta_upd_blob(bdb_table_type *bdb_state, int rrn,
                     unsigned long long oldgenid, unsigned long long newgenid,
                     DB *dbp, tran_type *tran, int dtafile,
                     int participantstripid, int use_new_genid, DBT *dta,
                     int odhready);
 
-int ll_dta_upd_blob_w_opt(bdb_state_type *bdb_state, int rrn,
+int ll_dta_upd_blob_w_opt(bdb_table_type *bdb_state, int rrn,
                           unsigned long long oldgenid,
                           unsigned long long *newgenid, DB *dbp,
                           tran_type *tran, int dtafile, int dtastripe,
                           int participantstripid, int use_new_genid,
                           DBT *verify_dta, DBT *dta, DBT *old_dta_out);
 
-int ll_key_upd(bdb_state_type *bdb_state, tran_type *tran, char *table_name,
+int ll_key_upd(bdb_table_type *bdb_state, tran_type *tran, char *table_name,
                unsigned long long oldgenid, unsigned long long genid, void *key,
                int ixnum, int keylen, void *dta, int dtalen);
 
-int ll_key_del(bdb_state_type *bdb_state, tran_type *tran, int ixnum, void *key,
+int ll_key_del(bdb_table_type *bdb_state, tran_type *tran, int ixnum, void *key,
                int keylen, int rrn, unsigned long long genid, int *payloadsz);
 
-int ll_dta_del(bdb_state_type *bdb_state, tran_type *tran, int rrn,
+int ll_dta_del(bdb_table_type *bdb_state, tran_type *tran, int rrn,
                unsigned long long genid, DB *dbp, int dtafile, int dtastripe,
                DBT *dta_out);
 
-int ll_dta_upgrade(bdb_state_type *bdb_state, int rrn, unsigned long long genid,
+int ll_dta_upgrade(bdb_table_type *bdb_state, int rrn, unsigned long long genid,
                    DB *dbp, tran_type *tran, int dtafile, int dtastripe,
                    DBT *dta);
 
-int add_snapisol_logging(bdb_state_type *bdb_state, tran_type *tran);
-int phys_key_add(bdb_state_type *bdb_state, tran_type *tran,
+int add_snapisol_logging(bdb_table_type *bdb_state, tran_type *tran);
+int phys_key_add(bdb_table_type *bdb_state, tran_type *tran,
                  unsigned long long genid, int ixnum, DBT *dbt_key,
                  DBT *dbt_data);
-int phys_dta_add(bdb_state_type *bdb_state, tran_type *tran,
+int phys_dta_add(bdb_table_type *bdb_state, tran_type *tran,
                  unsigned long long genid, DB *dbp, int dtafile, int dtastripe,
                  DBT *dbt_key, DBT *dbt_data, int odhready);
 
-int get_physical_transaction(bdb_state_type *bdb_state, tran_type *logical_tran,
+int get_physical_transaction(bdb_env_type *bdb_state, tran_type *logical_tran,
                              tran_type **outtran, int force_commit);
-int phys_dta_upd(bdb_state_type *bdb_state, int rrn,
+int phys_dta_upd(bdb_table_type *bdb_state, int rrn,
                  unsigned long long oldgenid, unsigned long long *newgenid,
                  DB *dbp, tran_type *logical_tran, int dtafile, int dtastripe,
                  DBT *verify_dta, DBT *dta, int odhready);
 
-int phys_key_upd(bdb_state_type *bdb_state, tran_type *tran, char *table_name,
+int phys_key_upd(bdb_table_type *bdb_state, tran_type *tran, char *table_name,
                  unsigned long long oldgenid, unsigned long long genid,
                  void *key, int ix, int keylen, void *dta, int dtalen,
                  int llog_payload_len);
 
-int phys_rowlocks_log_bench_lk(bdb_state_type *bdb_state,
+int phys_rowlocks_log_bench_lk(bdb_table_type *bdb_state,
                                tran_type *logical_tran, int op, int arg1,
                                int arg2, void *payload, int paylen);
 
-int phys_key_del(bdb_state_type *bdb_state, tran_type *logical_tran,
+int phys_key_del(bdb_table_type *bdb_state, tran_type *logical_tran,
                  unsigned long long genid, int ixnum, DBT *key);
-int phys_dta_del(bdb_state_type *bdb_state, tran_type *logical_tran, int rrn,
+int phys_dta_del(bdb_table_type *bdb_state, tran_type *logical_tran, int rrn,
                  unsigned long long genid, DB *dbp, int dtafile, int dtastripe);
 
-int bdb_llog_add_dta_lk(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_llog_add_dta_lk(bdb_table_type *bdb_state, tran_type *tran,
                         unsigned long long genid, int dtafile, int dtastripe);
 
-int bdb_llog_del_dta_lk(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_llog_del_dta_lk(bdb_table_type *bdb_state, tran_type *tran,
                         unsigned long long genid, DBT *dbt_data, int dtafile,
                         int dtastripe);
 
-int bdb_llog_upd_dta_lk(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_llog_upd_dta_lk(bdb_table_type *bdb_state, tran_type *tran,
                         unsigned long long oldgenid,
                         unsigned long long newgenid, int dtafile, int dtastripe,
                         DBT *olddta);
 
-int bdb_llog_add_ix_lk(bdb_state_type *bdb_state, tran_type *tran, int ix,
+int bdb_llog_add_ix_lk(bdb_table_type *bdb_state, tran_type *tran, int ix,
                        unsigned long long genid, DBT *key, int dtalen);
 
-int bdb_llog_del_ix_lk(bdb_state_type *bdb_state, tran_type *tran, int ixnum,
+int bdb_llog_del_ix_lk(bdb_table_type *bdb_state, tran_type *tran, int ixnum,
                        unsigned long long genid, DBT *dbt_key, int payloadsz);
 
-int bdb_llog_upd_ix_lk(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_llog_upd_ix_lk(bdb_table_type *bdb_state, tran_type *tran,
                        char *table_name, void *key, int keylen, int ix,
                        int dtalen, unsigned long long oldgenid,
                        unsigned long long newgenid);
 
-int bdb_llog_rowlocks_bench(bdb_state_type *bdb_state, tran_type *tran, int op,
+int bdb_llog_rowlocks_bench(bdb_table_type *bdb_state, tran_type *tran, int op,
                             int arg1, int arg2, DBT *lock1, DBT *lock2,
                             void *payload, int paylen);
 
-int bdb_llog_commit(bdb_state_type *bdb_state, tran_type *tran, int isabort);
-int bdb_save_row_int(bdb_state_type *bdb_state_in, DB_TXN *txnid, char table[],
-                     unsigned long long genid);
+int bdb_llog_commit(bdb_env_type *bdb_state, tran_type *tran, int isabort);
 
-int abort_logical_transaction(bdb_state_type *bdb_state, tran_type *tran,
+int abort_logical_transaction(bdb_env_type *bdb_state, tran_type *tran,
                               DB_LSN *lsn, int about_to_commit);
 
-int ll_rowlocks_bench(bdb_state_type *bdb_state, tran_type *tran, int op,
+int ll_rowlocks_bench(bdb_env_type *bdb_state, tran_type *tran, int op,
                       int arg1, int arg2, void *payload, int paylen);
 
-int ll_checkpoint(bdb_state_type *bdb_state, int force);
+int ll_checkpoint(bdb_env_type *bdb_state, int force);
 
-int bdb_llog_start(bdb_state_type *bdb_state, tran_type *tran, DB_TXN *txn);
+int bdb_llog_start(bdb_env_type *bdb_state, tran_type *tran, DB_TXN *txn);
 
-tran_type *bdb_tran_continue_logical(bdb_state_type *bdb_state,
+tran_type *bdb_tran_continue_logical(bdb_env_type *bdb_state,
                                      unsigned long long tranid, int trak,
                                      int *bdberr);
 
-tran_type *bdb_tran_start_logical_forward_roll(bdb_state_type *bdb_state,
+tran_type *bdb_tran_start_logical_forward_roll(bdb_env_type *bdb_state,
                                                unsigned long long tranid,
                                                int trak, int *bdberr);
 
-tran_type *bdb_tran_start_logical(bdb_state_type *bdb_state,
+tran_type *bdb_tran_start_logical(bdb_env_type *bdb_state,
                                   unsigned long long tranid, int trak,
                                   int *bdberr);
 
-tran_type *bdb_tran_start_logical_sc(bdb_state_type *bdb_state,
+tran_type *bdb_tran_start_logical_sc(bdb_env_type *bdb_state,
                                      unsigned long long tranid, int trak,
                                      int *bdberr);
 
-int ll_undo_add_ix_lk(bdb_state_type *bdb_state, tran_type *tran,
+int ll_undo_add_ix_lk(bdb_table_type *bdb_state, tran_type *tran,
                       char *table_name, int ixnum, void *key, int keylen,
                       DB_LSN *undolsn);
 
-int ll_undo_add_dta_lk(bdb_state_type *bdb_state, tran_type *tran,
+int ll_undo_add_dta_lk(bdb_table_type *bdb_state, tran_type *tran,
                        char *table_name, unsigned long long genid,
                        DB_LSN *undolsn, int dtafile, int dtastripe);
 
-int ll_undo_del_ix_lk(bdb_state_type *bdb_state, tran_type *tran,
+int ll_undo_del_ix_lk(bdb_table_type *bdb_state, tran_type *tran,
                       char *table_name, unsigned long long genid, int ixnum,
                       DB_LSN *undolsn, void *key, int keylen, void *dta,
                       int dtalen);
 
-int ll_undo_del_dta_lk(bdb_state_type *bdb_state, tran_type *tran,
+int ll_undo_del_dta_lk(bdb_table_type *bdb_state, tran_type *tran,
                        char *table_name, unsigned long long genid,
                        DB_LSN *undolsn, int dtafile, int dtastripe, void *dta,
                        int dtalen);
 
-int ll_undo_upd_dta_lk(bdb_state_type *bdb_state, tran_type *tran,
+int ll_undo_upd_dta_lk(bdb_table_type *bdb_state, tran_type *tran,
                        char *table_name, unsigned long long oldgenid,
                        unsigned long long newgenid, void *olddta,
                        int olddta_len, int dtafile, int dtastripe,
                        DB_LSN *undolsn);
 
-int ll_undo_upd_ix_lk(bdb_state_type *bdb_state, tran_type *tran,
+int ll_undo_upd_ix_lk(bdb_table_type *bdb_state, tran_type *tran,
                       char *table_name, int ixnum, void *key, int keylen,
                       void *dta, int dtalen, DB_LSN *undolsn, void *diff,
                       int difflen, int suffix);
 
-int ll_undo_inplace_upd_dta_lk(bdb_state_type *bdb_state, tran_type *tran,
+int ll_undo_inplace_upd_dta_lk(bdb_table_type *bdb_state, tran_type *tran,
                                char *table_name, unsigned long long oldgenid,
                                unsigned long long newgenid, void *olddta,
                                int olddta_len, int dtafile, int dtastripe,
                                DB_LSN *undolsn);
-bdb_state_type *bdb_get_table_by_name(bdb_state_type *bdb_state, char *table);
+bdb_table_type *bdb_get_table_by_name(bdb_env_type *bdb_state, char *table);
 
-int bdb_llog_comprec(bdb_state_type *bdb_state, tran_type *tran, DB_LSN *lsn);
+int bdb_llog_comprec(bdb_env_type *bdb_state, tran_type *tran, DB_LSN *lsn);
 
 DB *bdb_temp_table_gettbl(struct temp_table *tbl);
 
@@ -1449,78 +1434,76 @@ void timeval_to_timespec(struct timeval *tv, struct timespec *ts);
 void add_millisecs_to_timespec(struct timespec *orig, int millisecs);
 int setup_waittime(struct timespec *waittime, int waitms);
 
-int bdb_keycontainsgenid(bdb_state_type *bdb_state, int ixnum);
-int bdb_maybe_use_genid_for_key(bdb_state_type *bdb_state, DBT *p_dbt_key, void *ixdta, int ixnum, unsigned long long genid, int isnull, void **ppKeyMaxBuf);
+int bdb_keycontainsgenid(bdb_table_type *bdb_state, int ixnum);
+int bdb_maybe_use_genid_for_key(bdb_table_type *bdb_state, DBT *p_dbt_key, void *ixdta, int ixnum, unsigned long long genid, int isnull, void **ppKeyMaxBuf);
 
-void send_filenum_to_all(bdb_state_type *bdb_state, int filenum, int nodelay);
+void send_filenum_to_all(bdb_env_type *bdb_state, int filenum, int nodelay);
 
-int bdb_get_file_lwm(bdb_state_type *bdb_state, tran_type *tran, DB_LSN *lsn,
+int bdb_get_file_lwm(bdb_env_type *bdb_state, tran_type *tran, DB_LSN *lsn,
                      int *bdberr);
-int bdb_set_file_lwm(bdb_state_type *bdb_state, tran_type *tran, DB_LSN *lsn,
+int bdb_set_file_lwm(bdb_env_type *bdb_state, tran_type *tran, DB_LSN *lsn,
                      int *bdberr);
-int bdb_delete_file_lwm(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_delete_file_lwm(bdb_env_type *bdb_state, tran_type *tran,
                         int *bdberr);
 
 int bdb_update_startlsn(struct tran_tag *intran, DB_LSN *firstlsn);
 
-int bdb_release_ltran_locks(bdb_state_type *bdb_state, struct tran_tag *ltran,
+int bdb_release_ltran_locks(bdb_env_type *bdb_state, struct tran_tag *ltran,
                             int lockerid);
 
 /* Update the startlsn- you must be holding the translist_lk while calling this
  */
-int bdb_update_startlsn_lk(bdb_state_type *bdb_state, struct tran_tag *intran,
+int bdb_update_startlsn_lk(bdb_env_type *bdb_state, struct tran_tag *intran,
                            DB_LSN *firstlsn);
 
-tran_type *bdb_tran_begin_logical_int(bdb_state_type *bdb_state,
+tran_type *bdb_tran_begin_logical_int(bdb_env_type *bdb_state,
                                       unsigned long long tranid, int trak,
                                       int *bdberr);
 
-tran_type *bdb_tran_begin_logical_norowlocks_int(bdb_state_type *bdb_state,
+tran_type *bdb_tran_begin_logical_norowlocks_int(bdb_env_type *bdb_state,
                                                  unsigned long long tranid,
                                                  int trak, int *bdberr);
 
-tran_type *bdb_tran_begin_notxn_int(bdb_state_type *bdb_state,
+tran_type *bdb_tran_begin_notxn_int(bdb_env_type *bdb_state,
                                     tran_type *parent, int *bdberr);
 
-tran_type *bdb_tran_begin_phys(bdb_state_type *bdb_state,
+tran_type *bdb_tran_begin_phys(bdb_env_type *bdb_state,
                                tran_type *logical_tran);
 
-int bdb_tran_commit_phys(bdb_state_type *bdb_state, tran_type *tran);
-int bdb_tran_commit_phys_getlsn(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_tran_commit_phys(bdb_env_type *bdb_state, tran_type *tran);
+int bdb_tran_commit_phys_getlsn(bdb_env_type *bdb_state, tran_type *tran,
                                 DB_LSN *lsn);
-int bdb_tran_abort_phys(bdb_state_type *bdb_state, tran_type *tran);
-int bdb_tran_abort_phys_retry(bdb_state_type *bdb_state, tran_type *tran);
+int bdb_tran_abort_phys(bdb_env_type *bdb_state, tran_type *tran);
+int bdb_tran_abort_phys_retry(bdb_env_type *bdb_state, tran_type *tran);
 
 /* for either logical or berk txns */
-int bdb_tran_abort_int(bdb_state_type *bdb_state, tran_type *tran, int *bdberr,
+int bdb_tran_abort_int(bdb_env_type *bdb_state, tran_type *tran, int *bdberr,
                        void *blkseq, int blklen, void *seqkey, int seqkeylen,
                        int *priority);
 
-int ll_dta_del(bdb_state_type *bdb_state, tran_type *tran, int rrn,
+int ll_dta_del(bdb_table_type *bdb_state, tran_type *tran, int rrn,
                unsigned long long genid, DB *dbp, int dtafile, int dtastripe,
                DBT *dta_out);
 
-int form_stripelock_keyname(bdb_state_type *bdb_state, int stripe,
+int form_stripelock_keyname(bdb_table_type *bdb_state, int stripe,
                             char *keynamebuf, DBT *dbt_out);
-int form_rowlock_keyname(bdb_state_type *bdb_state, int ixnum,
+int form_rowlock_keyname(bdb_table_type *bdb_state, int ixnum,
                          unsigned long long genid, char *keynamebuf,
                          DBT *dbt_out);
-int form_keylock_keyname(bdb_state_type *bdb_state, int ixnum, void *key,
-                         int keylen, char *keynamebuf, DBT *dbt_out);
 
-void set_gblcontext(bdb_state_type *bdb_state, unsigned long long gblcontext);
-unsigned long long get_gblcontext(bdb_state_type *bdb_state);
+void set_gblcontext(bdb_env_type *bdb_state, unsigned long long gblcontext);
+unsigned long long get_gblcontext(bdb_env_type *bdb_state);
 
-void bdb_bdblock_debug_init(bdb_state_type *bdb_state);
+void bdb_bdblock_debug_init(bdb_env_type *bdb_state);
 
 /* berkdb creator function */
 bdb_berkdb_t *bdb_berkdb_open(bdb_cursor_impl_t *cur, int type, int maxdata,
                               int maxkey, int *bdberr);
 
-void bdb_update_ltran_lsns(bdb_state_type *bdb_state, DB_LSN regop_lsn,
+void bdb_update_ltran_lsns(bdb_env_type *bdb_state, DB_LSN regop_lsn,
                            const void *args, unsigned int rectype);
 
-int update_shadows_beforecommit(bdb_state_type *bdb_state, DB_LSN *lsn,
+int update_shadows_beforecommit(bdb_env_type *bdb_state, DB_LSN *lsn,
                                 unsigned long long *commit_genid,
                                 int is_master);
 
@@ -1534,7 +1517,7 @@ int timestamp_lsn_keycmp(void *_, int key1len, const void *key1, int key2len,
  * Returned cursor is cached for further usage
  *
  */
-tmpcursor_t *bdb_tran_open_shadow(bdb_state_type *bdb_state, int dbnum,
+tmpcursor_t *bdb_tran_open_shadow(bdb_table_type *bdb_state, int dbnum,
                                   tran_type *shadow_tran, int idx, int type,
                                   int create, int *bdberr);
 
@@ -1544,7 +1527,7 @@ tmpcursor_t *bdb_tran_open_shadow(bdb_state_type *bdb_state, int dbnum,
  *
  */
 
-void bdb_tran_open_shadow_nocursor(bdb_state_type *bdb_state, int dbnum,
+void bdb_tran_open_shadow_nocursor(bdb_table_type *bdb_state, int dbnum,
                                    tran_type *shadow_tran, int idx, int type,
                                    int *bdberr);
 
@@ -1563,35 +1546,35 @@ tmpcursor_t *bdb_osql_open_backfilled_shadows(bdb_cursor_impl_t *cur,
  * the end of file
  *
  */
-int bdb_temp_table_next_norewind(bdb_state_type *bdb_state,
+int bdb_temp_table_next_norewind(bdb_env_type *bdb_state,
                                  struct temp_cursor *cursor, int *bdberr);
-int bdb_temp_table_prev_norewind(bdb_state_type *bdb_state,
+int bdb_temp_table_prev_norewind(bdb_env_type *bdb_state,
                                  struct temp_cursor *cursor, int *bdberr);
 
-bdb_state_type *bdb_get_table_by_name_dbnum(bdb_state_type *bdb_state,
+bdb_table_type *bdb_get_table_by_name_dbnum(bdb_env_type *bdb_state,
                                             char *table, int *dbnum);
 
-int bdb_get_lsn_lwm(bdb_state_type *bdb_state, DB_LSN *lsnout);
+int bdb_get_lsn_lwm(bdb_env_type *bdb_state, DB_LSN *lsnout);
 
 void *bdb_cursor_dbcp(bdb_cursor_impl_t *cur);
 
 extern int gbl_temptable_pool_capacity;
 hash_t *bdb_temp_table_histhash_init(void);
-int bdb_temp_table_clear_list(bdb_state_type *bdb_state);
-int bdb_temp_table_clear_pool(bdb_state_type *bdb_state);
-int bdb_temp_table_clear_cache(bdb_state_type *bdb_state);
+int bdb_temp_table_clear_list(bdb_env_type *bdb_state);
+int bdb_temp_table_clear_pool(bdb_env_type *bdb_state);
+int bdb_temp_table_clear_cache(bdb_env_type *bdb_state);
 int bdb_temp_table_create_pool_wrapper(void **tblp, void *bdb_state_arg);
 int bdb_temp_table_destroy_pool_wrapper(void *tbl, void *bdb_state_arg);
 int bdb_temp_table_notify_pool_wrapper(void **tblp, void *bdb_state_arg);
-int bdb_temp_table_move(bdb_state_type *bdb_state, struct temp_cursor *cursor,
+int bdb_temp_table_move(bdb_env_type *bdb_state, struct temp_cursor *cursor,
                         int how, int *bdberr);
 int bdb_temp_table_keysize(struct temp_cursor *cursor);
 int bdb_temp_table_datasize(struct temp_cursor *cursor);
 void *bdb_temp_table_key(struct temp_cursor *cursor);
 void *bdb_temp_table_data(struct temp_cursor *cursor);
-int bdb_temp_table_stat(bdb_state_type *bdb_state, DB_MPOOL_STAT **gspp);
+int bdb_temp_table_stat(bdb_env_type *bdb_state, DB_MPOOL_STAT **gspp);
 
-int bdb_get_active_logical_transaction_lsns(bdb_state_type *bdb_state,
+int bdb_get_active_logical_transaction_lsns(bdb_env_type *bdb_state,
                                             DB_LSN **lsnout, int *numlsns,
                                             int *bdberr,
                                             tran_type *shadow_tran);
@@ -1605,80 +1588,80 @@ DBC *get_cursor_for_cursortran_flags(cursor_tran_t *curtran, DB *db,
 
 int bdb_bdblock_debug_enabled(void);
 
-int bdb_reconstruct_add(bdb_state_type *state, DB_LSN *startlsn, void *key,
+int bdb_reconstruct_add(bdb_env_type *state, DB_LSN *startlsn, void *key,
                         int keylen, void *data, int datalen, int *p_dtalen,
                         int *p_keylen);
-int bdb_reconstruct_delete(bdb_state_type *state, DB_LSN *startlsn, int *page,
+int bdb_reconstruct_delete(bdb_env_type *state, DB_LSN *startlsn, int *page,
                            int *index, void *key, int keylen, void *data,
                            int datalen, int *outdatalen);
 
-int bdb_write_preamble(bdb_state_type *bdb_state, int *bdberr);
+int bdb_write_preamble(bdb_env_type *bdb_state, int *bdberr);
 
-int bdb_reconstruct_key_update(bdb_state_type *bdb_state, DB_LSN *startlsn,
+int bdb_reconstruct_key_update(bdb_env_type *bdb_state, DB_LSN *startlsn,
                                void **diff, int *offset, int *difflen);
 
-int bdb_reconstruct_inplace_update(bdb_state_type *bdb_state, DB_LSN *startlsn,
+int bdb_reconstruct_inplace_update(bdb_env_type *bdb_state, DB_LSN *startlsn,
                                    void *origd, int *origd_sz, void *newd,
                                    int *newd_sz, int *offset, int *outpage,
                                    int *outidx);
 
-unsigned long long get_id(bdb_state_type *bdb_state);
+unsigned long long get_id(bdb_env_type *bdb_state);
 
-int bdb_get_active_stripe_int(bdb_state_type *bdb_state);
-void bdb_dump_active_locks(bdb_state_type *bdb_state, FILE *out);
-void bdb_dump_cursors(bdb_state_type *bdb_state, FILE *out);
+int bdb_get_active_stripe_int(bdb_env_type *bdb_state);
+void bdb_dump_active_locks(bdb_env_type *bdb_state, FILE *out);
+void bdb_dump_cursors(bdb_env_type *bdb_state, FILE *out);
 
 /* All flavors of rowlocks */
-int bdb_lock_ix_value_write(bdb_state_type *bdb_state, tran_type *tran, int idx,
+int bdb_lock_ix_value_write(bdb_table_type *bdb_state, tran_type *tran, int idx,
                             DBT *dbt_key, DB_LOCK *lk, DBT *lkname,
                             int trylock);
-int bdb_lock_row_write_getlock(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_lock_row_write_getlock(bdb_table_type *bdb_state, tran_type *tran,
                                int idx, unsigned long long genid, DB_LOCK *dblk,
                                DBT *lkname, int trylock);
 
-int bdb_lock_row_write_getlock_fromlid(bdb_state_type *bdb_state, int lid,
+int bdb_lock_row_write_getlock_fromlid(bdb_table_type *bdb_state, int lid,
                                        int idx, unsigned long long genid,
                                        DB_LOCK *lk, DBT *lkname);
 
 /* Minmax lock routines - these are locks on start/end of a file */
-int bdb_lock_minmax(bdb_state_type *bdb_state, int ixnum, int stripe,
+int bdb_lock_minmax(bdb_table_type *bdb_state, int ixnum, int stripe,
                     int minmax, int how, DB_LOCK *dblk, DBT *lkname, int lid,
                     int trylock);
 
 /* Get-lock protocol functions.  These expect the cursor to be positioned. */
 
 /* rowlocks have the fileid of the row baked into them */
-int bdb_get_row_lock(bdb_state_type *bdb_state, int rowlock_lid, int idx,
+int bdb_get_row_lock(bdb_table_type *bdb_state, int rowlock_lid, int idx,
                      DBC *dbcp, unsigned long long genid, DB_LOCK *rlk,
                      DBT *lkname, int how);
 
-int bdb_get_row_lock_pfunc(bdb_state_type *bdb_state, int rowlock_lid, int idx,
+int bdb_get_row_lock_pfunc(bdb_table_type *bdb_state, int rowlock_lid, int idx,
                            DBC *dbcp, int (*pfunc)(void *), void *arg,
                            unsigned long long genid, DB_LOCK *rlk, DBT *lkname,
                            int how);
 
-int bdb_get_row_lock_minmaxlk(bdb_state_type *bdb_state, int rowlock_lid,
+int bdb_get_row_lock_minmaxlk(bdb_table_type *bdb_state, int rowlock_lid,
                               DBC *dbcp, int idx, int stripe, int minmax,
                               DB_LOCK *rlk, DBT *lkname, int how);
 
-int bdb_get_row_lock_minmaxlk_pfunc(bdb_state_type *bdb_state, int rowlock_lid,
+int bdb_get_row_lock_minmaxlk_pfunc(bdb_table_type *bdb_state, int rowlock_lid,
                                     DBC *dbcp, int (*pfunc)(void *), void *arg,
                                     int idx, int stripe, int minmax,
                                     DB_LOCK *rlk, DBT *lkname, int how);
 
-int bdb_release_lock(bdb_state_type *bdb_state, DB_LOCK *rowlock);
+int bdb_release_lock(bdb_env_type *bdb_state, DB_LOCK *rowlock);
 
-int bdb_release_row_lock(bdb_state_type *bdb_state, DB_LOCK *rowlock);
+int bdb_release_row_lock(bdb_env_type *bdb_state, DB_LOCK *rowlock);
 
 int bdb_describe_lock_dbt(DB_ENV *dbenv, DBT *dbtlk, char *out, int outlen);
 
 int bdb_describe_lock(DB_ENV *dbenv, DB_LOCK *lk, char *out, int outlen);
 
-int bdb_lock_row_fromlid(bdb_state_type *bdb_state, int lid, int idx,
+int bdb_lock_row_fromlid(bdb_table_type *bdb_state, int lid, int idx,
                          unsigned long long genid, int how, DB_LOCK *dblk,
                          DBT *lkname, int trylock);
 
-int bdb_lock_row_fromlid_int(bdb_state_type *bdb_state, int lid, int idx,
+int bdb_lock_row_fromlid_int(bdb_table_type *bdb_state, int lid, int idx,
                              unsigned long long genid, int how, DB_LOCK *dblk,
                              DBT *lkname, int trylock, int flags);
 
@@ -1696,10 +1679,10 @@ int bdb_curtran_freed(cursor_tran_t *curtran);
 extern int __db_count_cursors(DB *db);
 extern int __dbenv_count_cursors_dbenv(DB_ENV *dbenv);
 int bdb_dump_log(DB_ENV *dbenv, DB_LSN *startlsn);
-int release_locks_for_logical_transaction_object(bdb_state_type *bdb_state,
+int release_locks_for_logical_transaction_object(bdb_env_type *bdb_state,
                                                  tran_type *tran, int *bdberr);
 
-extern int bdb_reconstruct_update(bdb_state_type *bdb_state, DB_LSN *startlsn,
+extern int bdb_reconstruct_update(bdb_env_type *bdb_state, DB_LSN *startlsn,
                                   int *page, int *index, void *prevkey,
                                   int *prevkeylen, void *prevdata,
                                   int *prevdatalen, void *newkey,
@@ -1710,15 +1693,15 @@ int tran_allocate_rlptr(tran_type *tran, DBT **ptr, DB_LOCK **lptr);
 int tran_deallocate_pop(tran_type *tran, int count);
 int tran_reset_rowlist(tran_type *tran);
 
-void unpack_index_odh(bdb_state_type *bdb_state, DBT *data, void *foundgenid,
+void unpack_index_odh(bdb_table_type *bdb_state, DBT *data, void *foundgenid,
                       void *dta, int dtalen, int *reqdtalen, uint8_t *ver);
 
-int bdb_reopen_inline(bdb_state_type *);
-void bdb_setmaster(bdb_state_type *bdb_state, char *host);
+int bdb_reopen_inline(bdb_env_type *);
+void bdb_setmaster(bdb_env_type *bdb_state, char *host);
 int __db_check_all_btree_cursors(DB *dbp, db_pgno_t pgno);
 void __db_err(const DB_ENV *dbenv, const char *fmt, ...);
 
-void call_for_election_and_lose(bdb_state_type *bdb_state, const char *func,
+void call_for_election_and_lose(bdb_env_type *bdb_state, const char *func,
                                 int line);
 
 extern int gbl_sql_tranlevel_default;
@@ -1734,17 +1717,17 @@ extern int gbl_prefault_udp;
 extern int gbl_verify_all_pools;
 
 typedef struct udppf_rq {
-    bdb_state_type *bdb_state;
+    bdb_env_type *bdb_state;
     unsigned int fileid;
     unsigned int pgno;
 } udppf_rq_t;
 
-void start_udp_reader(bdb_state_type *bdb_state);
+void start_udp_reader(bdb_env_type *bdb_state);
 void *udpbackup_and_autoanalyze_thd(void *arg);
 void udp_backup(int, short, void *);
 void auto_analyze(int, short, void *);
 
-int do_ack(bdb_state_type *bdb_state, DB_LSN permlsn, uint32_t generation);
+int do_ack(bdb_env_type *bdb_state, DB_LSN permlsn, uint32_t generation);
 void berkdb_receive_rtn(void *ack_handle, void *usr_ptr, char *from_host,
                         int usertype, void *dta, int dtalen, uint8_t is_tcp);
 void berkdb_receive_msg(void *ack_handle, void *usr_ptr, char *from_host,
@@ -1763,7 +1746,7 @@ const uint8_t *db_lsn_type_put(const DB_LSN *p_db_lsn, uint8_t *p_buf,
                                const uint8_t *p_buf_end);
 void poke_updateid(void *buf, int updateid);
 
-void bdb_genid_sanity_check(bdb_state_type *bdb_state, unsigned long long genid,
+void bdb_genid_sanity_check(bdb_table_type *bdb_state, unsigned long long genid,
                             int stripe);
 
 /* If the page is from a dta file, `data` is a genid and `size` is 8 bytes.
@@ -1793,50 +1776,50 @@ uint8_t *pgcomp_snd_type_put(const pgcomp_snd_t *p_snd, uint8_t *p_buf,
 
 /* Page compact request on receiver's end */
 typedef struct pgcomp_rcv {
-    bdb_state_type *bdb_state;
+    bdb_huh_type *bdb_state;
     int32_t id;
     uint32_t size;
     char data[1];
 } pgcomp_rcv_t;
 
-int enqueue_pg_compact_work(bdb_state_type *bdb_state, int32_t fileid,
+int enqueue_pg_compact_work(bdb_env_type *bdb_state, int32_t fileid,
                             uint32_t size, const void *data);
 
-void add_dummy(bdb_state_type *);
+void add_dummy(bdb_env_type *);
 int bdb_add_dummy_llmeta(void);
 int bdb_add_dummy_llmeta_wait(int wait_for_seqnum);
-int bdb_have_ipu(bdb_state_type *bdb_state);
+int bdb_have_ipu(bdb_table_type *bdb_state);
 
 struct ack_info_t;
-void handle_tcp_timestamp(bdb_state_type *, struct ack_info_t *, char *to);
-void handle_tcp_timestamp_ack(bdb_state_type *, struct ack_info_t *);
-void handle_ping_timestamp(bdb_state_type *, struct ack_info_t *, char *to);
+void handle_tcp_timestamp(bdb_env_type *, struct ack_info_t *, char *to);
+void handle_tcp_timestamp_ack(bdb_env_type *, struct ack_info_t *);
+void handle_ping_timestamp(bdb_env_type *, struct ack_info_t *, char *to);
 
 unsigned long long bdb_logical_tranid(void *tran);
 
-int bdb_lite_list_records(bdb_state_type *bdb_state,
-                          int (*userfunc)(bdb_state_type *bdb_state, void *key,
+int bdb_lite_list_records(bdb_table_type *bdb_state,
+                          int (*userfunc)(bdb_table_type *bdb_state, void *key,
                                           int keylen, void *data, int datalen,
                                           int *bdberr),
                           int *bdberr);
 
-int bdb_osql_cache_table_versions(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_osql_cache_table_versions(bdb_env_type *bdb_state, tran_type *tran,
                                   int trak, int *bdberr);
 int bdb_temp_table_destroy_lru(struct temp_table *tbl,
-                               bdb_state_type *bdb_state, int *last,
+                               bdb_env_type *bdb_state, int *last,
                                int *bdberr);
 int is_table_in_schema_change(const char *tbname, tran_type *tran);
 
-void bdb_temp_table_init(bdb_state_type *bdb_state);
+void bdb_temp_table_init(bdb_env_type *bdb_state);
 
-int is_incoherent(bdb_state_type *bdb_state, const char *host);
+int is_incoherent(bdb_env_type *bdb_state, const char *host);
 
 int berkdb_start_logical(DB_ENV *dbenv, void *state, uint64_t ltranid,
                          DB_LSN *lsn);
 int berkdb_commit_logical(DB_ENV *dbenv, void *state, uint64_t ltranid,
                           DB_LSN *lsn);
 
-void send_coherency_leases(bdb_state_type *bdb_state, int lease_time,
+void send_coherency_leases(bdb_env_type *bdb_state, int lease_time,
                            int *do_add);
 
 int has_low_headroom(const char *path, int threshold, int debug);
@@ -1853,9 +1836,9 @@ int osql_process_message_decom(char *);
 void osql_net_exiting(void);
 void osql_cleanup_netinfo(void);
 
-int bdb_list_all_fileids_for_newsi(bdb_state_type *, hash_t *);
+int bdb_list_all_fileids_for_newsi(bdb_env_type *, hash_t *);
 
-int bdb_prepare_put_pack_updateid(bdb_state_type *bdb_state, int is_blob,
+int bdb_prepare_put_pack_updateid(bdb_table_type *bdb_state, int is_blob,
                                   DBT *data, DBT *data2, int updateid,
                                   void **freeptr, void *stackbuf, int odhready);
 #endif /* __bdb_int_h__ */

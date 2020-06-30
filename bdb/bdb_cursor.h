@@ -134,7 +134,7 @@ typedef struct bdb_cursor_ifn {
  *
  */
 bdb_cursor_ifn_t *
-bdb_cursor_open(bdb_state_type *bdb_state, cursor_tran_t *curtran,
+bdb_cursor_open(bdb_table_type *bdb_state, cursor_tran_t *curtran,
                 tran_type *shadow_tran, int ixnum, enum bdb_open_type type,
                 void *shadadd, /* THIS WILL GO AWAY */
                 int pageorder, int rowlocks, int *holding_pagelocks_flag,
@@ -142,29 +142,15 @@ bdb_cursor_open(bdb_state_type *bdb_state, cursor_tran_t *curtran,
                 int (*count_pagelock_cursors)(void *), void *countarg, int trak,
                 int *bdberr);
 
-int bdb_cursor_process_skip(bdb_state_type *bdb_state, tran_type *tran,
-                            /* upcall */
-                            void *arg0, void *arg1,
-                            int (*upcall)(void *, void *, int,
-                                          unsigned long long),
-                            int *bdberr);
-
-int bdb_cursor_process_sdata(bdb_state_type *bdb_state, tran_type *tran,
-                             /* upcall */
-                             void *arg0, void *arg1,
-                             int (*upcall)(void *, void *, int, void *, int,
-                                           unsigned long long),
-                             int *bdberr);
-
 int bdb_set_check_shadows(tran_type *shadow_tran);
 
 /**
  *  Create/destroy a curtran
  *
  */
-cursor_tran_t *bdb_get_cursortran(bdb_state_type *bdb_state, uint32_t flags,
+cursor_tran_t *bdb_get_cursortran(bdb_env_type *bdb_state, uint32_t flags,
                                   int *bdberr);
-int bdb_put_cursortran(bdb_state_type *bdb_state, cursor_tran_t *curtran,
+int bdb_put_cursortran(bdb_env_type *bdb_state, cursor_tran_t *curtran,
                        uint32_t flags, int *bdberr);
 
 /**
@@ -180,23 +166,19 @@ int bdb_get_lid_from_cursortran(cursor_tran_t *curtran);
  */
 int bdb_osql_trak(char *sql, unsigned int *status);
 
-int bdb_free_curtran_locks(bdb_state_type *bdb_state, cursor_tran_t *curtran,
+int bdb_free_curtran_locks(bdb_env_type *bdb_state, cursor_tran_t *curtran,
                            int *bdberr);
 
-int bdb_curtran_has_waiters(bdb_state_type *bdb_state, cursor_tran_t *curtran);
+int bdb_curtran_has_waiters(bdb_env_type *bdb_state, cursor_tran_t *curtran);
 
 unsigned int bdb_curtran_get_lockerid(cursor_tran_t *curtran);
 
-int bdb_bkfill_shadows_pglogs_from_active_ltrans(bdb_state_type *bdb_state,
-                                                 tran_type *shadow_tran,
-                                                 int *bdberr);
-
-int bdb_get_lsn_context_from_timestamp(bdb_state_type *bdb_state,
+int bdb_get_lsn_context_from_timestamp(bdb_env_type *bdb_state,
                                        int32_t timestamp, void *ret_lsn,
                                        unsigned long long *ret_context,
                                        int *bdberr);
 
-int bdb_get_context_from_lsn(bdb_state_type *bdb_state, void *lsnp,
+int bdb_get_context_from_lsn(bdb_env_type *bdb_state, void *lsnp,
                              unsigned long long *ret_context, int *bdberr);
 
 int bdb_direct_count(bdb_cursor_ifn_t *, int ixnum, int64_t *count);

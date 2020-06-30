@@ -37,12 +37,12 @@
 #include "tohex.h"
 
 extern int blkseq_get_rcode(void *data, int datalen);
-static int bdb_blkseq_update_lsn_locked(bdb_state_type *bdb_state,
+static int bdb_blkseq_update_lsn_locked(bdb_env_type *bdb_state,
                                         int timestamp, DB_LSN lsn, int stripe);
 
 extern int gbl_is_physical_replicant;
 
-static DB *create_blkseq(bdb_state_type *bdb_state, int stripe, int num)
+static DB *create_blkseq(bdb_env_type *bdb_state, int stripe, int num)
 {
     char fname[1024];
     DB *db;
@@ -82,7 +82,7 @@ static DB *create_blkseq(bdb_state_type *bdb_state, int stripe, int num)
     return db;
 }
 
-void bdb_cleanup_private_blkseq(bdb_state_type *bdb_state)
+void bdb_cleanup_private_blkseq(bdb_env_type *bdb_state)
 {
     if (!bdb_state) 
         return;
@@ -127,7 +127,7 @@ void bdb_cleanup_private_blkseq(bdb_state_type *bdb_state)
     }
 }
 
-int bdb_create_private_blkseq(bdb_state_type *bdb_state)
+int bdb_create_private_blkseq(bdb_env_type *bdb_state)
 {
     DB_ENV *env;
     int rc, nstripes;
@@ -183,7 +183,7 @@ int bdb_create_private_blkseq(bdb_state_type *bdb_state)
     return 0;
 }
 
-static uint8_t get_stripe(bdb_state_type *bdb_state, uint8_t *bytes, int len)
+static uint8_t get_stripe(bdb_env_type *bdb_state, uint8_t *bytes, int len)
 {
     uint8_t stripe = 0;
 
@@ -200,7 +200,7 @@ int bdb_blkseq_recover(DB_ENV *dbenv, u_int32_t rectype, llog_blkseq_args *args,
                        DB_LSN *lsn, db_recops op)
 {
     int rc = 0;
-    bdb_state_type *bdb_state;
+    bdb_env_type *bdb_state;
     uint8_t stripe;
 
     bdb_state = dbenv->app_private;
@@ -269,7 +269,7 @@ int bdb_blkseq_recover(DB_ENV *dbenv, u_int32_t rectype, llog_blkseq_args *args,
     return rc;
 }
 
-static void dump_logseq(bdb_state_type *bdb_state, struct seen_blkseq *logseq)
+static void dump_logseq(bdb_env_type *bdb_state, struct seen_blkseq *logseq)
 {
     int now = comdb2_time_epoch();
     logmsg(LOGMSG_USER, "log %d timestamp %d age %d ", logseq->logfile, logseq->timestamp,
@@ -279,7 +279,7 @@ static void dump_logseq(bdb_state_type *bdb_state, struct seen_blkseq *logseq)
     logmsg(LOGMSG_USER, "\n");
 }
 
-static int bdb_blkseq_update_lsn_locked(bdb_state_type *bdb_state,
+static int bdb_blkseq_update_lsn_locked(bdb_env_type *bdb_state,
                                         int timestamp, DB_LSN lsn, int stripe)
 {
     struct seen_blkseq *logseq;
@@ -305,7 +305,7 @@ static int bdb_blkseq_update_lsn_locked(bdb_state_type *bdb_state,
     return 0;
 }
 
-int bdb_blkseq_find(bdb_state_type *bdb_state, tran_type *tran, void *key,
+int bdb_blkseq_find(bdb_env_type *bdb_state, tran_type *tran, void *key,
                     int klen, void **dtaout, int *lenout)
 {
     DBT dkey = {0}, ddata = {0};
@@ -337,7 +337,7 @@ int bdb_blkseq_find(bdb_state_type *bdb_state, tran_type *tran, void *key,
     return IX_NOTFND;
 }
 
-int bdb_blkseq_insert(bdb_state_type *bdb_state, tran_type *tran, void *key,
+int bdb_blkseq_insert(bdb_env_type *bdb_state, tran_type *tran, void *key,
                       int klen, void *data, int datalen, void **dtaout,
                       int *lenout)
 {
@@ -414,7 +414,7 @@ int bdb_blkseq_insert(bdb_state_type *bdb_state, tran_type *tran, void *key,
 }
 
 /* Every N seconds, we shift all the trees down and delete the oldest */
-int bdb_blkseq_clean(bdb_state_type *bdb_state, uint8_t stripe)
+int bdb_blkseq_clean(bdb_env_type *bdb_state, uint8_t stripe)
 {
     time_t now, last;
     DB *to_be_deleted;
@@ -526,7 +526,7 @@ done:
     return rc;
 }
 
-static int bdb_blkseq_stripe_for_each(bdb_state_type *bdb_state, uint8_t stripe,
+static int bdb_blkseq_stripe_for_each(bdb_env_type *bdb_state, uint8_t stripe,
                                       void *arg,
                                       void (*func)(int, int, void *, void *,
                                                    void *, void *))
@@ -571,7 +571,7 @@ done:
     return rc;
 }
 
-void bdb_blkseq_for_each(bdb_state_type *bdb_state, void *arg,
+void bdb_blkseq_for_each(bdb_env_type *bdb_state, void *arg,
                          void (*func)(int, int, void *, void *, void *, void *))
 {
     int rc = 0;
@@ -626,7 +626,7 @@ static void dump_blkseq(int stripe, int ix, void *plsn, void *pkey, void *pdata,
     }
 }
 
-void bdb_blkseq_dumpall(bdb_state_type *bdb_state)
+void bdb_blkseq_dumpall(bdb_env_type *bdb_state)
 {
     bdb_blkseq_for_each(bdb_state, NULL, dump_blkseq);
 }
@@ -638,7 +638,7 @@ void bdb_blkseq_dumpall(bdb_state_type *bdb_state)
  * that blkseqs may live earlier in the log stream then the recovery point.  I'd
  * rather
  * not move recovery - so this is an extra pass at startup. */
-int bdb_recover_blkseq(bdb_state_type *bdb_state)
+int bdb_recover_blkseq(bdb_env_type *bdb_state)
 {
     DB_LOGC *logc = NULL;
     int rc;
@@ -763,7 +763,7 @@ err:
     return rc;
 }
 
-int bdb_blkseq_dumplogs(bdb_state_type *bdb_state)
+int bdb_blkseq_dumplogs(bdb_env_type *bdb_state)
 {
     struct seen_blkseq *logseq;
 
@@ -778,7 +778,7 @@ int bdb_blkseq_dumplogs(bdb_state_type *bdb_state)
     return 0;
 }
 
-int bdb_blkseq_can_delete_log(bdb_state_type *bdb_state, int lognum)
+int bdb_blkseq_can_delete_log(bdb_env_type *bdb_state, int lognum)
 {
     struct seen_blkseq *logseq, *logseqtmp;
     int num_ok = 0;

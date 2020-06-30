@@ -57,8 +57,8 @@
 #endif
 
 extern void fsnapf(FILE *, void *, int);
-extern int get_myseqnum(bdb_state_type *bdb_state, uint8_t *p_net_seqnum);
-extern int verify_master_leases_int(bdb_state_type *bdb_state,
+extern int get_myseqnum(bdb_env_type *bdb_state, uint8_t *p_net_seqnum);
+extern int verify_master_leases_int(bdb_env_type *bdb_state,
                                     const char **comlist, int comcount,
                                     const char *func, uint32_t line);
 
@@ -69,7 +69,7 @@ static unsigned int recd_udp = 0;
 static unsigned int recl_udp = 0; /* problem with recv'd len */
 static unsigned int rect_udp = 0; /* problem with recv'd to */
 
-int bdb_udp_send(bdb_state_type *bdb_state, const char *to, size_t len,
+int bdb_udp_send(bdb_env_type *bdb_state, const char *to, size_t len,
                  void *data)
 {
     repinfo_type *repinfo = bdb_state->repinfo;
@@ -87,7 +87,7 @@ int bdb_udp_send(bdb_state_type *bdb_state, const char *to, size_t len,
     return nsent;
 }
 
-static int udp_send_hostname(bdb_state_type *bdb_state, ack_info *info,
+static int udp_send_hostname(bdb_env_type *bdb_state, ack_info *info,
                              const char *to)
 {
     size_t len = ack_info_size(info);
@@ -101,7 +101,7 @@ void set_udp_sender(udp_sender *s)
     udp_send_impl = s;
 }
 
-static int udp_send(bdb_state_type *bdb_state, ack_info *info, const char *to)
+static int udp_send(bdb_env_type *bdb_state, ack_info *info, const char *to)
 {
     return udp_send_impl(bdb_state, info, to);
 }
@@ -135,7 +135,7 @@ void disable_ack_trace(void)
     gbl_ack_trace = 0;
 }
 
-int do_ack(bdb_state_type *bdb_state, DB_LSN permlsn, uint32_t generation)
+int do_ack(bdb_env_type *bdb_state, DB_LSN permlsn, uint32_t generation)
 {
     int rc;
     char *master;
@@ -195,8 +195,8 @@ int do_ack(bdb_state_type *bdb_state, DB_LSN permlsn, uint32_t generation)
 
 void comdb2_early_ack(DB_ENV *dbenv, DB_LSN permlsn, uint32_t generation)
 {
-    bdb_state_type *bdb_state = (bdb_state_type *)dbenv->app_private;
-    do_ack(bdb_state, permlsn, generation);
+    bdb_env_type *bdb_env = (bdb_env_type *)dbenv->app_private;
+    do_ack(bdb_env, permlsn, generation);
 }
 
 char *print_addr(struct sockaddr_in *addr, char *buf)
@@ -239,7 +239,7 @@ char *print_addr(struct sockaddr_in *addr, char *buf)
     return buf;
 }
 
-static int send_timestamp(bdb_state_type *bdb_state, const char *to, int type)
+static int send_timestamp(bdb_env_type *bdb_state, const char *to, int type)
 {
     size_t size;
     ack_info *info;
@@ -262,7 +262,7 @@ static int send_timestamp(bdb_state_type *bdb_state, const char *to, int type)
     }
 }
 
-static int udp_send_header(bdb_state_type *bdb_state, char *to, int type)
+static int udp_send_header(bdb_env_type *bdb_state, char *to, int type)
 {
     ack_info *info;
     new_ack_info(info, 0, bdb_state->repinfo->myhost);
@@ -272,7 +272,7 @@ static int udp_send_header(bdb_state_type *bdb_state, char *to, int type)
     return udp_send(bdb_state, info, to);
 }
 
-void udp_ping(bdb_state_type *bdb_state, char *to)
+void udp_ping(bdb_env_type *bdb_state, char *to)
 {
     /* udp_send_header(bdb_state, to, USER_TYPE_UDP_PING); */
     if (send_timestamp(bdb_state, to, USER_TYPE_UDP_TIMESTAMP) > 0) {
@@ -280,7 +280,7 @@ void udp_ping(bdb_state_type *bdb_state, char *to)
     }
 }
 
-static void ping_all_int(bdb_state_type *bdb_state, int type)
+static void ping_all_int(bdb_env_type *bdb_state, int type)
 {
     repinfo_type *repinfo = bdb_state->repinfo;
     const char *nodes[REPMAX];
@@ -291,12 +291,12 @@ static void ping_all_int(bdb_state_type *bdb_state, int type)
     }
 }
 
-void udp_ping_all(bdb_state_type *bdb_state)
+void udp_ping_all(bdb_env_type *bdb_state)
 {
     ping_all_int(bdb_state, USER_TYPE_UDP_TIMESTAMP);
 }
 
-void udp_ping_ip(bdb_state_type *bdb_state, char *ip)
+void udp_ping_ip(bdb_env_type *bdb_state, char *ip)
 {
     char straddr[256];
     char *strport = strstr(ip, ":");
@@ -380,7 +380,7 @@ int udppfault_thdpool_init(void)
     return 0;
 }
 
-static int send_prefault(bdb_state_type *bdb_state, const char *tohost,
+static int send_prefault(bdb_env_type *bdb_state, const char *tohost,
                          unsigned int fileid, unsigned int pgno)
 {
     ack_info *info;
@@ -406,7 +406,7 @@ static int send_prefault(bdb_state_type *bdb_state, const char *tohost,
     return 0;
 }
 
-void udp_prefault_all(bdb_state_type *bdb_state, unsigned int fileid,
+void udp_prefault_all(bdb_env_type *bdb_state, unsigned int fileid,
                       unsigned int pgno)
 {
     repinfo_type *repinfo = bdb_state->repinfo;
@@ -453,7 +453,7 @@ static void print_ping_rtt(ack_info *info)
            type, (double)diff.tv_sec * 1000 + (double)diff.tv_usec / 1000);
 }
 
-int enque_udppfault_filepage(bdb_state_type *bdb_state, unsigned int fileid,
+int enque_udppfault_filepage(bdb_env_type *bdb_state, unsigned int fileid,
                              unsigned int pgno);
 
 const uint8_t *rep_udp_filepage_type_get(filepage_type *p_filepage_type,
@@ -462,7 +462,7 @@ const uint8_t *rep_udp_filepage_type_get(filepage_type *p_filepage_type,
 
 static void udp_reader(int fd, short what, void *arg)
 {
-    bdb_state_type *bdb_state = arg;
+    bdb_env_type *bdb_state = arg;
     void *data;
     uint8_t buff[1024] = {0};
     ack_info *info = (ack_info *)buff;
@@ -647,7 +647,7 @@ static void udp_reader(int fd, short what, void *arg)
 
 static void *udp_reader_thd(void *arg)
 {
-    bdb_state_type *bdb_state = arg;
+    bdb_env_type *bdb_state = arg;
     repinfo_type *repinfo = bdb_state->repinfo;
     int fd = repinfo->udp_fd;
     bdb_thread_event(bdb_state, BDBTHR_EVENT_START_RDONLY);
@@ -658,7 +658,7 @@ static void *udp_reader_thd(void *arg)
     return NULL;
 }
 
-void start_udp_reader(bdb_state_type *bdb_state)
+void start_udp_reader(bdb_env_type *bdb_state)
 {
     repinfo_type *repinfo = bdb_state->repinfo;
     netinfo_type *netinfo = repinfo->netinfo;
@@ -704,19 +704,19 @@ void udp_reset(netinfo_type *netinfo)
     net_reset_udp_stat(netinfo);
 }
 
-void tcp_ping_all(bdb_state_type *bdb_state)
+void tcp_ping_all(bdb_env_type *bdb_state)
 {
     ping_all_int(bdb_state, USER_TYPE_TCP_TIMESTAMP);
 }
 
-void tcp_ping(bdb_state_type *bdb_state, char *to)
+void tcp_ping(bdb_env_type *bdb_state, char *to)
 {
     if (send_timestamp(bdb_state, to, USER_TYPE_TCP_TIMESTAMP) > 0) {
         debug_trace("sent ping %s -> %s", gbl_myhostname, to);
     }
 }
 
-void handle_tcp_timestamp(bdb_state_type *bdb_state, ack_info *info,
+void handle_tcp_timestamp(bdb_env_type *bdb_state, ack_info *info,
                           char *tohost)
 {
     int type;
@@ -731,13 +731,13 @@ void handle_tcp_timestamp(bdb_state_type *bdb_state, ack_info *info,
     net_send(bdb_state->repinfo->netinfo, tohost, type, info, size, 1);
 }
 
-void handle_tcp_timestamp_ack(bdb_state_type *bdb_state, ack_info *info)
+void handle_tcp_timestamp_ack(bdb_env_type *bdb_state, ack_info *info)
 {
     ack_info_to_cpu(info);
     print_ping_rtt(info);
 }
 
-int send_myseqnum_to_master_udp(bdb_state_type *bdb_state)
+int send_myseqnum_to_master_udp(bdb_env_type *bdb_state)
 {
     ack_info *info;
     uint8_t *p_buf;
@@ -769,7 +769,7 @@ int send_myseqnum_to_master_udp(bdb_state_type *bdb_state)
 
 int gbl_verbose_send_coherency_lease;
 
-void send_coherency_leases(bdb_state_type *bdb_state, int lease_time,
+void send_coherency_leases(bdb_env_type *bdb_state, int lease_time,
                            int *inc_wait)
 {
     int count, comcount, i, do_send, use_udp, master_is_coherent;
@@ -892,7 +892,7 @@ void send_coherency_leases(bdb_state_type *bdb_state, int lease_time,
     }
 }
 
-void handle_ping_timestamp(bdb_state_type *bdb_state, ack_info *info, char *to)
+void handle_ping_timestamp(bdb_env_type *bdb_state, ack_info *info, char *to)
 {
     ack_info_to_cpu(info);
     info->to = 0;
@@ -901,12 +901,12 @@ void handle_ping_timestamp(bdb_state_type *bdb_state, ack_info *info, char *to)
     udp_send(bdb_state, info, to);
 }
 
-void ping_all(bdb_state_type *bdb_state)
+void ping_all(bdb_env_type *bdb_state)
 {
     ping_all_int(bdb_state, USER_TYPE_PING_TIMESTAMP);
 }
 
-void ping_node(bdb_state_type *bdb_state, char *to)
+void ping_node(bdb_env_type *bdb_state, char *to)
 {
     if (send_timestamp(bdb_state, to, USER_TYPE_TCP_TIMESTAMP) > 0) {
         debug_trace("sent ping %s -> %s", gbl_myhostname, to);
@@ -914,7 +914,7 @@ void ping_node(bdb_state_type *bdb_state, char *to)
 }
 
 /* vim: set sw=4 ts=4 et: */
-static int prepare_pg_compact_msg(bdb_state_type *bdb_state, ack_info *info,
+static int prepare_pg_compact_msg(bdb_env_type *bdb_state, ack_info *info,
                                   int32_t fileid, uint32_t size,
                                   const void *data)
 {
@@ -936,7 +936,7 @@ static int prepare_pg_compact_msg(bdb_state_type *bdb_state, ack_info *info,
     return 0;
 }
 
-int send_pg_compact_req(bdb_state_type *bdb_state, int32_t fileid,
+int send_pg_compact_req(bdb_env_type *bdb_state, int32_t fileid,
                         uint32_t size, const void *data)
 {
     int rc;
@@ -983,7 +983,7 @@ out:
     return rc;
 }
 
-int send_truncate_to_master(bdb_state_type *bdb_state, unsigned file, unsigned offset)
+int send_truncate_to_master(bdb_env_type *bdb_state, unsigned file, unsigned offset)
 {
     int timeout = 10 * 1000, rc;
     uint8_t buf[sizeof(DB_LSN)];
@@ -1010,7 +1010,7 @@ int send_truncate_to_master(bdb_state_type *bdb_state, unsigned file, unsigned o
     return rc;
 }
 
-const char *get_hostname_with_crc32(bdb_state_type *bdb_state,
+const char *get_hostname_with_crc32(bdb_env_type *bdb_state,
                                     unsigned int hash)
 {
     repinfo_type *repinfo = bdb_state->repinfo;

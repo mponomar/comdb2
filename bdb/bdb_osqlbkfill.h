@@ -38,7 +38,7 @@ typedef struct bfillhndl bfillhndl_t;
  * If error, return -1 and set bdberr
  *
  */
-int bdb_osqlbkfill_create(bdb_state_type *bdb_state, bfillhndl_t **bhndl,
+int bdb_osqlbkfill_create(bdb_env_type *bdb_state, bfillhndl_t **bhndl,
                           int *bdberr, int epoch, int file, int offset,
                           tran_type *shadow_tran);
 

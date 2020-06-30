@@ -72,148 +72,148 @@ typedef struct {
     uint8_t for_write;
 } bdb_fetch_args_t;
 
-int bdb_fetch(bdb_state_type *bdb_handle, void *ix, int ixnum, int ixlen,
+int bdb_fetch(bdb_table_type *bdb_handle, void *ix, int ixnum, int ixlen,
               void *dta, int dtalen, int *reqdtalen, void *ixfound, int *rrn,
               bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_by_recnum(bdb_state_type *bdb_handle, int ixnum, int recnum,
+int bdb_fetch_by_recnum(bdb_table_type *bdb_handle, int ixnum, int recnum,
                         void *dta, int dtalen, int *reqdtalen, void *ixfound,
                         int *rrn, bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_nodta(bdb_state_type *bdb_state, void *ix, int ixnum, int ixlen,
+int bdb_fetch_nodta(bdb_table_type *bdb_state, void *ix, int ixnum, int ixlen,
                     void *ixfound, int *rrn, bdb_fetch_args_t *arg,
                     int *bdberr);
 
-int bdb_fetch_nodta_by_recnum(bdb_state_type *bdb_state, int ixnum, int recnum,
+int bdb_fetch_nodta_by_recnum(bdb_table_type *bdb_state, int ixnum, int recnum,
                               void *ixfound, int *rrn, bdb_fetch_args_t *arg,
                               int *bdberr);
 
-int bdb_fetch_nodta_by_recnum_genid(bdb_state_type *bdb_state, int ixnum,
+int bdb_fetch_nodta_by_recnum_genid(bdb_table_type *bdb_state, int ixnum,
                                     int recnum, void *ixfound, int *rrn,
                                     unsigned long long *genid,
                                     bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_next(bdb_state_type *bdb_handle, void *ix, int ixnum, int ixlen,
+int bdb_fetch_next(bdb_table_type *bdb_handle, void *ix, int ixnum, int ixlen,
                    void *lastix, int lastrrn, unsigned long long lastgenid,
                    void *dta, int dtalen, int *reqdtalen, void *ixfound,
                    int *rrn, bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_next_nodta(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_next_nodta(bdb_table_type *bdb_handle, void *ix, int ixnum,
                          int ixlen, void *lastix, int lastrrn,
                          unsigned long long lastgenid, void *ixfound, int *rrn,
                          bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_prev(bdb_state_type *bdb_handle, void *ix, int ixnum, int ixlen,
+int bdb_fetch_prev(bdb_table_type *bdb_handle, void *ix, int ixnum, int ixlen,
                    void *lastix, int lastrrn, unsigned long long lastgenid,
                    void *dta, int dtalen, int *reqdtalen, void *ixfound,
                    int *rrn, bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_prev_nodta(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_prev_nodta(bdb_table_type *bdb_handle, void *ix, int ixnum,
                          int ixlen, void *lastix, int lastrrn,
                          unsigned long long lastgenid, void *ixfound, int *rrn,
                          bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_recnum(bdb_state_type *bdb_handle, void *ix, int ixnum, int ixlen,
+int bdb_fetch_recnum(bdb_table_type *bdb_handle, void *ix, int ixnum, int ixlen,
                      void *dta, int dtalen, int *reqdtalen, void *ixfound,
                      int *rrn, int *recnum, bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_recnum_by_recnum_genid(bdb_state_type *bdb_state, int ixnum,
+int bdb_fetch_recnum_by_recnum_genid(bdb_table_type *bdb_state, int ixnum,
                                      int recnum_in, void *dta, int dtalen,
                                      int *reqdtalen, void *ixfound, int *rrn,
                                      int *recnum_out, unsigned long long *genid,
                                      bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_recnum_by_recnum(bdb_state_type *bdb_handle, int ixnum,
+int bdb_fetch_recnum_by_recnum(bdb_table_type *bdb_handle, int ixnum,
                                int recnum_in, void *dta, int dtalen,
                                int *reqdtalen, void *ixfound, int *rrn,
                                int *recnum_out, bdb_fetch_args_t *arg,
                                int *bdberr);
 
-int bdb_fetch_lastdupe_recnum(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_lastdupe_recnum(bdb_table_type *bdb_handle, void *ix, int ixnum,
                               int ixlen, void *dta, int dtalen, int *reqdtalen,
                               void *ixfound, int *rrn, int *recnum,
                               bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_nodta_lastdupe_recnum(bdb_state_type *bdb_handle, void *ix,
+int bdb_fetch_nodta_lastdupe_recnum(bdb_table_type *bdb_handle, void *ix,
                                     int ixnum, int ixlen, void *ixfound,
                                     int *rrn, int *recnum,
                                     bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_nodta_recnum(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_nodta_recnum(bdb_table_type *bdb_handle, void *ix, int ixnum,
                            int ixlen, void *ixfound, int *rrn, int *recnum,
                            bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_nodta_recnum_by_recnum(bdb_state_type *bdb_handle, int ixnum,
+int bdb_fetch_nodta_recnum_by_recnum(bdb_table_type *bdb_handle, int ixnum,
                                      int recnum_in, void *ixfound, int *rrn,
                                      int *recnum_out, bdb_fetch_args_t *arg,
                                      int *bdberr);
 
-int bdb_fetch_genid_trans(bdb_state_type *bdb_state, void *ix, int ixnum,
+int bdb_fetch_genid_trans(bdb_table_type *bdb_state, void *ix, int ixnum,
                           int ixlen, void *dta, int dtalen, int *reqdtalen,
                           void *ixfound, int *rrn, unsigned long long *genid,
                           int ignore_ixdta, void *tran, bdb_fetch_args_t *arg,
                           int *bdberr);
 
-int bdb_fetch_next_recnum(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_next_recnum(bdb_table_type *bdb_handle, void *ix, int ixnum,
                           int ixlen, void *lastix, int lastrrn,
                           unsigned long long lastgenid, void *dta, int dtalen,
                           int *reqdtalen, void *ixfound, int *rrn, int *recnum,
                           bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_next_nodta_recnum(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_next_nodta_recnum(bdb_table_type *bdb_handle, void *ix, int ixnum,
                                 int ixlen, void *lastix, int lastrrn,
                                 unsigned long long lastgenid, void *ixfound,
                                 int *rrn, int *recnum, bdb_fetch_args_t *arg,
                                 int *bdberr);
 
-int bdb_fetch_prev_recnum(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_prev_recnum(bdb_table_type *bdb_handle, void *ix, int ixnum,
                           int ixlen, void *lastix, int lastrrn,
                           unsigned long long lastgenid, void *dta, int dtalen,
                           int *reqdtalen, void *ixfound, int *rrn, int *recnum,
                           bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_prev_nodta_recnum(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_prev_nodta_recnum(bdb_table_type *bdb_handle, void *ix, int ixnum,
                                 int ixlen, void *lastix, int lastrrn,
                                 unsigned long long lastgenid, void *ixfound,
                                 int *rrn, int *recnum, bdb_fetch_args_t *arg,
                                 int *bdberr);
 
-int bdb_fetch_genid(bdb_state_type *bdb_handle, void *ix, int ixnum, int ixlen,
+int bdb_fetch_genid(bdb_table_type *bdb_handle, void *ix, int ixnum, int ixlen,
                     void *dta, int dtalen, int *reqdtalen, void *ixfound,
                     int *rrn, unsigned long long *genid, int ignore_ixdta,
                     bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_genid_nl_ser(bdb_state_type *bdb_state, void *ix, int ixnum,
+int bdb_fetch_genid_nl_ser(bdb_table_type *bdb_state, void *ix, int ixnum,
                            int ixlen, void *dta, int dtalen, int *reqdtalen,
                            void *ixfound, int *rrn, unsigned long long *genid,
                            int ignore_ixdta, bdb_cursor_ser_t *cur_ser,
                            bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_genid_trans(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_genid_trans(bdb_table_type *bdb_handle, void *ix, int ixnum,
                           int ixlen, void *dta, int dtalen, int *reqdtalen,
                           void *ixfound, int *rrn, unsigned long long *genid,
                           int ignore_ixdta, void *tran, bdb_fetch_args_t *arg,
                           int *bdberr);
 
-int bdb_fetch_genid_dirty(bdb_state_type *bdb_state, void *ix, int ixnum,
+int bdb_fetch_genid_dirty(bdb_table_type *bdb_state, void *ix, int ixnum,
                           int ixlen, void *dta, int dtalen, int *reqdtalen,
                           void *ixfound, int *rrn, unsigned long long *genid,
                           int ignore_ixdta, bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_genid_prefault(bdb_state_type *bdb_state, void *ix, int ixnum,
+int bdb_fetch_genid_prefault(bdb_table_type *bdb_state, void *ix, int ixnum,
                              int ixlen, void *dta, int dtalen, int *reqdtalen,
                              void *ixfound, int *rrn, unsigned long long *genid,
                              int ignore_ixdta, bdb_fetch_args_t *arg,
                              int *bdberr);
 
-int bdb_fetch_blobs_genid(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_blobs_genid(bdb_table_type *bdb_handle, void *ix, int ixnum,
                           int ixlen, void *dta, int dtalen, int *reqdtalen,
                           void *ixfound, int *rrn, unsigned long long *genid,
                           int numblobs, int *dtafilenums, size_t *blobsizes,
                           size_t *bloboffs, void **blobptrs, int ignore_ixdta,
                           bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_blobs_genid_dirty(bdb_state_type *bdb_state, void *ix, int ixnum,
+int bdb_fetch_blobs_genid_dirty(bdb_table_type *bdb_state, void *ix, int ixnum,
                                 int ixlen, void *dta, int dtalen,
                                 int *reqdtalen, void *ixfound, int *rrn,
                                 unsigned long long *genid, int numblobs,
@@ -221,46 +221,46 @@ int bdb_fetch_blobs_genid_dirty(bdb_state_type *bdb_state, void *ix, int ixnum,
                                 size_t *bloboffs, void **blobptrs, int ixdta,
                                 bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_genid_by_recnum(bdb_state_type *bdb_handle, int ixnum, int recnum,
+int bdb_fetch_genid_by_recnum(bdb_table_type *bdb_handle, int ixnum, int recnum,
                               void *dta, int dtalen, int *reqdtalen,
                               void *ixfound, int *rrn,
                               unsigned long long *genid, bdb_fetch_args_t *arg,
                               int *bdberr);
 
-int bdb_fetch_nodta_genid(bdb_state_type *bdb_state, void *ix, int ixnum,
+int bdb_fetch_nodta_genid(bdb_table_type *bdb_state, void *ix, int ixnum,
                           int ixlen, void *ixfound, int *rrn,
                           unsigned long long *genid, bdb_fetch_args_t *arg,
                           int *bdberr);
 
-int bdb_fetch_nodta_genid_nl_ser(bdb_state_type *bdb_state, void *ix, int ixnum,
+int bdb_fetch_nodta_genid_nl_ser(bdb_table_type *bdb_state, void *ix, int ixnum,
                                  int ixlen, void *ixfound, int *rrn,
                                  unsigned long long *genid,
                                  bdb_cursor_ser_t *cur_ser,
                                  bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_nodta_genid_dirty(bdb_state_type *bdb_state, void *ix, int ixnum,
+int bdb_fetch_nodta_genid_dirty(bdb_table_type *bdb_state, void *ix, int ixnum,
                                 int ixlen, void *ixfound, int *rrn,
                                 unsigned long long *genid,
                                 bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_nodta_genid_prefault(bdb_state_type *bdb_state, void *ix,
+int bdb_fetch_nodta_genid_prefault(bdb_table_type *bdb_state, void *ix,
                                    int ixnum, int ixlen, void *ixfound,
                                    int *rrn, unsigned long long *genid,
                                    bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_nodta_genid_by_recnum(bdb_state_type *bdb_state, int ixnum,
+int bdb_fetch_nodta_genid_by_recnum(bdb_table_type *bdb_state, int ixnum,
                                     int recnum, void *ixfound, int *rrn,
                                     unsigned long long *genid,
                                     bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_next_genid(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_next_genid(bdb_table_type *bdb_handle, void *ix, int ixnum,
                          int ixlen, void *lastix, int lastrrn,
                          unsigned long long lastgenid, void *dta, int dtalen,
                          int *reqdtalen, void *ixfound, int *rrn,
                          unsigned long long *genid, bdb_fetch_args_t *arg,
                          int *bdberr);
 
-int bdb_fetch_next_genid_nl_ser(bdb_state_type *bdb_state, void *ix, int ixnum,
+int bdb_fetch_next_genid_nl_ser(bdb_table_type *bdb_state, void *ix, int ixnum,
                                 int ixlen, void *lastix, int lastrrn,
                                 unsigned long long lastgenid, void *dta,
                                 int dtalen, int *reqdtalen, void *ixfound,
@@ -268,27 +268,27 @@ int bdb_fetch_next_genid_nl_ser(bdb_state_type *bdb_state, void *ix, int ixnum,
                                 bdb_cursor_ser_t *cur_ser,
                                 bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_next_genid_tran(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_next_genid_tran(bdb_table_type *bdb_handle, void *ix, int ixnum,
                               int ixlen, void *lastix, int lastrrn,
                               unsigned long long lastgenid, void *dta,
                               int dtalen, int *reqdtalen, void *ixfound,
                               int *rrn, unsigned long long *genid, void *tran,
                               bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_next_nodta_genid(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_next_nodta_genid(bdb_table_type *bdb_handle, void *ix, int ixnum,
                                int ixlen, void *lastix, int lastrrn,
                                unsigned long long lastgenid, void *ixfound,
                                int *rrn, unsigned long long *genid,
                                bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_next_nodta_genid_tran(bdb_state_type *bdb_state, void *ix,
+int bdb_fetch_next_nodta_genid_tran(bdb_table_type *bdb_state, void *ix,
                                     int ixnum, int ixlen, void *lastix,
                                     int lastrrn, unsigned long long lastgenid,
                                     void *ixfound, int *rrn,
                                     unsigned long long *genid, void *tran,
                                     bdb_fetch_args_t *args, int *bdberr);
 
-int bdb_fetch_next_nodta_genid_nl_ser(bdb_state_type *bdb_state, void *ix,
+int bdb_fetch_next_nodta_genid_nl_ser(bdb_table_type *bdb_state, void *ix,
                                       int ixnum, int ixlen, void *lastix,
                                       int lastrrn, unsigned long long lastgenid,
                                       void *ixfound, int *rrn,
@@ -296,14 +296,14 @@ int bdb_fetch_next_nodta_genid_nl_ser(bdb_state_type *bdb_state, void *ix,
                                       bdb_cursor_ser_t *cur_ser,
                                       bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_prev_genid(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_prev_genid(bdb_table_type *bdb_handle, void *ix, int ixnum,
                          int ixlen, void *lastix, int lastrrn,
                          unsigned long long lastgenid, void *dta, int dtalen,
                          int *reqdtalen, void *ixfound, int *rrn,
                          unsigned long long *genid, bdb_fetch_args_t *arg,
                          int *bdberr);
 
-int bdb_fetch_prev_genid_nl_ser(bdb_state_type *bdb_state, void *ix, int ixnum,
+int bdb_fetch_prev_genid_nl_ser(bdb_table_type *bdb_state, void *ix, int ixnum,
                                 int ixlen, void *lastix, int lastrrn,
                                 unsigned long long lastgenid, void *dta,
                                 int dtalen, int *reqdtalen, void *ixfound,
@@ -311,13 +311,13 @@ int bdb_fetch_prev_genid_nl_ser(bdb_state_type *bdb_state, void *ix, int ixnum,
                                 bdb_cursor_ser_t *cur_ser,
                                 bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_prev_nodta_genid(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_prev_nodta_genid(bdb_table_type *bdb_handle, void *ix, int ixnum,
                                int ixlen, void *lastix, int lastrrn,
                                unsigned long long lastgenid, void *ixfound,
                                int *rrn, unsigned long long *genid,
                                bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_prev_nodta_genid_nl_ser(bdb_state_type *bdb_state, void *ix,
+int bdb_fetch_prev_nodta_genid_nl_ser(bdb_table_type *bdb_state, void *ix,
                                       int ixnum, int ixlen, void *lastix,
                                       int lastrrn, unsigned long long lastgenid,
                                       void *ixfound, int *rrn,
@@ -325,43 +325,43 @@ int bdb_fetch_prev_nodta_genid_nl_ser(bdb_state_type *bdb_state, void *ix,
                                       bdb_cursor_ser_t *cur_ser,
                                       bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_recnum_genid(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_recnum_genid(bdb_table_type *bdb_handle, void *ix, int ixnum,
                            int ixlen, void *dta, int dtalen, int *reqdtalen,
                            void *ixfound, int *rrn, int *recnum,
                            unsigned long long *genid, bdb_fetch_args_t *arg,
                            int *bdberr);
 
-int bdb_fetch_recnum_genid_by_recnum(bdb_state_type *bdb_handle, int ixnum,
+int bdb_fetch_recnum_genid_by_recnum(bdb_table_type *bdb_handle, int ixnum,
                                      int recnum_in, void *dta, int dtalen,
                                      int *reqdtalen, void *ixfound, int *rrn,
                                      int *recnum_out, unsigned long long *genid,
                                      bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_lastdupe_recnum_genid(bdb_state_type *bdb_handle, void *ix,
+int bdb_fetch_lastdupe_recnum_genid(bdb_table_type *bdb_handle, void *ix,
                                     int ixnum, int ixlen, void *dta, int dtalen,
                                     int *reqdtalen, void *ixfound, int *rrn,
                                     int *recnum, unsigned long long *genid,
                                     bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_nodta_lastdupe_recnum_genid(bdb_state_type *bdb_handle, void *ix,
+int bdb_fetch_nodta_lastdupe_recnum_genid(bdb_table_type *bdb_handle, void *ix,
                                           int ixnum, int ixlen, void *ixfound,
                                           int *rrn, int *recnum,
                                           unsigned long long *genid,
                                           bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_nodta_recnum_genid(bdb_state_type *bdb_handle, void *ix,
+int bdb_fetch_nodta_recnum_genid(bdb_table_type *bdb_handle, void *ix,
                                  int ixnum, int ixlen, void *ixfound, int *rrn,
                                  int *recnum, unsigned long long *genid,
                                  bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_nodta_recnum_genid_by_recnum(bdb_state_type *bdb_handle,
+int bdb_fetch_nodta_recnum_genid_by_recnum(bdb_table_type *bdb_handle,
                                            int ixnum, int recnum_in,
                                            void *ixfound, int *rrn,
                                            int *recnum_out,
                                            unsigned long long *genid,
                                            bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_next_recnum_genid(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_next_recnum_genid(bdb_table_type *bdb_handle, void *ix, int ixnum,
                                 int ixlen, void *lastix, int lastrrn,
                                 unsigned long long lastgenid, void *dta,
                                 int dtalen, int *reqdtalen, void *ixfound,
@@ -369,14 +369,14 @@ int bdb_fetch_next_recnum_genid(bdb_state_type *bdb_handle, void *ix, int ixnum,
                                 unsigned long long *genid,
                                 bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_next_nodta_recnum_genid(bdb_state_type *bdb_handle, void *ix,
+int bdb_fetch_next_nodta_recnum_genid(bdb_table_type *bdb_handle, void *ix,
                                       int ixnum, int ixlen, void *lastix,
                                       int lastrrn, unsigned long long lastgenid,
                                       void *ixfound, int *rrn, int *recnum,
                                       unsigned long long *genid,
                                       bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_prev_recnum_genid(bdb_state_type *bdb_handle, void *ix, int ixnum,
+int bdb_fetch_prev_recnum_genid(bdb_table_type *bdb_handle, void *ix, int ixnum,
                                 int ixlen, void *lastix, int lastrrn,
                                 unsigned long long lastgenid, void *dta,
                                 int dtalen, int *reqdtalen, void *ixfound,
@@ -384,7 +384,7 @@ int bdb_fetch_prev_recnum_genid(bdb_state_type *bdb_handle, void *ix, int ixnum,
                                 unsigned long long *genid,
                                 bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_prev_nodta_recnum_genid(bdb_state_type *bdb_handle, void *ix,
+int bdb_fetch_prev_nodta_recnum_genid(bdb_table_type *bdb_handle, void *ix,
                                       int ixnum, int ixlen, void *lastix,
                                       int lastrrn, unsigned long long lastgenid,
                                       void *ixfound, int *rrn, int *recnum,
@@ -392,14 +392,14 @@ int bdb_fetch_prev_nodta_recnum_genid(bdb_state_type *bdb_handle, void *ix,
                                       bdb_fetch_args_t *arg, int *bdberr);
 
 int bdb_fetch_next_blobs_genid(
-    bdb_state_type *bdb_state, void *ix, int ixnum, int ixlen, void *lastix,
+    bdb_table_type *bdb_state, void *ix, int ixnum, int ixlen, void *lastix,
     int lastrrn, unsigned long long lastgenid, void *dta, int dtalen,
     int *reqdtalen, void *ixfound, int *rrn, unsigned long long *genid,
     int numblobs, int *dtafilenums, size_t *blobsizes, size_t *bloboffs,
     void **blobptrs, bdb_fetch_args_t *arg, int *bdberr);
 
 int bdb_fetch_prev_blobs_genid(
-    bdb_state_type *bdb_state, void *ix, int ixnum, int ixlen, void *lastix,
+    bdb_table_type *bdb_state, void *ix, int ixnum, int ixlen, void *lastix,
     int lastrrn, unsigned long long lastgenid, void *dta, int dtalen,
     int *reqdtalen, void *ixfound, int *rrn, unsigned long long *genid,
     int numblobs, int *dtafilenums, size_t *blobsizes, size_t *bloboffs,
@@ -408,14 +408,14 @@ int bdb_fetch_prev_blobs_genid(
 /* "nl" : No Lookahead.  No "next also matches" semantics for apis (like sql)
    or future comdb2 streaming apis that dont care about this and dont need
    to be slower because of it */
-int bdb_fetch_next_genid_nl(bdb_state_type *bdb_state, void *ix, int ixnum,
+int bdb_fetch_next_genid_nl(bdb_table_type *bdb_state, void *ix, int ixnum,
                             int ixlen, void *lastix, int lastrrn,
                             unsigned long long lastgenid, void *dta, int dtalen,
                             int *reqdtalen, void *ixfound, int *rrn,
                             unsigned long long *genid, bdb_fetch_args_t *arg,
                             int *bdberr);
 
-int bdb_fetch_prev_genid_nl(bdb_state_type *bdb_state, void *ix, int ixnum,
+int bdb_fetch_prev_genid_nl(bdb_table_type *bdb_state, void *ix, int ixnum,
                             int ixlen, void *lastix, int lastrrn,
                             unsigned long long lastgenid, void *dta, int dtalen,
                             int *reqdtalen, void *ixfound, int *rrn,
@@ -429,29 +429,29 @@ int bdb_fetch_prev_genid_nl(bdb_state_type *bdb_state, void *ix, int ixnum,
     rrn/genid that we need to delete.
   it is not intended that this api be exposed directly to the human user.
 */
-int bdb_fetch_by_rrn_and_genid(bdb_state_type *bdb_state, int rrn,
+int bdb_fetch_by_rrn_and_genid(bdb_table_type *bdb_state, int rrn,
                                unsigned long long genid, void *dta, int dtalen,
                                int *reqdtalen, bdb_fetch_args_t *arg,
                                int *bdberr);
 
-int bdb_fetch_by_rrn_and_genid_dirty(bdb_state_type *bdb_state, int rrn,
+int bdb_fetch_by_rrn_and_genid_dirty(bdb_table_type *bdb_state, int rrn,
                                      unsigned long long genid, void *dta,
                                      int dtalen, int *reqdtalen,
                                      bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_by_rrn_and_genid_prefault(bdb_state_type *bdb_state, int rrn,
+int bdb_fetch_by_rrn_and_genid_prefault(bdb_table_type *bdb_state, int rrn,
                                         unsigned long long genid, void *dta,
                                         int dtalen, int *reqdtalen,
                                         bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_by_rrn_and_genid_get_curgenid(bdb_state_type *bdb_state, int rrn,
+int bdb_fetch_by_rrn_and_genid_get_curgenid(bdb_table_type *bdb_state, int rrn,
                                             unsigned long long genid,
                                             unsigned long long *outgenid,
                                             void *dta, int dtalen,
                                             int *reqdtalen,
                                             bdb_fetch_args_t *arg, int *bdberr);
 
-int bdb_fetch_by_rrn_and_genid_tran(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_fetch_by_rrn_and_genid_tran(bdb_table_type *bdb_state, tran_type *tran,
                                     int rrn, unsigned long long genid,
                                     void *dta, int dtalen, int *reqdtalen,
                                     bdb_fetch_args_t *arg, int *bdberr);
@@ -462,17 +462,17 @@ int bdb_fetch_by_rrn_and_genid_tran(bdb_state_type *bdb_state, tran_type *tran,
   low level if it not considered an error if there are no data records in some
   of the data files.
 */
-int bdb_fetch_blobs_by_rrn_and_genid(bdb_state_type *bdb_state, int rrn,
+int bdb_fetch_blobs_by_rrn_and_genid(bdb_table_type *bdb_state, int rrn,
                                      unsigned long long genid, int numblobs,
                                      int *dtafilenums, size_t *blobsizes,
                                      size_t *bloboffs, void **blobptrs,
                                      bdb_fetch_args_t *arg, int *bdberr);
 int bdb_fetch_blobs_by_rrn_and_genid_cursor(
-    bdb_state_type *bdb_state, int rrn, unsigned long long genid, int numblobs,
+    bdb_table_type *bdb_state, int rrn, unsigned long long genid, int numblobs,
     int *dtafilenums, size_t *blobsizes, size_t *bloboffs, void **blobptrs,
     bdb_cursor_ifn_t *cursor_parent, bdb_fetch_args_t *arg, int *bdberr);
 int bdb_fetch_blobs_by_rrn_and_genid_tran(
-    bdb_state_type *bdb_state, tran_type *tran, int rrn,
+    bdb_table_type *bdb_state, tran_type *tran, int rrn,
     unsigned long long genid, int numblobs, int *dtafilenums, size_t *blobsizes,
     size_t *bloboffs, void **blobptrs, bdb_fetch_args_t *arg, int *bdberr);
 
@@ -480,7 +480,7 @@ int bdb_fetch_blobs_by_rrn_and_genid_tran(
   fetch by primkey
   this is needed for compatibility with non-tagged comdb2 api
 */
-int bdb_fetch_by_primkey_tran(bdb_state_type *bdb_state, tran_type *tran,
+int bdb_fetch_by_primkey_tran(bdb_table_type *bdb_state, tran_type *tran,
                               void *ix, void *dta, int dtalen, int *reqdtalen,
                               int *rrn, unsigned long long *genid,
                               bdb_fetch_args_t *arg, int *bdberr);
@@ -489,7 +489,7 @@ int bdb_fetch_by_primkey_tran(bdb_state_type *bdb_state, tran_type *tran,
   fetch by key
   this is used in constraints code to do reverse lookups on keys
 */
-int bdb_fetch_by_key_tran(bdb_state_type *bdb_state, tran_type *tran, void *ix,
+int bdb_fetch_by_key_tran(bdb_table_type *bdb_state, tran_type *tran, void *ix,
                           int ixlen, int ixnum, void *ixfound, void *dta,
                           int dtalen, int *reqdtalen, int *rrn,
                           unsigned long long *genid, bdb_fetch_args_t *arg,
@@ -501,7 +501,7 @@ int bdb_fetch_by_key_tran(bdb_state_type *bdb_state, tran_type *tran, void *ix,
  * if stay_in_stripe is set, it will only look for the next genid in the current
  * stripe
  */
-int bdb_fetch_next_dtastripe_record(bdb_state_type *bdb_state,
+int bdb_fetch_next_dtastripe_record(bdb_table_type *bdb_state,
                                     const unsigned long long *p_genid_vector,
                                     unsigned long long *p_genid, int *p_stripe,
                                     int stay_in_stripe, void *p_dta, int dtalen,

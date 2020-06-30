@@ -39,7 +39,7 @@ struct bfillhndl {
  * If epoch>0, create a backfill required to generate a snapshot
  *
  */
-int bdb_osqlbkfill_create(bdb_state_type *bdb_state, bfillhndl_t **bhndl,
+int bdb_osqlbkfill_create(bdb_env_type *bdb_state, bfillhndl_t **bhndl,
                           int *bdberr, int epoch, int file, int offset,
                           tran_type *shadow_tran)
 {

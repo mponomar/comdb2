@@ -2747,7 +2747,6 @@ static DB_ENV *dbenv_open(bdb_state_type *bdb_state)
     Pthread_mutex_init(&(bdb_state->temp_list_lock), NULL);
     bdb_state->logical_transactions_hash = hash_init_o(
         offsetof(tran_type, logical_tranid), sizeof(unsigned long long));
-    Pthread_cond_init(&(bdb_state->temptable_wait), NULL);
     bdb_state->temp_stats = calloc(1, sizeof(*(bdb_state->temp_stats)));
     pthread_mutexattr_init(&bdb_recursive_mutex);
     pthread_mutexattr_settype(&bdb_recursive_mutex, PTHREAD_MUTEX_RECURSIVE);

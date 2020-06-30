@@ -28,7 +28,7 @@
 
 extern char *comdb2_asprintf(const char *fmt, ...);
 
-int bdb_llop_add(bdb_state_type *bdb_state, void *trans, int raw, int stripe,
+int bdb_llop_add(bdb_table_type *bdb_state, void *trans, int raw, int stripe,
                  int dtafile, int ix, void *key, int keylen, void *data,
                  int datalen, void *dtacopy, int dtacopylen, char **errstr)
 {
@@ -196,7 +196,7 @@ done:
     return rc;
 }
 
-int bdb_llop_del(bdb_state_type *bdb_state, void *trans, int stripe,
+int bdb_llop_del(bdb_table_type *bdb_state, void *trans, int stripe,
                  int dtafile, int ix, void *key, int keylen, char **errstr)
 {
     DBC *dbc = NULL;
@@ -307,7 +307,7 @@ done:
     return rc;
 }
 
-void *bdb_llop_find(bdb_state_type *bdb_state, void *trans, int raw, int stripe,
+void *bdb_llop_find(bdb_table_type *bdb_state, void *trans, int raw, int stripe,
                     int dtafile, int ix, void *key, int keylen, int *fndlen,
                     uint8_t *ver, char **errstr)
 {
