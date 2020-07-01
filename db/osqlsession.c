@@ -178,7 +178,7 @@ char *osql_sess_info(osql_sess_t *sess)
 /**
  * Log query to the reqlog
  */
-void osql_sess_reqlogquery(osql_sess_t *sess, struct reqlogger *reqlog)
+void osql_sess_reqlogquery(struct ireq *iq, osql_sess_t *sess, struct reqlogger *reqlog)
 {
     char *info = osql_sess_info(sess);
     reqlog_logf(
@@ -188,6 +188,13 @@ void osql_sess_reqlogquery(osql_sess_t *sess, struct reqlogger *reqlog)
         U2M(reqlog_get_queue_time(reqlog)), sess->sql ? sess->sql : "()");
     if (info)
         free(info);
+    if (reqlog_is_long_request(iq->reqlogger)) {
+        for (int i = 0; i < MAX_OSQL_TYPES; i++) {
+            if (iq->sql_op_counters[i]) {
+                reqlog_logf(reqlog, REQL_INFO, "%dx%s", iq->sql_op_counters[i], osql_breq2a(i));
+            }
+        }
+    }
 }
 
 /**

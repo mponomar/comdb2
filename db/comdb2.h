@@ -346,6 +346,7 @@ enum OSQL_RPL_TYPE {
     OSQL_INSIDX = 25, /* new osql type to support indexes on expressions */
     OSQL_STARTGEN = 27,
     OSQL_DONE_WITH_EFFECTS = 28,
+    /* Adding new types?  Don't forget to update osql_breq2a */
     MAX_OSQL_TYPES = 29,
 };
 
@@ -1417,6 +1418,8 @@ struct ireq {
 
     int written_row_count;
     int sc_running;
+
+    bool sql_op_counters[MAX_OSQL_TYPES];
     /* REVIEW COMMENTS AT BEGINING OF STRUCT BEFORE ADDING NEW VARIABLES */
 };
 

@@ -191,7 +191,6 @@ void osql_cleanup(void)
 
 char *osql_breq2a(int op)
 {
-
     switch (op) {
     case OSQL_RPLINV:
         return "INVALID";
@@ -243,6 +242,11 @@ char *osql_breq2a(int op)
         return "OSQL_DELIDX";
     case OSQL_INSIDX:
         return "OSQL_INSIDX";
+    case OSQL_STARTGEN:
+        return "OSQL_STARTGEN";
+    case OSQL_DONE_WITH_EFFECTS:
+        return "OSQL_DONE_WITH_EFFECTS";
+
     default:
         return "UNKNOWN";
     }

@@ -431,8 +431,9 @@ int handle_ireq(struct ireq *iq)
     }
 
     /* Finish off logging. */
+    reqlog_almost_end_request(iq->reqlogger);
     if (iq->sorese) {
-        osql_sess_reqlogquery(iq->sorese, iq->reqlogger);
+        osql_sess_reqlogquery(iq, iq->sorese, iq->reqlogger);
     }
     reqlog_end_request(iq->reqlogger, rc, __func__, __LINE__);
     release_node_stats(NULL, NULL, iq->frommach);

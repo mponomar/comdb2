@@ -61,7 +61,7 @@ int osql_sess_remclient(osql_sess_t *sess);
 /**
  * Log query to the reqlog
  */
-void osql_sess_reqlogquery(osql_sess_t *sess, struct reqlogger *reqlog);
+void osql_sess_reqlogquery(struct ireq *iq, osql_sess_t *sess, struct reqlogger *reqlog);
 
 /**
  * Session information

@@ -1104,8 +1104,7 @@ static tsql_meta_command_t is_transaction_meta(struct sqlclntstate *clnt)
    should run after a sql statement is completed it should end up here. */
 static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
                                struct sqlclntstate *clnt, sqlite3_stmt *stmt,
-                               int stmt_rc)
-{
+                               int stmt_rc) {
     struct rawnodestats *rawnodestats;
 
     if (thd == NULL || clnt == NULL) {
@@ -1208,6 +1207,7 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
         reqlog_set_error(logger, clnt->saved_errstr, clnt->saved_rc);
 
     reqlog_set_rows(logger, clnt->nrows);
+
     reqlog_end_request(logger, stmt_rc, __func__, __LINE__);
 
     if (have_fingerprint) {
@@ -2244,6 +2244,13 @@ int handle_sql_commitrollback(struct sqlthdstate *thd,
     if (sideeffects == TRANS_CLNTCOMM_CHUNK)
         return outrc;
 
+done:
+    reqlog_almost_end_request(thd->logger);
+    if (reqlog_is_long_request(thd->logger)) {
+        srs_tran_dump(clnt, thd->logger);
+    }
+    reqlog_end_request(thd->logger, -1, __func__, __LINE__);
+
     /* if this is a retry, let the upper layer free the structure */
     if (clnt->osql.replay == OSQL_RETRY_NONE) {
         if (srs_tran_destroy(clnt))
@@ -2251,10 +2258,8 @@ int handle_sql_commitrollback(struct sqlthdstate *thd,
                    "Fail to destroy transaction replay session\n");
     }
 
-done:
     reset_clnt_flags(clnt);
 
-    reqlog_end_request(thd->logger, -1, __func__, __LINE__);
     return outrc;
 }
 

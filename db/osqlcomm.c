@@ -6825,6 +6825,7 @@ int osql_process_packet(struct ireq *iq, unsigned long long rqid, uuid_t uuid,
         return conv_rc_sql2blkop(iq, step, -1, ERR_BADREQ, err, NULL, 0);
     }
     }
+    iq->sql_op_counters[type]++;
 
     return 0;
 }

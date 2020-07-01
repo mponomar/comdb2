@@ -1843,6 +1843,19 @@ inline void reqlog_set_rqid(struct reqlogger *logger, void *id, int idlen)
     logger->have_id = 1;
 }
 
+/* Latch completion time.  This can be called right before we call reqlog_end_request
+ * if we're almost done, but want to log some additional information if it's a long
+ * request. */
+int reqlog_almost_end_request(struct reqlogger *logger) {
+    logger->durationus = (comdb2_time_epochus() - logger->startprcsus) + logger->queuetimeus;
+    logger->almost_done = 1;
+}
+
+void reqlog_dump_statement(struct reqlogger *logger) {
+    log_params(logger);
+    reqlog_logf(logger, REQL_INFO, "sql: %s", logger->clnt->sql);
+}
+
 /* End of a request. */
 void reqlog_end_request(struct reqlogger *logger, int rc, const char *callfunc,
                         int line)
@@ -1859,7 +1872,10 @@ void reqlog_end_request(struct reqlogger *logger, int rc, const char *callfunc,
     struct logruleuse *use_rules = NULL;
     struct logruleuse *use_rule;
 
-    int long_request_thresh;
+    int is_long_request = 0;
+
+    if (!logger->almost_done)
+        reqlog_almost_end_request(logger);
 
     if (!logger)
         return;
@@ -1881,9 +1897,6 @@ void reqlog_end_request(struct reqlogger *logger, int rc, const char *callfunc,
     flushdump(logger, NULL);
 
     logger->rc = rc;
-
-    logger->durationus =
-        (comdb2_time_epochus() - logger->startprcsus) + logger->queuetimeus;
 
     eventlog_add(logger);
 
@@ -1972,7 +1985,7 @@ void reqlog_end_request(struct reqlogger *logger, int rc, const char *callfunc,
 
             if (rule->count > 0) {
                 rule->count--;
-                if (rule->count == 0) {
+                if (rule->count == 1) {
                     /* discard this rule */
                     logmsg(LOGMSG_USER, "Discarding logging rule '%s'\n",
                            rule->name);
@@ -2002,15 +2015,11 @@ void reqlog_end_request(struct reqlogger *logger, int rc, const char *callfunc,
                             "TERMINATED CSTRINGS\n");
         log_header(logger, default_out, 0);
     }
-
+    
     /* check for long requests */
-    if (logger->opcode == OP_SQL && !logger->iq) {
-        long_request_thresh = gbl_sql_time_threshold;
-    } else {
-        long_request_thresh = long_request_ms;
-    }
+    is_long_request = reqlog_is_long_request(logger);
 
-    if (logger->durationus >= M2U(long_request_thresh)) {
+    if (is_long_request) {
         if (logger->clnt) {
             log_params(logger);
         }
@@ -3051,4 +3060,21 @@ void free_client_sql_data(void *data, int npoints) {
         free(stats[i].task);
     }
     free(stats);
+}
+
+/* It's a common pattern to dump more information on a long request, at the end
+ * of the request. Avoid doing that if we're not going to log it. */
+int reqlog_is_long_request(struct reqlogger *logger) {
+    int64_t long_request_thresh;
+    assert(logger->almost_done);
+
+    if (logger->opcode == OP_SQL && !logger->iq) {
+        long_request_thresh = gbl_sql_time_threshold;
+    } else {
+        long_request_thresh = long_request_ms;
+    }
+
+    printf("is_long_request: this %lld thresh %lld\n", (long long) logger->durationus, M2U(long_request_thresh));
+
+    return logger->durationus >= M2U(long_request_thresh);
 }

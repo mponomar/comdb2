@@ -125,6 +125,7 @@ struct reqlogger {
     int ncontext;
     char **context;
     struct sqlclntstate *clnt;
+    int almost_done;
 };
 
 /* a rage of values to look for */

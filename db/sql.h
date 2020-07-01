@@ -1339,4 +1339,11 @@ void add_fingerprint_to_rawstats(struct rawnodestats *stats,
  */
 int clnt_check_bdb_lock_desired(struct sqlclntstate *clnt);
 
+/**
+ * Dump replay history
+ * @param clnt Originating clnt state
+ * @param logger Logger to dump to
+ */
+void srs_tran_dump(struct sqlclntstate *clnt, struct reqlogger *logger);
+
 #endif /* _SQL_H_ */

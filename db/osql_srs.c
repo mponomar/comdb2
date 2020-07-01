@@ -23,6 +23,7 @@
 #include "comdb2uuid.h"
 
 #include "debug_switches.h"
+#include "reqlog.h"
 
 extern int gbl_osql_verify_retries_max;
 
@@ -350,4 +351,22 @@ int srs_tran_replay(struct sqlclntstate *clnt, struct thr_handle *thr_self)
     osql_set_replay(__FILE__, __LINE__, clnt, OSQL_RETRY_NONE);
 
     return rc;
+}
+
+// TODO: lifetimes of things in the copy clnt?
+void srs_tran_dump(struct sqlclntstate *clnt, struct reqlogger *logger) {
+    osqlstate_t *osql = &clnt->osql;
+    srs_tran_query_t *item = 0;
+    struct sqlclntstate copy = {0};
+
+    copy.plugin = clnt->plugin;
+    copy.appdata = clnt->appdata;
+
+    LISTC_FOR_EACH(&osql->history->lst, item, lnk) {
+        clnt->plugin.restore_stmt(&copy, item->stmt);
+        reqlog_set_clnt(logger, &copy);
+        reqlog_dump_statement(logger);
+    }
+    reqlog_set_clnt(logger, clnt);
+    // TODO: cleanup???
 }
