@@ -1419,7 +1419,7 @@ struct ireq {
     int written_row_count;
     int sc_running;
 
-    bool sql_op_counters[MAX_OSQL_TYPES];
+    int sql_op_counters[MAX_OSQL_TYPES];
     /* REVIEW COMMENTS AT BEGINING OF STRUCT BEFORE ADDING NEW VARIABLES */
 };
 

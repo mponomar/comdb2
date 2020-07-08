@@ -1846,7 +1846,7 @@ inline void reqlog_set_rqid(struct reqlogger *logger, void *id, int idlen)
 /* Latch completion time.  This can be called right before we call reqlog_end_request
  * if we're almost done, but want to log some additional information if it's a long
  * request. */
-int reqlog_almost_end_request(struct reqlogger *logger) {
+void reqlog_almost_end_request(struct reqlogger *logger) {
     logger->durationus = (comdb2_time_epochus() - logger->startprcsus) + logger->queuetimeus;
     logger->almost_done = 1;
 }
@@ -3073,8 +3073,6 @@ int reqlog_is_long_request(struct reqlogger *logger) {
     } else {
         long_request_thresh = long_request_ms;
     }
-
-    printf("is_long_request: this %lld thresh %lld\n", (long long) logger->durationus, M2U(long_request_thresh));
 
     return logger->durationus >= M2U(long_request_thresh);
 }

@@ -286,6 +286,11 @@ struct checkpoint_list {
     LINKC_T(struct checkpoint_list) lnk;
 };
 
+struct replication_track {
+    char *host;
+    time_t time;
+};
+
 struct tran_tag {
     tranclass_type tranclass;
     DB_TXN *tid;
@@ -361,8 +366,11 @@ struct tran_tag {
     /* temporary: used in logical abort case */
     hash_t *compensated_records;
 
-    /* anchor in bdb_state->transactions */
+    /* anchor in bdb_state->logical_transaction_list */
     LINKC_T(struct tran_tag) tranlist_lnk;
+
+    /* anchor in bdb_state->transactions */
+    LINKC_T(struct tran_tag) all_transactions_lnk;
 
     /* For non-clustered sql offloading we pass the tran object allocated
      * in the block processor to the sql engine pool.  Then when th sql engine
@@ -464,6 +472,10 @@ struct tran_tag {
     /* Newsi pglogs queue hash */
     hash_t *pglogs_queue_hash;
     u_int32_t flags;
+
+    int nreptimes;
+    /* Track replication ack times from other nodes. */
+    struct replication_track reptimes[REPMAX];
 };
 
 struct seqnum_t {
@@ -912,9 +924,11 @@ struct bdb_state_tag {
     hash_t *logical_transactions_hash;
     DB_LSN lwm; /* low watermark for logical transactions */
 
-    /* chain all transactions */
+    /* chain logical transactions */
     pthread_mutex_t translist_lk;
     LISTC_T(struct tran_tag) logical_transactions_list;
+    /* chain all transactions */
+    LISTC_T(struct tran_tag) transactions_list;
 
     /* for queues this points to extra stuff defined in queue.c */
     bdb_queue_priv *qpriv;
@@ -1866,4 +1880,8 @@ int bdb_list_all_fileids_for_newsi(bdb_state_type *, hash_t *);
 int bdb_prepare_put_pack_updateid(bdb_state_type *bdb_state, int is_blob,
                                   DBT *data, DBT *data2, int updateid,
                                   void **freeptr, void *stackbuf, int odhready);
+
+void bdb_tran_add_to_list(bdb_state_type *bdb_state, tran_type *tran);
+void bdb_tran_remove_from_list(bdb_state_type *bdb_state, tran_type *tran);
+void bdb_tran_add_reptime(bdb_state_type *bdb_state, tran_type *tran, char *host, time_t t);
 #endif /* __bdb_int_h__ */

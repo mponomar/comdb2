@@ -2754,6 +2754,8 @@ static DB_ENV *dbenv_open(bdb_state_type *bdb_state)
     Pthread_mutex_init(&bdb_state->translist_lk, &bdb_recursive_mutex);
     listc_init(&bdb_state->logical_transactions_list,
                offsetof(struct tran_tag, tranlist_lnk));
+    listc_init(&bdb_state->transactions_list,
+               offsetof(struct tran_tag, all_transactions_lnk));
 
     /*init this to the first possible log record in the db, we reset it later*/
     bdb_state->lwm.file = 1;

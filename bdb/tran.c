@@ -128,6 +128,8 @@ tran_type *bdb_tran_begin_logical_norowlocks_int(bdb_state_type *bdb_state,
         return NULL;
     }
 
+    bdb_tran_add_to_list(bdb_state, tran);
+
     return tran;
 }
 
@@ -760,6 +762,8 @@ tran_type *bdb_tran_begin_logical_int_int(bdb_state_type *bdb_state,
         logmsg(LOGMSG_USER, "TRK_TRAN: began transaction %p (logical, class=%d)\n",
                 tran, tran->tranclass);
 
+    bdb_tran_add_to_list(bdb_state, tran);
+
     return tran;
 }
 
@@ -905,6 +909,8 @@ tran_type *bdb_tran_begin_phys(bdb_state_type *bdb_state,
         logmsg(LOGMSG_USER, "TRK_TRAN: began transaction %p (physical class=%d) "
                         "for %p (logical, class=%d)\n",
                 tran, tran->tranclass, logical_tran, logical_tran->tranclass);
+
+    bdb_tran_add_to_list(bdb_state, tran);
 
     return tran;
 }
@@ -1197,6 +1203,8 @@ static tran_type *bdb_tran_begin_ll_int(bdb_state_type *bdb_state,
 
     if (tran->trak)
         logmsg(LOGMSG_USER, "TRK_TRAN: began transaction %p n", tran);
+    
+    bdb_tran_add_to_list(bdb_state, tran);
 
     return tran;
 }
@@ -1668,12 +1676,8 @@ int bdb_tran_commit_with_seqnum_int(bdb_state_type *bdb_state, tran_type *tran,
 
                 // TODO not sure if this is necessary anymore 
                 // I should be setting this from a hook in log-put
-                memcpy(&(bdb_state->seqnum_info
-                             ->seqnums[nodeix(bdb_state->repinfo->myhost)]),
-                       &lsn, sizeof(DB_LSN));
-                bdb_state->seqnum_info
-                    ->seqnums[nodeix(bdb_state->repinfo->myhost)]
-                    .generation = generation;
+                memcpy(&(bdb_state->seqnum_info->seqnums[nodeix(bdb_state->repinfo->myhost)]), &lsn, sizeof(DB_LSN));
+                bdb_state->seqnum_info->seqnums[nodeix(bdb_state->repinfo->myhost)].generation = generation;
             }
             Pthread_mutex_unlock(&(bdb_state->seqnum_info->lock));
         }
@@ -2071,6 +2075,8 @@ cleanup:
         }
     }
 
+    bdb_tran_remove_from_list(bdb_state, tran);
+
     /* if we are the master and we free tran we need to get rid of the stored
      * reference so functions like berkdb_send_rtn don't try to use it */
     if (tran->master) {
@@ -2268,6 +2274,8 @@ int bdb_tran_abort_int_int(bdb_state_type *bdb_state, tran_type *tran,
 {
     int rc = 0;
     int outrc = 0;
+
+    bdb_tran_remove_from_list(bdb_state, tran);
 
     if (bdb_state->parent)
         bdb_state = bdb_state->parent;
@@ -2706,4 +2714,21 @@ int bdb_set_tran_lowpri(bdb_state_type *bdb_state, tran_type *tran)
 {
     return bdb_state->dbenv->set_tran_lowpri(bdb_state->dbenv,
                                              tran->tid->txnid);
+}
+
+void bdb_tran_add_to_list(bdb_state_type *bdb_state, tran_type *tran) {
+    Pthread_mutex_lock(&bdb_state->translist_lk);
+    listc_abl(&bdb_state->transactions_list, tran);
+    Pthread_mutex_unlock(&bdb_state->translist_lk);
+}
+
+void bdb_tran_remove_from_list(bdb_state_type *bdb_state, tran_type *tran) {
+    Pthread_mutex_lock(&bdb_state->translist_lk);
+    listc_abl(&bdb_state->transactions_list, tran);
+    Pthread_mutex_unlock(&bdb_state->translist_lk);
+}
+
+/* Record replication ack time from a node to transaction object. Must be called while translist_lk is held in bdb_state. */
+void bdb_tran_add_reptime(bdb_state_type *bdb_state, tran_type *tran, char *host, time_t t) {
+    tran->reptimes[tran->nreptimes++] = (struct replication_track) {.host = host, .time = t};
 }

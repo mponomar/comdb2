@@ -114,6 +114,7 @@ static int bdb_wait_for_seqnum_from_node_nowait_int(bdb_state_type *bdb_state,
                                                     char *host);
 
 static void bdb_zap_lsn_waitlist(bdb_state_type *bdb_state, const char *host);
+static void notify_replication_time(bdb_state_type *bdb_state, char *host, DB_LSN *startlsn, time_t diff);
 
 static int last_slow_node_check_time = 0;
 static pthread_mutex_t slow_node_check_lk = PTHREAD_MUTEX_INITIALIZER;
@@ -2486,7 +2487,7 @@ static void got_new_seqnum_from_node(bdb_state_type *bdb_state,
     if (track_times)
         now = comdb2_time_epochms();
 
-    /* save the seqnum that we recived */
+    /* save the seqnum that we received */
     Pthread_mutex_lock(&(bdb_state->seqnum_info->lock));
 
     /* Completely possible .. it just means that the durable lsn will trail a
@@ -2539,9 +2540,7 @@ static void got_new_seqnum_from_node(bdb_state_type *bdb_state,
             bdb_state->seqnum_info->time_minute[node_ix] =
                 averager_new(60000, 100000);
         }
-        waitforlsn =
-            (struct waiting_for_lsn *)bdb_state->seqnum_info->waitlist[node_ix]
-                ->top;
+        waitforlsn = (struct waiting_for_lsn *)bdb_state->seqnum_info->waitlist[node_ix]->top;
         while (waitforlsn) {
             if (log_compare(&seqnum->lsn, &waitforlsn->lsn) >= 0) {
                 struct waiting_for_lsn *next;
@@ -2560,6 +2559,7 @@ static void got_new_seqnum_from_node(bdb_state_type *bdb_state,
 
                 pool_relablk(bdb_state->seqnum_info->trackpool, waitforlsn);
                 waitforlsn = next;
+                notify_replication_time(bdb_state, host, &seqnum->lsn, diff);
             } else
                 waitforlsn = waitforlsn->lnk.next;
         }
@@ -3163,6 +3163,14 @@ static int node_in_list(int node, int list[], int listsz)
     }
 
     return 0;
+}
+
+static void notify_replication_time(bdb_state_type *bdb_state, char *host, DB_LSN *startlsn, time_t diff) {
+    tran_type *tran;
+    Pthread_mutex_lock(&bdb_state->translist_lk);
+    LISTC_FOR_EACH(&bdb_state->transactions_list, tran, all_transactions_lnk) {
+    }
+    Pthread_mutex_unlock(&bdb_state->translist_lk);
 }
 
 /*
