@@ -216,19 +216,59 @@ lc_dump_cache(DB_ENV *dbenv, int needlock)
 	return 0;
 }
 
+#if 0
+/* hoisted out of rep.h */
+struct __lsn_collection {
+    int nlsns;
+    int nalloc;
+    struct logrecord *array;
+    int memused;
+    int had_serializable_records;
+    int filled_from_cache;
+};
+
+struct __lc_cache_entry {
+	u_int32_t txnid;
+	int cacheid;  /* offset in __lc_cache.ent */
+	DB_LSN last_seen_lsn;
+	LINKC_T(struct __lc_cache_entry) lnk;
+	LSN_COLLECTION lc;
+};
+#endif
+
+static int size_cache(void *item, void *usrptr) {
+    int64_t *totalsz = (int64_t *) usrptr;
+    LC_CACHE_ENTRY *e = (LC_CACHE_ENTRY *) item;
+
+    for (int i = 0; i < e->lc.nlsns; i++) {
+        *totalsz += e->lc.array[i].rec.size;
+    }
+    if (*totalsz != e->lc.memused) {
+        printf("memused %d totalsz %"PRId64"\n", e->lc.memused, *totalsz);
+    }
+
+    return 0;
+}
+
 // PUBLIC: int __lc_cache_feed __P((DB_ENV *, DB_LSN, DBT));
 int
-__lc_cache_feed(DB_ENV *dbenv, DB_LSN lsn, DBT dbt)
-{
-	LC_CACHE_ENTRY *e;
-	int ret;
+__lc_cache_feed(DB_ENV *dbenv, DB_LSN lsn, DBT dbt) {
+    LC_CACHE_ENTRY *e;
+    int ret;
 
-	u_int32_t type;
-	u_int32_t txnid;
-	DB_LSN prevlsn;
-	uint8_t *logrec;
+    u_int32_t type;
+    u_int32_t txnid;
+    DB_LSN prevlsn;
+    uint8_t *logrec;
+    int64_t totalsz = 0;
+    static int64_t maxsz = 0;
 
-	Pthread_mutex_lock(&dbenv->lc_cache.lk);
+    Pthread_mutex_lock(&dbenv->lc_cache.lk);
+    hash_for(dbenv->lc_cache.txnid_hash, size_cache, &totalsz);
+    if (totalsz > maxsz) {
+        printf("lccache grew to %"PRId64"\n", totalsz);
+        maxsz = totalsz;
+    }
 
 	logrec = dbt.data;
 	if (dbt.size <
