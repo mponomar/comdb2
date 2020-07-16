@@ -27,7 +27,7 @@ struct bdb_osql_trn;
  * transaction "tran"
  *
  */
-int bdb_tran_free_shadows(bdb_state_type *bdb_state, tran_type *tran);
+int bdb_tran_free_shadows(bdb_env__type *bdb_state, tran_type *tran);
 
 /**
  * Check if a real genid is marked deleted.
@@ -61,7 +61,7 @@ int bdb_tran_deltbl_setdeleted(bdb_cursor_ifn_t *cur, unsigned long long genid,
  *
  *
  */
-struct temp_cursor *bdb_tran_deltbl_first(bdb_state_type *bdb_state,
+struct temp_cursor *bdb_tran_deltbl_first(bdb_env_type *bdb_state,
                                           tran_type *shadow_tran, int dbnum,
                                           unsigned long long *genid,
                                           char **data, int *datalen,
@@ -74,7 +74,7 @@ struct temp_cursor *bdb_tran_deltbl_first(bdb_state_type *bdb_state,
  * immediately when returning IX_PASTEOF.
  *
  */
-int bdb_tran_deltbl_next(bdb_state_type *bdb_state, tran_type *shadow_tran,
+int bdb_tran_deltbl_next(bdb_env_type *bdb_state, tran_type *shadow_tran,
                          struct temp_cursor *cur, unsigned long long *genid,
                          char **data, int *datalen, int *bdberr);
 
@@ -130,7 +130,7 @@ int bdb_osql_shadow_set_lastlog(bdb_cursor_ifn_t *cur, struct bdb_osql_log *log,
  * Set the shadow transaction to a reset cursor
  *
  */
-int bdb_osql_cursor_reset(bdb_state_type *bdb_state,
+int bdb_osql_cursor_reset(bdb_env_type *bdb_state,
                           bdb_cursor_ifn_t *pcur_ifn);
 void bdb_osql_cursor_set(bdb_cursor_ifn_t *pcur_ifn, tran_type *shadow_tran);
 

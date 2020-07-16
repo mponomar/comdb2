@@ -46,17 +46,17 @@ struct tran_table_shadows {
     tran_shadow_t *bl_shadows; /* blob shadow, one */
 };
 
-static tmpcursor_t *open_shadow(bdb_state_type *bdb_state,
+static tmpcursor_t *open_shadow(bdb_env_type *bdb_state,
                                 tran_shadow_t **pshadows, int file, int maxfile,
                                 int stripe, int maxstripe, int create,
                                 int *bdberr);
 
-static void open_shadow_nocursor(bdb_state_type *bdb_state,
+static void open_shadow_nocursor(bdb_env_type *bdb_state,
                                  tran_shadow_t **pshadows, int file,
                                  int maxfile, int stripe, int maxstripe,
                                  int *bdberr);
 
-static int bdb_free_shadows_table(bdb_state_type *bdb_state,
+static int bdb_free_shadows_table(bdb_env_type *bdb_state,
                                   tran_shadow_t *shadows);
 
 /**
@@ -65,7 +65,7 @@ static int bdb_free_shadows_table(bdb_state_type *bdb_state,
  * cur->ixnum indicates if this is dta or index
  *
  */
-static tmpcursor_t *bdb_tran_open_shadow_int(bdb_state_type *bdb_state,
+static tmpcursor_t *bdb_tran_open_shadow_int(bdb_env_type *bdb_state,
                                              int dbnum, tran_type *shadow_tran,
                                              int idx, int type, int create,
                                              int nocursor, int *bdberr)
@@ -155,7 +155,7 @@ static tmpcursor_t *bdb_tran_open_shadow_int(bdb_state_type *bdb_state,
     return NULL;
 }
 
-tmpcursor_t *bdb_tran_open_shadow(bdb_state_type *bdb_state, int dbnum,
+tmpcursor_t *bdb_tran_open_shadow(bdb_env_type *bdb_state, int dbnum,
                                   tran_type *shadow_tran, int idx, int type,
                                   int create, int *bdberr)
 {
@@ -163,7 +163,7 @@ tmpcursor_t *bdb_tran_open_shadow(bdb_state_type *bdb_state, int dbnum,
                                     create, 0, bdberr);
 }
 
-void bdb_tran_open_shadow_nocursor(bdb_state_type *bdb_state, int dbnum,
+void bdb_tran_open_shadow_nocursor(bdb_env_type *bdb_state, int dbnum,
                                    tran_type *shadow_tran, int idx, int type,
                                    int *bdberr)
 {
@@ -540,7 +540,7 @@ void bdb_return_pglogs_relink_hashtbl(hash_t *hashtbl);
  * Free all shadows upon transaction commit/rollback
  *
  */
-int bdb_tran_free_shadows(bdb_state_type *bdb_state, tran_type *tran)
+int bdb_tran_free_shadows(bdb_env_type *bdb_state, tran_type *tran)
 {
     int dbnum = 0;
     int have_errors = 0;
@@ -594,7 +594,7 @@ int bdb_tran_free_shadows(bdb_state_type *bdb_state, tran_type *tran)
  *
  *
  */
-struct temp_cursor *bdb_tran_deltbl_first(bdb_state_type *bdb_state,
+struct temp_cursor *bdb_tran_deltbl_first(bdb_env_type *bdb_state,
                                           tran_type *shadow_tran, int dbnum,
                                           unsigned long long *genid,
                                           char **data, int *datalen,
@@ -648,7 +648,7 @@ struct temp_cursor *bdb_tran_deltbl_first(bdb_state_type *bdb_state,
  * immediately when returning IX_PASTEOF.
  *
  */
-int bdb_tran_deltbl_next(bdb_state_type *bdb_state, tran_type *shadow_tran,
+int bdb_tran_deltbl_next(bdb_env_type *bdb_state, tran_type *shadow_tran,
                          struct temp_cursor *cur, unsigned long long *genid,
                          char **data, int *datalen, int *bdberr)
 {
@@ -848,7 +848,7 @@ int bdb_tran_deltbl_setdeleted(bdb_cursor_ifn_t *pcur_ifn,
 /*
    open a shadow, create shadow if there is no one
  */
-static tmpcursor_t *open_shadow_int(bdb_state_type *bdb_state,
+static tmpcursor_t *open_shadow_int(bdb_env_type *bdb_state,
                                     tran_shadow_t **pshadows, int file,
                                     int maxfile, int stripe, int maxstripe,
                                     int create, int nocursor, int *bdberr)
@@ -923,7 +923,7 @@ static tmpcursor_t *open_shadow_int(bdb_state_type *bdb_state,
     return shad_cur;
 }
 
-static tmpcursor_t *open_shadow(bdb_state_type *bdb_state,
+static tmpcursor_t *open_shadow(bdb_env_type *bdb_state,
                                 tran_shadow_t **pshadows, int file, int maxfile,
                                 int stripe, int maxstripe, int create,
                                 int *bdberr)
@@ -933,7 +933,7 @@ static tmpcursor_t *open_shadow(bdb_state_type *bdb_state,
 }
 
 /* Create a shadow table, but do not return a cursor to it. */
-static void open_shadow_nocursor(bdb_state_type *bdb_state,
+static void open_shadow_nocursor(bdb_env_type *bdb_state,
                                  tran_shadow_t **pshadows, int file,
                                  int maxfile, int stripe, int maxstripe,
                                  int *bdberr)
@@ -943,7 +943,7 @@ static void open_shadow_nocursor(bdb_state_type *bdb_state,
 }
 
 /* free a set of shadows */
-static int bdb_free_shadows_table(bdb_state_type *bdb_state,
+static int bdb_free_shadows_table(bdb_env_type *bdb_state,
                                   tran_shadow_t *shadows)
 {
     int rc = 0;
@@ -1008,7 +1008,7 @@ int bdb_osql_destroy(int *bdberr)
     return rc;
 }
 
-int bdb_osql_cursor_reset(bdb_state_type *bdb_state, bdb_cursor_ifn_t *pcur_ifn)
+int bdb_osql_cursor_reset(bdb_env_type *bdb_state, bdb_cursor_ifn_t *pcur_ifn)
 {
     bdb_cursor_impl_t *cur = pcur_ifn->impl;
     int rc = 0;

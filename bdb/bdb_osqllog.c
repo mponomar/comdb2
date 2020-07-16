@@ -83,7 +83,7 @@ typedef struct bdb_osql_log_repo {
 /* transaction repository */
 static bdb_osql_log_repo_t *log_repo; /* the log repo */
 
-static int undo_get_prevlsn(bdb_state_type *bdb_state, DBT *logdta,
+static int undo_get_prevlsn(bdb_env_type *bdb_state, DBT *logdta,
                             DB_LSN *prevlsn);
 static int bdb_osql_log_try_run_optimized(bdb_cursor_impl_t *cur,
                                           DB_LOGC *curlog, bdb_osql_log_t *log,
@@ -768,7 +768,7 @@ int bdb_osql_log_updix_lk(bdb_osql_log_t *log, DB_LSN *lsn,
 }
 
 static inline bdb_osql_log_rec_t *
-bdb_osql_comprec_reference_rec(bdb_state_type *bdb_state, DB_LSN *lsn,
+bdb_osql_comprec_reference_rec(bdb_env_type *bdb_state, DB_LSN *lsn,
                                DBT *logdta, int *bdberr)
 {
     u_int32_t rectype = 0;
@@ -875,7 +875,7 @@ bdb_osql_comprec_reference_rec(bdb_state_type *bdb_state, DB_LSN *lsn,
 }
 
 static inline bdb_osql_log_rec_t *
-bdb_osql_comprec_rec(bdb_state_type *bdb_state,
+bdb_osql_comprec_rec(bdb_env_type *bdb_state,
                      llog_ltran_comprec_args *comprec, DB_LSN *lsn, int *bdberr)
 {
     bdb_osql_log_rec_t *rec = (bdb_osql_log_rec_t *)calloc(1, sizeof(*rec));
@@ -942,7 +942,7 @@ bdb_osql_comprec_rec(bdb_state_type *bdb_state,
     return rec;
 }
 
-int bdb_osql_log_comprec(bdb_state_type *bdb_state, bdb_osql_log_t *log,
+int bdb_osql_log_comprec(bdb_env_type *bdb_state, bdb_osql_log_t *log,
                          DB_LSN *lsn, llog_ltran_comprec_args *comprec,
                          int *bdberr)
 {
@@ -1074,7 +1074,7 @@ unsigned long long bdb_osql_log_get_genid(bdb_osql_log_t *log)
  * During insert, the clients are checked and updated if needed
  * Sync with bdb_osql_log_next
  */
-int bdb_osql_log_insert(bdb_state_type *bdb_state, bdb_osql_log_t *log,
+int bdb_osql_log_insert(bdb_env_type *bdb_state, bdb_osql_log_t *log,
                         int *bdberr, int is_master)
 {
     bdb_osql_log_t *log1 = NULL, *log2 = NULL;
@@ -1187,7 +1187,7 @@ int bdb_osql_log_insert(bdb_state_type *bdb_state, bdb_osql_log_t *log,
 }
 
 /* Apply a page-order update to an add-cursor. */
-static int bdb_osql_addcur_apply_ll(bdb_state_type *bdb_state,
+static int bdb_osql_addcur_apply_ll(bdb_env_type *bdb_state,
                                     bdb_cursor_impl_t *cur, int dbnum,
                                     tran_type *shadow_tran,
                                     unsigned long long genid, int tabletype,
@@ -1251,7 +1251,7 @@ static char *tabletype_to_str(int tabletype)
     return "(UNKNOWN?)";
 }
 
-static int bdb_osql_log_apply_ll(bdb_state_type *bdb_state,
+static int bdb_osql_log_apply_ll(bdb_env_type *bdb_state,
                                  tran_type *shadow_tran, bdb_osql_log_t *log,
                                  bdb_osql_log_rec_t *rec, int tabletype,
                                  int tableid, unsigned long long genid,
