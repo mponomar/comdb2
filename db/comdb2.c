@@ -773,6 +773,8 @@ int gbl_osql_odh_blob = 1;
 
 int gbl_clean_exit_on_sigterm = 1;
 
+int gbl_disallow_sql_ull_values = 0;
+
 comdb2_tunables *gbl_tunables; /* All registered tunables */
 int init_gbl_tunables();
 int free_gbl_tunables();

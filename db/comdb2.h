@@ -3645,4 +3645,7 @@ extern int gbl_pbkdf2_iterations;
 extern int gbl_bpfunc_auth_gen;
 
 void dump_client_sql_data(struct reqlogger *logger, int do_snapshot);
+
+extern int gbl_disallow_sql_ull_values;
+
 #endif /* !INCLUDED_COMDB2_H */

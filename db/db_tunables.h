@@ -1838,4 +1838,7 @@ REGISTER_TUNABLE("json_escape_control_characters",
                  TUNABLE_BOOLEAN, &gbl_json_escape_control_chars, 0, NULL, NULL,
                  NULL, NULL);
 
+REGISTER_TUNABLE("disallow_sql_ull_values", "Disallow out of range longlong values on SQL insert to u_longlong fields.  (Default: off)",
+                 TUNABLE_BOOLEAN, &gbl_disallow_sql_ull_values, 0, NULL, NULL, NULL, NULL);
+
 #endif /* _DB_TUNABLES_H */
