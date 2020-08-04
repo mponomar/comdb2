@@ -51,7 +51,7 @@ CLUSTER=$@
 if [[ -z $DBDIR ]]; then
     DBDIR=`pwd`/$DBNAME/
 else
-    DBDIR=`readlink -f ${DBDIR}`
+    DBDIR=`$(readlink) -f ${DBDIR}`
 fi
 
 if [ "x$CLUSTER" = "x" ] ; then

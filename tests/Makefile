@@ -1,5 +1,12 @@
 export TESTSROOTDIR:=$(shell pwd)
-SRCHOME:=$(shell readlink -f $(TESTSROOTDIR)/../)
+
+ifeq ($(shell uname),Darwin)
+	export readlink=/usr/local/bin/greadlink
+else
+	export readlink=readlink
+endif
+
+SRCHOME:=$(shell $(readlink) -f $(TESTSROOTDIR)/../)
 ifeq ($(SRCHOME),)
   SRCHOME:=$(TESTSROOTDIR)/..
 endif

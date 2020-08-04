@@ -3,12 +3,17 @@
 # if they are not set it means that we are running make from within 
 # the individual test directory thus we will need to define them
 
+ifeq ($(shell uname),Darwin)
+	export readlink=/usr/local/bin/greadlink
+else
+	export readlink=readlink
+endif
 
 ifeq ($(TESTSROOTDIR),)
   # TESTSROOTDIR is not set when make is issued from within a test directory 
   # (will check assumption few lines later)
   # needs to expand to a full path, otherwise it propagates as '../'
-  export TESTSROOTDIR=$(shell readlink -f $(PWD)/..)
+  export TESTSROOTDIR=$(shell $(readlink) -f $(PWD)/..)
   export SKIPSSL=1   #force SKIPSSL for local test -- easier to debug
   export INSETUP=yes
 else
@@ -20,7 +25,7 @@ ifeq ($(wildcard ${TESTSROOTDIR}/setup),)
   $(error TESTSROOTDIR is set incorrectly to ${TESTSROOTDIR} )
 endif
 
-export SRCHOME?=$(shell readlink -f $(TESTSROOTDIR)/../)
+export SRCHOME?=$(shell $(readlink) -f $(TESTSROOTDIR)/../)
 ifeq ($(TESTID),)
 export TESTID:=$(shell $(TESTSROOTDIR)/tools/get_random.sh)
 endif
