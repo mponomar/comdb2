@@ -390,10 +390,12 @@ static int sqllog_roll(int nkeep)
     return rc;
 }
 
-static int log_async(struct sqlclntstate *clnt, int cost, int nrows, int timems)
-{
-    /* HERE */
-    return 0;
+void sqllog_log_statement(struct sqlclntstate *clnt, int cost, int nrows, int timems) {
+    size_t sz;
+    void *logmsg;
+    logmsg = clnt->plugin.logsql(clnt, cost, nrows, timems, &sz);
+    if (logmsg)
+        async_enqueue(logmsg, sz);
 }
 
 void sqllogger_process_message(char *line, int lline)
@@ -518,8 +520,5 @@ void sqllogger_process_message(char *line, int lline)
         logmsg(LOGMSG_ERROR, "Unknown sqllogger command\n");
         return;
     }
-}
-
-void sqllog_save_event(struct sqlclntstate *clnt, char *p, int bytes) {
 }
 
