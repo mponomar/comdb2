@@ -30,6 +30,7 @@
 
 #include <sqlquery.pb-c.h>
 #include <sqlresponse.pb-c.h>
+#include <sys/time.h>
 
 struct thr_handle;
 struct sbuf2;
@@ -57,6 +58,8 @@ int sbuf_is_local(SBUF2 *sb);
 static int newsql_clr_snapshot(struct sqlclntstate *);
 static int newsql_has_high_availability(struct sqlclntstate *);
 static int newsql_has_parallel_sql(struct sqlclntstate *);
+
+static void* newsql_logsql(struct sqlclntstate *clnt, int64_t cost, int64_t nrows, int64_t timems, size_t *outsz);
 
 struct newsqlheader {
     int type;        /*  newsql request/response type */
@@ -2585,6 +2588,77 @@ done:
     cleanup_clnt(&clnt);
 
     return APPSOCK_RETURN_OK;
+}
+
+static void* newsql_logsql(struct sqlclntstate *clnt, int64_t cost, int64_t nrows, int64_t timems, size_t *outsz) {
+    size_t sz = 0;
+    uint8_t *buf, *p;
+    struct timeval t;
+    struct newsql_appdata *appdata = clnt->appdata;
+    CDB2SQLQUERY *sql_query = appdata->sqlquery;
+
+    size_t packedsz = cdb2__sqlquery__get_packed_size(sql_query);
+
+    /* this part is common for both SQL APIs */
+    sz += 2*sizeof(int32_t);     /* timeval */
+
+    sz += sizeof(int32_t);     /* normally sql length, but -1 signals comdb2sqllog that
+                                   it's a new sql request. */
+    sz += sizeof(int32_t);     /* packed size */
+    sz += packedsz;
+    sz += sizeof(int64_t);     /* cost */
+    sz += sizeof(int64_t);     /* nrows */
+    sz += sizeof(int32_t);     /* timems */
+    sz += sizeof(uuid_t);     /* rqid */
+
+    buf = p = malloc(sz);
+    if (buf == NULL)
+        return NULL;
+
+#define WRITE_INT(v) \
+    do { \
+        int32_t ival = v; \
+        memcpy(p, &ival, sizeof(int32_t)); \
+        p += sizeof(int32_t); \
+    } while (0)
+
+#define WRITE_INT64(v) \
+    do { \
+        int64_t ival = v; \
+        memcpy(p, &ival, sizeof(int64_t)); \
+        p += sizeof(int64_t); \
+    } while (0)
+
+    int rc = gettimeofday(&t, NULL);
+    if (rc) {
+        free(buf);
+        return NULL;
+    }
+
+    /* signal it as newsql, so replayer knows it needs to unpack a protobuf message */
+    WRITE_INT(t.tv_sec);
+    WRITE_INT(t.tv_usec);
+    WRITE_INT((int32_t) -1);
+    WRITE_INT(packedsz);
+    cdb2__sqlquery__pack(sql_query, p);
+    p += packedsz;
+    WRITE_INT64(cost);
+    WRITE_INT64(nrows);
+    WRITE_INT(timems);
+    memset(p, 0, sizeof(uuid_t));
+    if (clnt->osql.rqid == OSQL_RQID_USE_UUID) {
+        memcpy(p, clnt->osql.uuid, sizeof(uuid_t));
+        p += sizeof(uuid_t);
+    }
+    else {
+        WRITE_INT64(clnt->osql.rqid);
+        p += sizeof(uuid_t);
+    }
+
+    *outsz = sz;
+    return buf;
+#undef WRITE_INT
+#undef WRITE_INT64
 }
 
 comdb2_appsock_t newsql_plugin = {

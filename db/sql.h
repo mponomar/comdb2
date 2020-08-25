@@ -458,6 +458,7 @@ struct plugin_callbacks {
                                      int); /* sqlite3_column_interval*/
     int (*sqlite_error)(struct sqlclntstate *, sqlite3_stmt *,
                         const char **errstr); /* sqlite3_errcode */
+    void* (*logsql)(struct sqlclntstate*, int64_t cost, int64_t nrows, int64_t timems, size_t *outsz);
 };
 
 #define make_plugin_callback(clnt, name, func)                                 \
@@ -497,6 +498,7 @@ struct plugin_callbacks {
         make_plugin_callback(clnt, name, get_client_starttime);                \
         make_plugin_callback(clnt, name, get_client_retries);                  \
         make_plugin_callback(clnt, name, send_intrans_response);               \
+        make_plugin_callback(clnt, name, logsql);                              \
         make_plugin_optional_null(clnt, count);                                \
         make_plugin_optional_null(clnt, type);                                 \
         make_plugin_optional_null(clnt, int64);                                \

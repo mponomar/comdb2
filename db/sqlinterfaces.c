@@ -1310,6 +1310,21 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
         h->conn = clnt->conninfo;
     }
 
+    if (stmt_rc == 0 && gbl_log_all_sql) {
+        int64_t rows;
+
+        if (clnt->writeTransaction) {
+            if (clnt->intrans)
+                rows = 0;
+            else
+                rows = clnt->log_effects.num_updated + clnt->log_effects.num_deleted + clnt->log_effects.num_inserted;
+        }
+        else
+            rows = clnt->nrows;
+
+        sqllog_log_statement(clnt, (int64_t) h->cost.cost, rows, h->cost.time);
+    }
+
     Pthread_mutex_lock(&gbl_sql_lock);
     {
         quantize(q_sql_min, h->cost.time);
@@ -7303,6 +7318,9 @@ static int internal_get_client_retries(struct sqlclntstate *a)
 static int internal_send_intrans_response(struct sqlclntstate *a)
 {
     return 1;
+}
+static void* internal_logsql(struct sqlclntstate *clnt, int64_t cost, int64_t nrows, int64_t timems, size_t *outsz) {
+    return NULL;
 }
 void start_internal_sql_clnt(struct sqlclntstate *clnt)
 {
