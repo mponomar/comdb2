@@ -29,6 +29,7 @@
 #include <sqlquery.pb-c.h>
 #include <sqlresponse.pb-c.h>
 #include <sys/time.h>
+#include "osqlsession.h"
 
 struct thr_handle;
 struct sbuf2;

@@ -1896,6 +1896,22 @@ static int do_commitrollback(struct sqlthdstate *thd, struct sqlclntstate *clnt)
         }
     }
 
+    // commit doesn't go through sql_statement_done
+    if (clnt->saved_rc == 0 && gbl_log_all_sql) {
+        static uuid_t zerouuid = {0};
+        int should_log = 0;
+        if (clnt->osql.rqid == OSQL_RQID_USE_UUID) {
+            if (memcmp(clnt->osql.uuid, zerouuid, sizeof(uuid_t)) != 0)
+                should_log = 1;
+        }
+        else if (clnt->osql.rqid != 0)
+            should_log = 1;
+
+        if (should_log)
+            sqllog_log_statement(clnt, (int64_t) query_cost(thd->sqlthd), 0, comdb2_time_epochms() - thd->sqlthd->startms);
+    }
+
+
     return rc;
 }
 

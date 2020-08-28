@@ -238,8 +238,7 @@ again:
     }
     /* if it's not a new file, write version number */
     if (ftell(f) == 0) {
-        int32_t ver = htonl(sqllog_version);
-        printf("ver %d\n", sqllog_version);
+        int32_t ver = sqllog_version;
         rc = fwrite(&ver, sizeof(int32_t), 1, f);
         if (rc != 1) {
             logmsg(LOGMSG_ERROR, "Can't write version to SQL log file\n");
