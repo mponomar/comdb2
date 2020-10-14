@@ -92,6 +92,7 @@ struct comdb2_metrics_store {
     int64_t minimum_truncation_file;
     int64_t minimum_truncation_offset;
     int64_t minimum_truncation_timestamp;
+    int64_t vreplays;
 };
 
 static struct comdb2_metrics_store stats;
@@ -237,16 +238,9 @@ comdb2_metric gbl_metrics[] = {
     {"standing_queue_time", "How long the database has had a standing queue",
      STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_LATEST,
      &stats.standing_queue_time, NULL},
-#if 0
-    {"minimum_truncation_file", "Minimum truncation file", STATISTIC_INTEGER,
-     STATISTIC_COLLECTION_TYPE_LATEST, &stats.minimum_truncation_file, NULL},
-    {"minimum_truncation_offset", "Minimum truncation offset",
-     STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_LATEST,
-     &stats.minimum_truncation_offset, NULL},
-    {"minimum_truncation_timestamp", "Minimum truncation timestamp",
-     STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_LATEST,
-     &stats.minimum_truncation_timestamp, NULL},
-#endif
+    {"vreplays", "Number of times transactions have been replayed because of concurrent modifications",
+     STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_CUMULATIVE,
+     &stats.vreplays, NULL},
 };
 
 const char *metric_collection_type_string(comdb2_collection_type t) {
@@ -321,10 +315,6 @@ int refresh_metrics(void)
     int rc;
     const struct berkdb_thread_stats *pstats;
     extern int active_appsock_conns; int bdberr;
-#if 0
-    int min_file, min_offset;
-    int32_t min_timestamp;
-#endif
 
     /* Check whether the server is exiting. */
     if (db_is_stopped())
@@ -472,6 +462,8 @@ int refresh_metrics(void)
     }
     stats.diskspace = refresh_diskspace(thedb, trans);
     curtran_puttran(trans);
+
+    stats.vreplays = gbl_verify_tran_replays;
 
     return 0;
 }
