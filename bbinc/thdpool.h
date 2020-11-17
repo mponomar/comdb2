@@ -105,12 +105,7 @@ enum {
     THDPOOL_QUEUE_ONLY = 0x8
 };
 int thdpool_enqueue(struct thdpool *pool, thdpool_work_fn work_fn, void *work,
-<<<<<<< HEAD
-                    int queue_override, struct string_ref *persistent_info, uint32_t flags,
-                    priority_t priority);
-=======
-                    int queue_override, char *persistent_info, uint32_t flags);
->>>>>>> eac8fa6d4... Completely remove all support for numerically prioritizing SQL queries.
+                    int queue_override, struct string_ref *persistent_info, uint32_t flags);
 void thdpool_stop(struct thdpool *pool);
 void thdpool_resume(struct thdpool *pool);
 void thdpool_unset_exit(struct thdpool *pool);

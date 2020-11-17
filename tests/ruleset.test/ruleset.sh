@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+if [ $SP_HOST != `hostname` ]; then
+  ssh $SP_HOST mkdir -p $DBDIR/rulesets/
+  scp *.ruleset $SP_HOST:$DBDIR/rulesets/
+fi
+
 cdb2sql --host $SP_HOST $SP_OPTIONS "SELECT 'phase 0' AS z;" 2>&1
 cdb2sql --host $SP_HOST $SP_OPTIONS "EXEC PROCEDURE sys.cmd.send('free_ruleset')"
 cdb2sql --host $SP_HOST $SP_OPTIONS "EXEC PROCEDURE sys.cmd.send('free_ruleset')"

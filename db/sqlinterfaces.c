@@ -5375,24 +5375,13 @@ static int enqueue_sql_query(struct sqlclntstate *clnt)
 
     struct string_ref *sr = get_ref(clnt->sql_ref);
     if ((rc = thdpool_enqueue(pool, sqlengine_work_appsock_pp,
-<<<<<<< HEAD
-                              clnt, clnt->queue_me, sr, flags,
-                              clnt->priority)) != 0) {
-=======
-                              clnt, clnt->queue_me, sqlcpy, flags)) != 0) {
->>>>>>> eac8fa6d4... Completely remove all support for numerically prioritizing SQL queries.
+                              clnt, clnt->queue_me, sr, flags)) != 0) {
         if ((in_client_trans(clnt) || clnt->osql.replay == OSQL_RETRY_DO) &&
             gbl_requeue_on_tran_dispatch) {
             /* force this request to queue */
             rc = thdpool_enqueue(pool,
-<<<<<<< HEAD
                                  sqlengine_work_appsock_pp, clnt, 1, sr,
-                                 flags | THDPOOL_FORCE_QUEUE,
-                                 clnt->priority);
-=======
-                                 sqlengine_work_appsock_pp, clnt, 1, sqlcpy,
                                  flags | THDPOOL_FORCE_QUEUE);
->>>>>>> eac8fa6d4... Completely remove all support for numerically prioritizing SQL queries.
         }
 
         if (rc) {
