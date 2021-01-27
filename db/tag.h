@@ -457,4 +457,6 @@ int create_key_from_ireq(struct ireq *iq, int ixnum, int isDelete, char **tail,
 
 char* typestr(int type, int len);
 
+void tag_for_each(char *tablename, int (*tag_cb)(struct dbtag *tags, struct schema  *sc, void *usrptr), void *usrptr);
+
 #endif

@@ -44,6 +44,8 @@ void comdb2_cheapstack_sym(FILE *f, char *fmt, ...);
 
 extern int gbl_is_physical_replicant;
 
+static void warn_table_tag_changes(struct schema_change_type *s);
+
 /**** Utility functions */
 
 static enum thrtype prepare_sc_thread(struct schema_change_type *s)
@@ -1504,6 +1506,8 @@ int dryrun_int(struct schema_change_type *s, struct dbtable *db, struct dbtable 
         return 0;
     }
 
+    warn_table_tag_changes(s);
+
     if (changed == SC_NO_CHANGE) {
         if (db->n_constraints && newdb->n_constraints == 0) {
             sbuf2printf(s->sb, ">All table constraints will be dropped\n");
@@ -1589,4 +1593,41 @@ int scdone_abort_cleanup(struct ireq *iq)
                __func__, bdberr);
     }
     return 0;
+}
+
+static int checktag(struct dbtag *tags, struct schema *sc, void *arg) {
+    struct schema_change_type *s = (struct schema_change_type*) arg;
+
+    if (sc->tag[0] == '.')
+        return 0;
+
+    char *k = malloc(strlen(sc->tag) + 5 /*.NEW.*/ + 1/*nul*/);
+    sprintf(k, ".NEW.%s", sc->tag);
+    if (k == NULL) {
+        fprintf(stderr, "out of mem looking up new schema string?");
+        return 0;
+    }
+    struct schema *newsc = hash_find(tags->tags, &k);
+    free(k);
+    if (newsc == NULL) {
+        sbuf2printf(s->sb, ">Tag change: dropping user tag %s\n", sc->tag);
+        return 0;
+    }
+    else {
+        if (newsc->nmembers != sc->nmembers) {
+            sbuf2printf(s->sb, ">Tag change: number of fields changed in user tag %s\n", sc->tag);
+            return 0;
+        }
+        for (int fldnum = 0; fldnum < sc->nmembers; fldnum++) {
+            if (strcmp(sc->member[fldnum].name, newsc->member[fldnum].name) != 0) {
+                sbuf2printf(s->sb, ">Tag change: field %d (%s) changed for tag %s\n", fldnum, sc->member[fldnum].name, sc->tag);
+            }
+        }
+    }
+
+    return 0;
+}
+
+static void warn_table_tag_changes(struct schema_change_type *s) {
+    tag_for_each(s->tablename, checktag, s);
 }

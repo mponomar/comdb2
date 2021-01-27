@@ -767,6 +767,8 @@ int create_schema_change_plan(struct schema_change_type *s, struct dbtable *oldd
         return rc;
     }
 
+    // Check all the other tags
+
     if (force_dta_rebuild) rc = SC_TAG_CHANGE;
 
     if (rc != SC_TAG_CHANGE && (s->flg & SC_CHK_PGSZ)) {

@@ -6013,8 +6013,7 @@ static int backout_schemas_lockless(const char *tblname)
     dbt = hash_find_readonly(gbl_tag_hash, &tblname);
     if (dbt == NULL) {
         return -1;
-    }
-    for (sc = dbt->taglist.top; sc != NULL;) {
+    }for (sc = dbt->taglist.top; sc != NULL;) {
         tmp = sc->lnk.next;
         if (strncasecmp(sc->tag, ".NEW.", 5) == 0) {
             /* new addition? delete */
@@ -7605,4 +7604,33 @@ int create_key_from_ireq(struct ireq *iq, int ixnum, int isDelete, char **tail,
     }
 
     return rc;
+}
+
+struct tag_for_each_arg {
+    struct dbtag *tags;
+    int (*cb)(struct dbtag *tags, struct schema  *sc, void *usrptr);
+    void *usrptr;
+};
+
+static int tag_for_each_cb(void *obj, void *argp) {
+    struct tag_for_each_arg *arg = (struct tag_for_each_arg*) argp;
+    return arg->cb(arg->tags, (struct schema *) obj, arg->usrptr);
+}
+
+void tag_for_each(char *tablename, int (*tag_cb)(struct dbtag *tags, struct schema  *sc, void *usrptr), void *usrptr) {
+    struct dbtag *tags;
+
+    struct tag_for_each_arg arg;
+
+    lock_taglock_read();
+    tags = hash_find_readonly(gbl_tag_hash, &tablename);
+    if (tags == NULL) {
+        unlock_taglock();
+        return;
+    }
+    arg.tags = tags;
+    arg.cb = tag_cb;
+    arg.usrptr = usrptr;
+    hash_for(tags->tags, tag_for_each_cb, &arg);
+    unlock_taglock();
 }
