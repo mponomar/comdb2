@@ -35,6 +35,11 @@
 #include <map>
 #include <algorithm>
 #include <unistd.h>
+#include <time.h>
+#include <sys/time.h>
+#include <stdint.h>
+#include <inttypes.h>
+#include <csignal>
 
 #include "assert.h"
 #include "cdb2api.h"
@@ -44,13 +49,21 @@ static cdb2_hndl_tp *cdb2h = nullptr;
 std::map<std::string, std::string> sqltrack;
 std::map<std::string, std::list<cson_value*>> transactions;
 
+bool diffs = false;
+bool verbose = false;
+int threshold_percent = 5;
+
 void replay(cdb2_hndl_tp *db, cson_value *val);
 
-static const char *usage_text = 
+static const char *usage_text =
     "Usage: cdb2sqlreplay [-f] dbname [FILE]\n"
     "\n"
     "Basic options:\n"
-    "  -f                Run the sql as fast as possible\n";
+    "  --diff                 Dump performance/cost diffs\n"
+    "  --verbose              Lots of verbose output\n"
+    "  --threshold N          Set diff threshold to N% (default 5)\n"
+    "\n"
+    ;
 
 /* Start of functions */
 void usage() {
@@ -62,7 +75,8 @@ void usage() {
 void add_fingerprint(std::string fingerprint, std::string sql) {
     std::pair<std::string, std::string> v(fingerprint, sql);
     sqltrack.insert(v);
-    std::cout << fingerprint << " -> " << sql << std::endl;
+    if (verbose)
+        std::cout << fingerprint << " -> " << sql << std::endl;
 }
 
 static bool get_ispropnull(cson_value *objval, const char *key) 
@@ -160,7 +174,8 @@ void replay_transaction(cdb2_hndl_tp *db, cson_value *val)
     auto jt = transactions.find(cnonce);
     assert(jt != transactions.end());
     auto &list = (*jt).second;
-    std::cout << "replay transaction " << cnonce << std::endl;
+    if (verbose)
+        std::cout << "replay transaction " << cnonce << std::endl;
 
     auto it = list.begin();
     while (it != list.end()) {
@@ -186,13 +201,15 @@ void add_to_transaction(cson_value *val)
 
     auto it = transactions.find(cnonce);
     if (it == transactions.end()) {
-        std::cout << "new transaction " << cnonce << std::endl;
+        if (verbose)
+            std::cout << "new transaction " << cnonce << std::endl;
         std::list<cson_value*> statements;
         statements.push_back(val);
         transactions.insert(std::pair<std::string, std::list<cson_value*>>(cnonce, statements));
     } else {
         auto &list = (*it).second;
-        std::cout << "add to existing transaction " << cnonce << " size=" << list.size() << std::endl;
+        if (verbose)
+            std::cout << "add to existing transaction " << cnonce << " size=" << list.size() << std::endl;
         list.push_back(val);
     }
 }
@@ -232,7 +249,8 @@ bool do_bindings(cdb2_hndl_tp *db, cson_value *event_val,
             cdb2_type = CDB2_INTEGER;
             varaddr = NULL;
             length = 0;
-            std::cout << "binding "<< type << " column " << name << " to NULL " << std::endl;
+            if (verbose)
+                std::cout << "binding "<< type << " column " << name << " to NULL " << std::endl;
         }
         else if (strcmp(type, "largeint") == 0 || strcmp(type, "int") == 0 || strcmp(type, "smallint") == 0) {
             int64_t *iv = new int64_t;
@@ -244,7 +262,8 @@ bool do_bindings(cdb2_hndl_tp *db, cson_value *event_val,
             cdb2_type = CDB2_INTEGER;
             varaddr = iv;
             length = sizeof(*iv);
-            std::cout << "binding "<< type << " column " << name << " to value " << *iv << std::endl;
+            if (verbose)
+                std::cout << "binding "<< type << " column " << name << " to value " << *iv << std::endl;
         } 
         else if (strcmp(type, "float") == 0 || strcmp(type, "doublefloat") == 0) {
             double *dv = new double;
@@ -256,7 +275,8 @@ bool do_bindings(cdb2_hndl_tp *db, cson_value *event_val,
             cdb2_type = CDB2_REAL;
             varaddr = dv;
             length = sizeof(*dv);
-            std::cout << "binding "<< type << " column " << name << " to value " << *dv << std::endl;
+            if (verbose)
+                std::cout << "binding "<< type << " column " << name << " to value " << *dv << std::endl;
         }
         else if (strcmp(type, "char") == 0 || strcmp(type, "datetime") == 0 ||
                  strcmp(type, "datetimeus") == 0 || strcmp(type, "interval month") == 0 ||
@@ -270,7 +290,8 @@ bool do_bindings(cdb2_hndl_tp *db, cson_value *event_val,
             cdb2_type = CDB2_CSTRING;
             varaddr = strdup(strp);
             length = strlen(strp);
-            std::cout << "binding "<< type << " column " << name << " to value " << strp << std::endl;
+            if (verbose)
+                std::cout << "binding "<< type << " column " << name << " to value " << strp << std::endl;
         }
         else if( strcmp(type, "byte") == 0 || strcmp(type, "blob") == 0) {
             const char *strp = get_strprop(bp, "value");
@@ -293,10 +314,11 @@ bool do_bindings(cdb2_hndl_tp *db, cson_value *event_val,
             length = unexlen;
 
             blobs_vect.push_back(unexpanded);
-            std::cout << "binding "<< type << " column " << name << " to value " << strp << std::endl;
+            if (verbose)
+                std::cout << "binding "<< type << " column " << name << " to value " << strp << std::endl;
         }
         else {
-            std::cout << "error binding unknown "<< type << " column " << name << std::endl;
+            std::cerr << "error binding unknown "<< type << " column " << name << std::endl;
             return false;
         }
 
@@ -348,6 +370,24 @@ void dumpstring(FILE *f, char *s, int quotes, int quote_quotes)
     }
     if (quotes)
         fprintf(f, "'");
+}
+
+int64_t hrtime() {
+    struct timeval t;
+    int rc = gettimeofday(&t, nullptr);
+    if (rc) {
+        perror("gettimeofday");
+        return 0;
+    }
+    return t.tv_sec * 1000000 + t.tv_usec;
+}
+
+bool within_threshold(int64_t val1, int64_t val2, int percent) {
+    int64_t larger = val1 > val2 ? val1 : val2;
+    int64_t smaller = val1 < val2 ? val1 : val2;
+    if (larger == 0)
+        return true;
+    return ((((double) larger - (double) smaller) / (double) larger) * 100) >= percent;
 }
 
 void printCol(FILE *f, cdb2_hndl_tp *hndl, void *val, int col, int printmode)
@@ -457,6 +497,121 @@ inline void free_blobs(std::vector<uint8_t *> &blobs_vect) {
         free(*it);
 }
 
+int64_t last_cost(cdb2_hndl_tp *db) {
+    int64_t cost = 0;
+    cdb2_clearbindings(db);
+
+    int rc = cdb2_run_statement(db, "select comdb2_prevquerycost()");
+    if (rc) {
+        fprintf(stderr, "can't get cost? run rc %d %s\n", rc, cdb2_errstr(db));
+        return 0;
+    }
+
+    rc = cdb2_next_record(db);
+    while (rc == CDB2_OK) {
+        char *s = (char*) cdb2_column_value(db, 0);
+        if (s) {
+            // This is not pretty but we don't expose a nicer way to do this.
+            char *coststr = strstr(s, "Cost: ");
+            if (coststr) {
+                coststr += 6;
+                cost = std::strtol(coststr, nullptr, 10);
+            }
+        }
+        rc = cdb2_next_record(db);
+    }
+
+    return cost;
+}
+
+void dump_param(cson_value *param) {
+    char *name;
+    char *type;
+
+    cson_object *obj;
+    cson_value_fetch_object(param, &obj);
+
+    cson_value *nameval = cson_object_get(obj, "name");
+    if (nameval == nullptr)
+        return;
+    name = (char*) cson_value_get_string(nameval);
+
+    cson_value *typeval = cson_object_get(obj, "type");
+    if (typeval == nullptr)
+        return;
+    type = cson_value_get_string(typeval);
+
+    cson_value *val = cson_object_get(obj, "value");
+    if (val == nullptr)
+        return;
+
+#define typecheck(type) \
+    do {                \
+        if (!cson_value_is_##type(val)) { \
+            fprintf(stderr, ">Unexpected type for param %s\n", name); \
+            return;                \
+        }                   \
+    } while(0)
+
+    if (strcmp(type, "largeint") == 0) {
+        typecheck(integer);
+        printf("@bind CDB2_INTEGER %s %" PRId64"\n", name, (int64_t) cson_value_get_integer(val));
+    }
+    else if (strcmp(type, "doublefloat") == 0) {
+        typecheck(double);
+        printf("@bind CDB2_REAL %s %f\n", name, cson_value_get_double(val));
+    }
+    else if (strcmp(type, "char") == 0) {
+        typecheck(string);
+        printf("@bind CDB2_CSTRING %s %s\n", name, (char*) cson_value_get_string(val));
+    }
+    else if (strcmp(type, "blob") == 0) {
+        typecheck(string);
+        printf("@bind CDB2_BLOB %s %s\n", name, (char*) cson_value_get_string(val));
+    }
+    else if (strcmp(type, "datetime") == 0) {
+        typecheck(string);
+        printf("@bind CDB2_DATETIME %s %s\n", name, (char*) cson_value_get_string(val));
+    }
+    else if (strcmp(type, "datetimeus") == 0) {
+        typecheck(string);
+        printf("@bind CDB2_DATETIMEUS %s %s\n", name, (char*) cson_value_get_string(val));
+    }
+    else {
+        fprintf(stderr, ">Unknown bound_parameters type %s\n", type);
+    }
+}
+
+void dump_sql_event(cson_value *event) {
+    cson_object *obj;
+
+    cson_value_fetch_object(event, &obj);
+    cson_value *params_obj = cson_object_get(obj, "bound_parameters");
+    if (params_obj != nullptr) {
+        cson_array *params = cson_value_get_array(params_obj);
+        for (int i = 0; i < cson_array_length_get(params); i++) {
+            cson_value *v = cson_array_get(params, i);
+            if (!cson_value_is_object(v)) {
+                fprintf(stderr, "Unexpected bound parameter type\n");
+            }
+            dump_param(v);
+        }
+    }
+    cson_value *sqlval = cson_object_get(obj, "sql");
+    if (sqlval == nullptr) {
+        fprintf(stderr, ">No sql statement in sql event?\n");
+        return;
+    }
+    if (!cson_value_is_string(sqlval)) {
+        fprintf(stderr, ">Unexpected type of sql member in sql event?\n");
+        return;
+    }
+    char *sqlptr = cson_value_get_string(sqlval);
+    std::string sql(sqlptr);
+    std::replace(sql.begin(), sql.end(), '\n', ' ');
+    printf("%s\n", sql.c_str());
+}
+
 void replay(cdb2_hndl_tp *db, cson_value *event_val) {
     const char *sql = get_strprop(event_val, "sql");
     if(sql == nullptr) {
@@ -480,7 +635,9 @@ void replay(cdb2_hndl_tp *db, cson_value *event_val) {
         return;
     }
 
-    std::cout << sql << std::endl;
+    if (verbose)
+        std::cout << sql << std::endl;
+    int64_t start_time = hrtime();
     int rc = cdb2_run_statement(db, sql);
     cdb2_clearbindings(db);
     free_blobs(blobs_vect);
@@ -492,20 +649,67 @@ void replay(cdb2_hndl_tp *db, cson_value *event_val) {
 
     /* TODO: have switch to print or not results */
     int ncols = cdb2_numcolumns(db);
+    int64_t rows = 0;
     while ((rc = cdb2_next_record(db)) == CDB2_OK) {
+        rows++;
         for (int col = 0; col < ncols; col++) {
             void *val = cdb2_column_value(db, col);
             if (val == NULL) {
                 fprintf(stdout, "%s=NULL", cdb2_column_name(db, col));
             } else {
-                printCol(stdout, db, val, col, DEFAULT);
+                if (verbose)
+                    printCol(stdout, db, val, col, DEFAULT);
             }
             if (col != ncols - 1) {
-                fprintf(stdout, ", ");
+                if (verbose)
+                    fprintf(stdout, ", ");
             }
         }
-        std::cout << std::endl;
+        if (verbose)
+            std::cout << std::endl;
     }
+    int64_t end_time = hrtime();
+    int64_t new_cost = last_cost(db);
+
+    cson_object *obj;
+    cson_value_fetch_object(event_val, &obj);
+    cson_value *jcost = cson_object_get(obj, "cost");
+    int64_t old_cost;
+    if (jcost == nullptr)
+        old_cost = 0;
+    else if (cson_value_is_integer(jcost))
+        old_cost = cson_value_get_integer(jcost);
+    else if (cson_value_is_double(jcost))
+        old_cost = (int64_t) cson_value_get_double(jcost);
+    cson_value *jrows = cson_object_get(obj, "rows");
+    int64_t old_rows;
+    if (jrows == nullptr || !cson_value_is_integer(jrows))
+        old_cost = 0;
+    old_rows = cson_value_get_integer(jrows);
+
+    cson_value *perf = cson_object_get(obj, "perf");
+    if (perf != nullptr && !cson_value_is_null(perf) && cson_value_is_object(perf)) {
+        cson_value *jtime;
+
+        cson_value_fetch_object(perf, &obj);
+        jtime = cson_object_get(obj, "tottime");
+
+        bool have_diffs = false;
+        if (!within_threshold(end_time - start_time, cson_value_get_integer(jtime), threshold_percent))
+            have_diffs = true;
+        else if (!within_threshold(new_cost, cson_value_get_integer(jcost), threshold_percent))
+            have_diffs = true;
+        else if (!within_threshold(old_rows, rows, threshold_percent))
+            have_diffs = true;
+
+        if (diffs && have_diffs) {
+            dump_sql_event(event_val);
+            printf("-- time %" PRId64 " cost %" PRId64 " rows %" PRId64 " time was %" PRId64 " cost was %" PRId64 " rows was %" PRId64 "\n",
+                   end_time - start_time, new_cost, rows,
+                   cson_value_get_integer(jtime), old_cost, old_rows);
+        }
+    }
+
     if (rc != CDB2_OK_DONE) {
         std::cerr << "Error: next rc " << rc << ": " << cdb2_errstr(db) << std::endl;
         return;
@@ -669,7 +873,8 @@ void process_events(cdb2_hndl_tp *db, std::istream &in) {
         else
             cson_free_value(event_val);
     }
-    std::cout << "got " << linenum  << " lines" << std::endl;
+    if (verbose)
+        std::cout << "got " << linenum  << " lines" << std::endl;
 }
 
 int main(int argc, char **argv) {
@@ -681,10 +886,35 @@ int main(int argc, char **argv) {
     if (argc < 2) {
         usage();
     }
-    dbname = argv[1];
+    argc--;
+    argv++;
+    while (argc && argv[0][0] == '-') {
+        if (strcmp(argv[0], "--diff") == 0)
+            diffs = true;
+        else if (strcmp(argv[0], "--verbose") == 0 || strcmp(argv[0], "-v") == 0)
+            verbose = true;
+        else if (strcmp(argv[0], "--threshold") == 0) {
+            argc--;
+            argv++;
+            if (argc == 0) {
+                fprintf(stderr, "--threshold expected an argument");
+                return 1;
+            }
+            threshold_percent = atoi(argv[0]);
+        }
+        else {
+            fprintf(stderr, "Unknown option %s\n", argv[0]);
+        }
+        argc--;
+        argv++;
 
-    if (argc >= 3)
-        filename = argv[2];
+    }
+    dbname = argv[0];
+    argc--;
+    argv++;
+
+    if (argc > 0)
+        filename = argv[0];
 
     /* TODO: tier should be an option */
     int rc;
@@ -700,6 +930,7 @@ int main(int argc, char **argv) {
         std::cerr << "Error: cdb2_open() failed: " << cdb2_errstr(cdb2h) << std::endl;
         exit(EXIT_FAILURE);
     }
+    cdb2_run_statement(cdb2h, "set getcost on");
 
     if (filename == nullptr) {
         process_events(cdb2h, std::cin);
@@ -714,6 +945,6 @@ int main(int argc, char **argv) {
         process_events(cdb2h, f);
     }
 
-    // cdb2_close(cdb2h);
+    cdb2_close(cdb2h);
     return 0;
 }
