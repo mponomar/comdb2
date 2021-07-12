@@ -18,11 +18,9 @@
  * Comdb2 sql tool to replay sql logs
  *
  */
-#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <cstdarg>
 
 #include <iostream>
 #include <fstream>
@@ -30,18 +28,15 @@
 #include <sstream>
 #include <vector>
 #include <map>
-#include <set>
 #include <list>
-#include <map>
 #include <algorithm>
 #include <unistd.h>
-#include <time.h>
+#include <ctime>
 #include <sys/time.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include <csignal>
+#include <cstdint>
+#include <cinttypes>
+#include <cassert>
 
-#include "assert.h"
 #include "cdb2api.h"
 #include "cson.h"
 
@@ -56,7 +51,7 @@ int threshold_percent = 5;
 void replay(cdb2_hndl_tp *db, cson_value *val);
 
 static const char *usage_text =
-    "Usage: cdb2sqlreplay [-f] dbname [FILE]\n"
+    "Usage: cdb2sqlreplay [options] dbname FILE [FILE]\n"
     "\n"
     "Basic options:\n"
     "  --diff                 Dump performance/cost diffs\n"
@@ -72,7 +67,7 @@ void usage() {
 }
 
 
-void add_fingerprint(std::string fingerprint, std::string sql) {
+void add_fingerprint(const std::string &fingerprint, const std::string &sql) {
     std::pair<std::string, std::string> v(fingerprint, sql);
     sqltrack.insert(v);
     if (verbose)
@@ -112,10 +107,12 @@ static cson_array *get_arrprop(cson_value *objval, const char *key) {
 bool get_intprop(cson_value *objval, const char *key, int64_t *val) {
     cson_object *obj;
     cson_value_fetch_object(objval, &obj);
-    cson_value *propval = cson_object_get(obj, key);
+    const cson_value *propval = cson_object_get(obj, key);
     if (propval == nullptr || !cson_value_is_integer(propval))
         return false;
     int rc = cson_value_fetch_integer(propval, (cson_int_t*) val);
+    if (rc)
+        return false;
     return true;
 }
 
@@ -136,10 +133,6 @@ bool have_json_key(cson_value *objval, const char *key) {
     return propval != nullptr;
 }
 
-bool is_transactional(cson_value *val) {
-    return have_json_key(val, "id");
-}
-
 bool is_replayable(cson_value *val) {
     int64_t nbound;
 
@@ -157,10 +150,6 @@ bool is_replayable(cson_value *val) {
         return true;
 
     return false;
-}
-
-bool event_is_txn(cson_value *val) {
-    return get_strprop(val, "type") == std::string("txn");
 }
 
 bool event_is_sql(cson_value *val) {
@@ -266,7 +255,6 @@ bool do_bindings(cdb2_hndl_tp *db, cson_value *event_val,
                 std::cout << "binding "<< type << " column " << name << " to value " << *iv << std::endl;
         } 
         else if (strcmp(type, "float") == 0 || strcmp(type, "doublefloat") == 0) {
-            double *dv = new double;
             bool succ = get_doubleprop(bp, "value", dv);
             if (!succ) {
                 std::cerr << "Error getting " << type << " value of bound parameter " << name << std::endl;
@@ -383,6 +371,8 @@ int64_t hrtime() {
 }
 
 bool within_threshold(int64_t val1, int64_t val2, int percent) {
+    if (percent == 0)
+        return false;
     int64_t larger = val1 > val2 ? val1 : val2;
     int64_t smaller = val1 < val2 ? val1 : val2;
     if (larger == 0)
@@ -609,7 +599,7 @@ void dump_sql_event(cson_value *event) {
     char *sqlptr = cson_value_get_string(sqlval);
     std::string sql(sqlptr);
     std::replace(sql.begin(), sql.end(), '\n', ' ');
-    printf("%s\n", sql.c_str());
+    printf("tranid 0 %s", sql.c_str());
 }
 
 void replay(cdb2_hndl_tp *db, cson_value *event_val) {
@@ -682,10 +672,9 @@ void replay(cdb2_hndl_tp *db, cson_value *event_val) {
     else if (cson_value_is_double(jcost))
         old_cost = (int64_t) cson_value_get_double(jcost);
     cson_value *jrows = cson_object_get(obj, "rows");
-    int64_t old_rows;
-    if (jrows == nullptr || !cson_value_is_integer(jrows))
-        old_cost = 0;
-    old_rows = cson_value_get_integer(jrows);
+    int64_t old_rows = 0;
+    if (jrows != nullptr && cson_value_is_integer(jrows))
+        old_rows = cson_value_get_integer(jrows);
 
     cson_value *perf = cson_object_get(obj, "perf");
     if (perf != nullptr && !cson_value_is_null(perf) && cson_value_is_object(perf)) {
@@ -693,20 +682,25 @@ void replay(cdb2_hndl_tp *db, cson_value *event_val) {
 
         cson_value_fetch_object(perf, &obj);
         jtime = cson_object_get(obj, "tottime");
+        int64_t old_time = 0;
+        if (jtime != nullptr)
+            old_time = cson_value_get_integer(jtime);
 
         bool have_diffs = false;
-        if (!within_threshold(end_time - start_time, cson_value_get_integer(jtime), threshold_percent))
+
+        if (old_time && !within_threshold(end_time - start_time, old_time, threshold_percent))
             have_diffs = true;
-        else if (!within_threshold(new_cost, cson_value_get_integer(jcost), threshold_percent))
+        else if (old_cost && new_cost && !within_threshold(new_cost, old_cost, threshold_percent))
             have_diffs = true;
         else if (!within_threshold(old_rows, rows, threshold_percent))
             have_diffs = true;
 
         if (diffs && have_diffs) {
             dump_sql_event(event_val);
-            printf("-- time %" PRId64 " cost %" PRId64 " rows %" PRId64 " time was %" PRId64 " cost was %" PRId64 " rows was %" PRId64 "\n",
-                   end_time - start_time, new_cost, rows,
-                   cson_value_get_integer(jtime), old_cost, old_rows);
+            printf(" -- time %" PRId64 " (was %" PRId64 ") cost %" PRId64 " (was %" PRId64 ") rows %" PRId64 " (was %" PRId64 ")\n",
+                   end_time - start_time, old_time,
+                   new_cost, old_cost,
+                   rows, old_rows);
         }
     }
 
@@ -848,26 +842,116 @@ void handle(cdb2_hndl_tp *db, const char *event, cson_value *event_val) {
         h->second(db, event_val);
 }
 
-void process_events(cdb2_hndl_tp *db, std::istream &in) {
+struct event_source {
+    std::ifstream file;
+    bool done;
+    int64_t timestamp;
+    cson_value *value;
+    int linenum;
+
+    event_source(const char *name) : file(name), done(false), value(nullptr), timestamp(0), linenum(0) {
+        get();
+    }
+
+    cson_value *consume() {
+        cson_value *v = value;
+        value = nullptr;
+        return v;
+    }
+
+    void get() {
+        std::string line;
+        do {
+            if (value != nullptr) {
+                cson_free_value(value);
+                value = nullptr;
+            }
+            if (!std::getline(file, line)) {
+                done = true;
+                return;
+            }
+            linenum++;
+            if (line.empty())
+                continue;
+            int rc = cson_parse_string(&value, line.c_str(), line.length());
+            if (rc) {
+                std::cerr << "Error: Malformed input on line " << linenum << std::endl;
+                continue;
+            }
+            if (!cson_value_is_object(value)) {
+                std::cerr << "Error: Not an object  on line " << linenum << std::endl;
+                continue;
+            }
+            const char *type = get_strprop(value, "type");
+            // skip anything with no type field (we don't know what it is) or timestamp (we don't know the order of replay)
+            if (type == nullptr)
+                continue;
+            const char *tstr = get_strprop(value, "timestamp");
+            if (tstr == nullptr)
+                continue;
+            try {
+                timestamp = std::stoi(tstr);
+            }
+            catch (std::exception &e) {
+                std::cerr << "Error: unclear timestamp value on line " << linenum << std::endl;
+            }
+        } while(value == nullptr);
+    }
+
+    bool is_done() const {
+        return done;
+    }
+
+    bool operator<(const event_source &s2) const {
+        return value < s2.value;
+    }
+};
+
+class event_queue {
+public:
+    event_queue() = default;
+
+    void add_source(const char *name) {
+        sources.emplace_back(event_source(name));
+    }
+
+    bool empty() {
+        for (auto &i : sources) {
+            if (!i.is_done())
+                return false;
+        }
+        return true;
+    }
+    cson_value *get() {
+        int64_t min_timestamp = LLONG_MAX;
+        int minix = -1;
+        for (int i = 0; i < sources.size(); i++) {
+            if (!sources[i].is_done()) {
+                if (sources[i].timestamp < min_timestamp) {
+                    minix = i;
+                    min_timestamp = sources[i].timestamp;
+                }
+            }
+        }
+        cson_value *ret = sources[minix].consume();
+        if (minix != -1)
+            sources[minix].get();
+        return ret;
+    }
+
+protected:
+    std::vector<event_source> sources;
+};
+
+void process_events(cdb2_hndl_tp *db, event_queue &queue) {
     std::string line;
     int linenum = 0;
 
-    while (std::getline(in, line)) {
+    while (!queue.empty()) {
         int rc;
         linenum++;
-
-        cson_value *event_val;
-        rc = cson_parse_string(&event_val, line.c_str(), line.length());
-        if (rc) {
-            std::cerr << "Error: Malformed input on line " << linenum << std::endl;
-            continue;
-        }
-        if (!cson_value_is_object(event_val)) {
-            std::cerr << "Error: Not an object  on line " << linenum << std::endl;
-            continue;
-        }
+        cson_value *event_val = queue.get();
         const char *type = get_strprop(event_val, "type");
-
         if (type != nullptr)
             handle(cdb2h, type, event_val);
         else
@@ -900,21 +984,17 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "--threshold expected an argument");
                 return 1;
             }
-            threshold_percent = atoi(argv[0]);
+            threshold_percent = (int) strtol(argv[0], nullptr, 10);
         }
         else {
             fprintf(stderr, "Unknown option %s\n", argv[0]);
         }
         argc--;
         argv++;
-
     }
     dbname = argv[0];
     argc--;
     argv++;
-
-    if (argc > 0)
-        filename = argv[0];
 
     /* TODO: tier should be an option */
     int rc;
@@ -932,18 +1012,13 @@ int main(int argc, char **argv) {
     }
     cdb2_run_statement(cdb2h, "set getcost on");
 
-    if (filename == nullptr) {
-        process_events(cdb2h, std::cin);
-    } else {
-        std::ifstream f;
-        f.open(filename);
-        if (!f.good()) {
-            std::cerr << "Error: Can't open " << filename << ": " << strerror(errno) << std::endl;
-            return 1;
-        }
-
-        process_events(cdb2h, f);
+    event_queue events;
+    while (argc) {
+        events.add_source(argv[0]);
+        argc--;
+        argv++;
     }
+    process_events(cdb2h, events);
 
     cdb2_close(cdb2h);
     return 0;
