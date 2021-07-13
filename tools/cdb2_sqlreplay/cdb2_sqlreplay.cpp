@@ -36,6 +36,7 @@
 #include <cstdint>
 #include <cinttypes>
 #include <cassert>
+#include <limits.h>
 
 #include "cdb2api.h"
 #include "cson.h"
@@ -255,6 +256,7 @@ bool do_bindings(cdb2_hndl_tp *db, cson_value *event_val,
                 std::cout << "binding "<< type << " column " << name << " to value " << *iv << std::endl;
         } 
         else if (strcmp(type, "float") == 0 || strcmp(type, "doublefloat") == 0) {
+            double *dv = new double;
             bool succ = get_doubleprop(bp, "value", dv);
             if (!succ) {
                 std::cerr << "Error getting " << type << " value of bound parameter " << name << std::endl;
@@ -843,13 +845,33 @@ void handle(cdb2_hndl_tp *db, const char *event, cson_value *event_val) {
 }
 
 struct event_source {
+    std::string fname;
     std::ifstream file;
     bool done;
     int64_t timestamp;
     cson_value *value;
     int linenum;
 
-    event_source(const char *name) : file(name), done(false), value(nullptr), timestamp(0), linenum(0) {
+    event_source(const char *name) : fname(name), file(), done(false), value(nullptr), timestamp(0), linenum(0) {
+        file.open(name);
+        if (!file.is_open()) {
+            std::cerr << "can't open " << fname << std::endl;
+            done = true;
+        }
+        get();
+    }
+
+    event_source(const event_source &from) {
+        fname = from.fname;
+        done = false;
+        file.open(fname);
+        if (!file.is_open()) {
+            std::cerr << "can't open " << fname << std::endl;
+            done = true;
+        }
+        value = nullptr;
+        timestamp = 0;
+        linenum = 0;
         get();
     }
 
@@ -861,6 +883,8 @@ struct event_source {
 
     void get() {
         std::string line;
+        if (done)
+            return;
         do {
             if (value != nullptr) {
                 cson_free_value(value);
