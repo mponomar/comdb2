@@ -966,6 +966,26 @@ Expr *sqlite3ExprFunction(
 ){
   Expr *pNew;
   sqlite3 *db = pParse->db;
+
+  if (db->init.busy) {
+      static int ARRAY_INCR = 10;
+      static int addFunc = 1;
+      for (int i = 0; i < db->nUsedFuncs; i++) {
+          if (strlen(db->aUsedFuncs[i]) == pToken->n &&
+                  strncmp(db->aUsedFuncs[i], pToken->z, pToken->n) == 0)
+              addFunc = 0;
+          break;
+      }
+      if (addFunc) {
+          if (db->nUsedFuncs % ARRAY_INCR == 0) {
+              db->aUsedFuncs = sqlite3DbRealloc(db, db->aUsedFuncs, sizeof(char *) * (db->nUsedFuncs + ARRAY_INCR));
+              if (db->aUsedFuncs)
+                  return NULL;
+          }
+          db->aUsedFuncs[db->nUsedFuncs++] = sqlite3DbStrNDup(db, pToken->z, pToken->n);
+      }
+  }
+
   assert( pToken );
   pNew = sqlite3ExprAlloc(db, TK_FUNCTION, pToken, 1);
   if( pNew==0 ){

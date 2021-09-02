@@ -1572,6 +1572,8 @@ struct sqlite3 {
 #if defined(SQLITE_BUILDING_FOR_COMDB2)
   u8 isExpert;                          /* Analyze using SQLite expert */
   u8 isTimepartView;                    /* Time partition view */
+  int nUsedFuncs;                       /* Count of functions used by schema */
+  char **aUsedFuncs;                    /* Functions used by schema */
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 };
 
