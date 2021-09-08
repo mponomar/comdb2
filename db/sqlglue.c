@@ -2170,7 +2170,8 @@ int sql_syntax_check(struct ireq *iq, struct dbtable *db)
 
     destroy_sqlite_master(ents, nents);
 
-    rc = sqlite3_open_serial("db", &hndl, NULL);
+    struct sqlthdstate thd = {0};
+    rc = sqlite3_open_serial("db", &hndl, &thd);
     if (rc) {
         logmsg(LOGMSG_ERROR, "%s: sqlite3_open failed\n", __func__);
         goto done;

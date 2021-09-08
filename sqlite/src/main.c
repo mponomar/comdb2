@@ -1803,6 +1803,7 @@ int sqlite3CreateFunc(
     return SQLITE_MISUSE_BKPT;
   }
 
+
   assert( SQLITE_FUNC_CONSTANT==SQLITE_DETERMINISTIC );
   extraFlags = enc &  SQLITE_DETERMINISTIC;
   enc &= (SQLITE_FUNC_ENCMASK|SQLITE_ANY);
@@ -3042,7 +3043,7 @@ static void register_lua_sfuncs(sqlite3 *db, struct sqlthdstate *thd)
     lua_func_arg_t *arg = malloc(sizeof(lua_func_arg_t));
     arg->thd = thd;
     arg->name = funcs[i];
-    sqlite3_create_function_v2(db, funcs[i], -1, SQLITE_UTF8, arg, lua_func,
+    sqlite3_create_function_v2(db, funcs[i], -1, SQLITE_UTF8 | SQLITE_FUNC_CONSTANT, arg, lua_func,
                                NULL, NULL, free);
   }
 }

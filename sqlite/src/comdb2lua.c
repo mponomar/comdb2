@@ -366,6 +366,7 @@ void comdb2CreateAggFunc(Parse *parse, Token *proc)
 
 void comdb2DropScalarFunc(Parse *parse, Token *proc)
 {
+    sqlite3 *db = parse->db;
     if (comdb2IsPrepareOnly(parse))
         return;
 
@@ -378,6 +379,13 @@ void comdb2DropScalarFunc(Parse *parse, Token *proc)
         }
     }
 #endif
+    for (int i = 0; i < db->nUsedFuncs; i++) {
+        if (strncmp(proc->z, db->aUsedFuncs[i], proc->n) == 0 && strlen(db->aUsedFuncs[i]) == proc->n) {
+            sqlite3ErrorMsg(parse, "Function \"%s\" in use by schema, can't drop", db->aUsedFuncs[i]);
+            parse->rc = SQLITE_SCHEMA;
+            return;
+        }
+    }
 
     if (comdb2AuthenticateUserOp(parse))
         return;
