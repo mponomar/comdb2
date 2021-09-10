@@ -194,6 +194,8 @@ if (${CMAKE_C_COMPILER_ID} STREQUAL GNU OR ${CMAKE_C_COMPILER_ID} STREQUAL Clang
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wignored-qualifiers")
   set(COMMON_FLAGS "${COMMON_FLAGS} -pthread")
   set(COMMON_FLAGS "${COMMON_FLAGS} -fno-strict-aliasing")
+  set(COMMON_FLAGS "${COMMON_FLAGS} -Wno-tautological-constant-out-of-range-compare")
+
   if(NOT ${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lrt")
   endif()

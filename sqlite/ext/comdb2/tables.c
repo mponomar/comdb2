@@ -321,6 +321,11 @@ int comdb2SystblInit(
     rc = systblFdbInfoInit(db);
   if (rc == SQLITE_OK)
     rc = sqlite3_carray_init(db, 0, 0);
+
+  // Warning: this code wraps other system tables, and must follow any it wraps.  Probably safest to
+  // always leave it last.
+  if (rc == SQLITE_OK)
+    rc = systblAllInit(db);
 #endif
   return rc;
 }
