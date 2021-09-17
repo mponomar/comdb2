@@ -2,6 +2,8 @@
 
 export PATH=$PATH:/opt/bb/bin
 
+tmux=$(which tmux)
+
 dir=$HOME/.local/share/comdb2-util
 config=$dir/config.sqlite
 
@@ -44,10 +46,12 @@ function container-name {
 }
 
 function sanity-checks {
-    env=$(systemctl  show --property=Environment docker | sed 's/Environment=//g')
-    if [[ -z "$env" ]]; then
-        echo "\$ systemctl  show --property=Environment docker"
-        echo "WARNING: Docker doesn't have any environment settings.  Missing proxy settings?"
+    if [[ $(uname) == "Linux" ]]; then
+        env=$(systemctl  show --property=Environment docker | sed 's/Environment=//g')
+        if [[ -z "$env" ]]; then
+            echo "\$ systemctl  show --property=Environment docker"
+            echo "WARNING: Docker doesn't have any environment settings.  Missing proxy settings?"
+        fi
     fi
     if [[ ! -s ${dir}/proxy.conf ]]; then
         echo "WARNING: Didn't find a proxy.conf, created an empty one.  "
@@ -80,7 +84,7 @@ function docker-sanity-check {
 
 function create-persist {
     mkdir -p ${dir}/persist/logs
-    for ((i=0;i<=$(get clusternum);i++)); do
+    for i in $(seq 0 $(get clusternum)); do
         mkdir -p ${dir}/persist/$(get mach-prefix)${i}
     done
 }
@@ -115,17 +119,10 @@ function interactive-init {
     [[ -z "$v" ]] && v=$defdb
     put defaultdb $v
     v=""
-    defsrc=`find $PWD -type f  | grep "contrib/dev-util/cluster" > /dev/null && echo $PWD`
-    if [ -z "$defsrc" ]; then
-        defsrc=`find .. -type f  | grep "contrib/dev-util/cluster" > /dev/null && realpath ".."`
-    fi
-    if [ -z "$defsrc" ]; then
-        defsrc=$HOME/comdb2/src
-    fi
     while [[ -z "$v" ]]; do
-        printf "Comdb2 source root [$defsrc]: "
+        printf "Comdb2 source root [$HOME/comdb2/src]: "
         read v
-        [[ -z "$v" ]] && v="${defsrc}"
+        [[ -z "$v" ]] && v="${HOME}/comdb2/src"
     done
     put src $v
     v="$defsource"
@@ -184,36 +181,56 @@ function build {
 		$(cat ${dir}/proxy.conf)
 		RUN apt-get update
 		RUN apt-get install -y		\
-			bc			\
-			cmake			\
-			figlet			\
-			gawk			\
-			gdb			\
-			jq			\
-			less			\
-			libevent-2.1		\
-			libevent-core-2.1	\
-			libevent-openssl-2.1	\
-			libevent-pthreads-2.1	\
-			libprotobuf-c1		\
-			libreadline-dev		\
-			libsqlite3-0		\
-			libunwind8		\
-			liblz4-tool		\
-			make			\
-			netcat-openbsd		\
-			openssh-client		\
-			openssh-server		\
-			openssl			\
-			psmisc			\
-			sqlite3                 \
-			strace			\
-			tzdata			\
-			valgrind		\
-			vim                     \
-			tclsh
-        RUN useradd -d ${HOME} -m -u ${uid} ${id} -s /bin/bash
-	EOF
+            bc            \
+            bison       \
+            build-essential \
+            cmake            \
+            figlet            \
+            flex            \
+            gawk            \
+            gdb            \
+            inetutils-ping \
+            jq              \
+            less            \
+            libevent-2.1        \
+            libevent-core-2.1    \
+            libevent-dev       \
+            libevent-openssl-2.1    \
+            libevent-pthreads-2.1    \
+            liblz4-dev      \
+            liblz4-tool        \
+            libprotobuf-c1        \
+            libreadline-dev        \
+            libsqlite3-0        \
+            libsqlite3-dev       \
+            libunwind8        \
+            libprotobuf-c-dev    \
+            libssl-dev           \
+            libunwind-dev        \
+            net-tools            \
+            ncurses-dev          \
+            make            \
+            ninja-build \
+            netcat-openbsd        \
+            openssh-client        \
+            openssh-server        \
+            openssl            \
+            protobuf-c-compiler  \
+            psmisc            \
+            rsync           \
+            sqlite3         \
+            strace            \
+            sudo            \
+            tclsh           \
+            tzdata            \
+            uuid-dev             \
+            valgrind        \
+            vim             \
+            zlib1g-dev
+        RUN useradd -d ${HOME} -m -u ${uid} -G sudo ${id} -s /bin/bash && \
+            sed -i "s/^%sudo.*/%sudo   ALL=(ALL:ALL) NOPASSWD:ALL/" /etc/sudoers
+EOF
+    docker build -t comdb2:build .
 	create-or-copy $HOME/.vimrc vimrc
 	create-or-copy $HOME/.inputrc inputrc
 	create-or-copy $HOME/.gdbinit gdbinit
@@ -229,16 +246,35 @@ function build {
 		export SKIPDEBUG=1
 		export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:\$HOME/bin:/opt/bb/bin
 		export HOME=${HOME}
-	EOF
+		export TZ='America/New_York'
+		cd ${HOME}
+EOF
     grep ENV proxy.conf | sed 's/ENV /export /g' >> bash_profile
 	ssh-keygen -q -t rsa -N '' -f $PWD/id_rsa
 	cat > config <<- EOF
 		LogLevel=quiet
 		HOST m*
 			StrictHostKeyChecking no
-	EOF
-	cat >> Dockerfile <<- EOF
+EOF
+    # If we're on the same distro as $base, just copy over files, otherwise
+    # we need to build the database in container
+    matching_distro=0
+    if [[ "$(uname)" == "Linux" && -f /etc/lsb-release ]]; then
+        source /etc/lsb-release
+        if [[ "$DISTRIB_ID" = "Ubuntu" && -n "$DISTRIB_CODENAME" ]]; then
+            defsource="ubuntu:$DISTRIB_CODENAME"
+            if [[ "$defsource" == "$base" ]]; then
+                matching_distro=1
+            fi
+        fi
+    fi
+	cat > Dockerfile <<- EOF
+        FROM comdb2:build
 		RUN mkdir -p /opt/bb/bin /opt/bb/etc/cdb2/config.d /opt/bb/include /opt/bb/lib/cdb2 /opt/bb/lib/pkgconfig /opt/bb/lib/systemd /opt/bb/lib/systemd/system /opt/bb/log/cdb2 /opt/bb/var/cdb2 /opt/bb/var/lib/cdb2 /opt/bb/var/log/cdb2 /opt/bb/tmp
+EOF
+
+    if [[ $matching_distro -eq 1 ]]; then
+        cat >> Dockerfile <<- EOF
 		RUN ln -s ${HOME}/src/build/db/comdb2			/opt/bb/bin/
 		RUN ln -s ${HOME}/src/build/db/comdb2dumpcsc		/opt/bb/bin/
 		RUN ln -s ${HOME}/src/build/db/copycomdb2			/opt/bb/bin/
@@ -252,22 +288,32 @@ function build {
 		RUN ln -s /opt/bb/bin/comdb2 	/opt/bb/bin/cdb2_sqlreply
 		RUN ln -s /opt/bb/bin/comdb2	/opt/bb/bin/cdb2_verify
 		RUN ln -s ${HOME}/src/build/cdb2api/libcdb2api.so /opt/bb/lib/libcdb2api.so
+EOF
+    else 
+        cp -r ${src} db
+        rm -fr db/.git
+    	cat >> Dockerfile <<- EOF
+            COPY --chown=${id} db ${src}
+            RUN sudo -u ${id} sh -c "cd ${src} && rm -fr build && mkdir build && cd build && cmake -G Ninja .. && ninja && ninja test-tools" && \ 
+                ninja -C ${src}/build install && rm -f ${src}/build/install_manifest.txt
+EOF
+    fi
+    cat >> Dockerfile <<- EOF
 		RUN mkdir ${HOME}/.ssh /var/run/sshd
 		RUN touch		${HOME}/.hushlogin
-		COPY config		${HOME}/.ssh/config
-		COPY id_rsa		${HOME}/.ssh/id_rsa
-		COPY id_rsa.pub		${HOME}/.ssh/id_rsa.pub
-		COPY id_rsa.pub		${HOME}/.ssh/authorized_keys
-		COPY vimrc		${HOME}/.vimrc
-		COPY inputrc		${HOME}/.inputrc
-		COPY bash_profile	${HOME}/.bash_profile
-		COPY gdbinit		${HOME}/.gdbinit
-		COPY comdb2-util    ${HOME}/.local/share/comdb2-util/
-		COPY cluster    ${HOME}/bin/cluster
+		COPY --chown=${id} config		${HOME}/.ssh/config
+		COPY --chown=${id} id_rsa		${HOME}/.ssh/id_rsa
+		COPY --chown=${id} id_rsa.pub		${HOME}/.ssh/id_rsa.pub
+		COPY --chown=${id} id_rsa.pub		${HOME}/.ssh/authorized_keys
+		COPY --chown=${id} vimrc		${HOME}/.vimrc
+		COPY --chown=${id} inputrc		${HOME}/.inputrc
+		COPY --chown=${id} bash_profile	${HOME}/.bash_profile
+		COPY --chown=${id} gdbinit		${HOME}/.gdbinit
+		COPY --chown=${id} comdb2-util    ${HOME}/.local/share/comdb2-util/
+		COPY --chown=${id} cluster    ${HOME}/bin/cluster
 		RUN chmod -R 777 /opt/bb/
-		RUN chown -R ${id}:${id} ${HOME}
-	EOF
-	#if having problems with missing packages build with --no-cache=true 
+		RUN chown -R ${id}:${id} /opt/bb/
+EOF
 	docker build -t comdb2:dev .
 	popd
 	rm -rf $DIR
@@ -276,15 +322,15 @@ function build {
 function start-cluster-jobs {
     if [[ $(get auto-pmux) = 1 ]]; then
         echo "starting pmux"
-    	for ((i=0;i<=$n;++i)); do
+        for i in $(seq 0 $n); do
             name=$(container-name $i)
             docker exec --user $(id -u) ${name} /opt/bb/bin/pmux > ${dir}/persist/logs/${name}.pmux
         done
         sleep 1
     fi
-    if [[ $(get auto-db) = 1 ]]; then
+    if [[ $# -eq 1 || $(get auto-db) = 1 ]]; then
         echo "starting db"
-    	for ((i=0;i<=$n;++i)); do
+        for i in $(seq 0 $n); do
             name=$(container-name $i)
             db=$(get defaultdb)
             docker exec --user $(id -u) ${name} /opt/bb/bin/comdb2 $db > ${dir}/persist/logs/${name}.${db} 2>&1 &
@@ -298,7 +344,7 @@ function run {
     [[ $n -lt 1 ]] && usage
 	put clusternum $n
 	declare -a names
-	for ((i=0;i<=$n;++i)); do
+    for i in $(seq 0 $n); do
 		name=$(container-name $i)
 		[[ $i -gt 0 ]] && names+=(${name})
         local dbfs=""
@@ -309,10 +355,10 @@ function run {
         fi
         docker run --ulimit nofile=10000:10000 -it -d --privileged $dbfs --network comdb2 \
 		    -v $HOME/bin:${HOME}/bin -v $HOME/.vim:${HOME}/.vim -v ${src}:${HOME}/src \
-		    --name ${name} --hostname ${name} comdb2:dev /usr/sbin/sshd -D &
+		    --name ${name} --cap-add sys_ptrace --hostname ${name} comdb2:dev /usr/sbin/sshd -D &
 	done
 	wait
-	for ((i=0;i<=$n;++i)); do
+    for i in $(seq 0 $n); do
 		name=$(container-name $i)
 		cluster_cmd='echo export CLUSTER=\"'"${names[@]}"'\" >> ${HOME}/.bash_profile'
         docker exec --user $(id -u) -it ${name} /bin/bash -c "${cluster_cmd}"
@@ -328,29 +374,29 @@ function run {
 function do_docker {
 	declare -a names
 	n=$(get clusternum)
-	for ((i=0;i<=${n};++i)); do
+    for i in $(seq 0 $n); do
 		names+=($(container-name $i))
 	done
 	docker $1 ${names[@]}
 }
 
 function tmux_int {
-	/usr/bin/tmux new-window
-	/usr/bin/tmux send-keys "printf '"'\033]2;%s\033\\'"' ${prefix}1" Enter
-	/usr/bin/tmux send-keys "${HOME}/bin/cluster c 1" Enter
+	$tmux new-window
+	$tmux send-keys "printf '"'\033]2;%s\033\\'"' ${prefix}1" Enter
+	$tmux send-keys "${HOME}/bin/cluster c 1" Enter
 	n=$(get clusternum)
-	for ((i=2;i<=$n;++i)); do
-		/usr/bin/tmux split-window
-		/usr/bin/tmux send-keys "printf '"'\033]2;%s\033\\'"' ${prefix}${i}" Enter
-		/usr/bin/tmux send-keys "$HOME/bin/cluster c ${i}" Enter
-		/usr/bin/tmux select-layout tiled
+    for i in $(seq 2 $n); do
+		$tmux split-window
+		$tmux send-keys "printf '"'\033]2;%s\033\\'"' ${prefix}${i}" Enter
+		$tmux send-keys "$HOME/bin/cluster c ${i}" Enter
+		$tmux select-layout tiled
 	done
 }
 
 function sync_panes {
-	/usr/bin/tmux set-window-option synchronize-panes
-	/usr/bin/tmux set-option window-status-style "bg=colour124"
-	/usr/bin/tmux set-option pane-active-border-style "fg=colour124"
+	$tmux set-window-option synchronize-panes
+	$tmux set-option window-status-style "bg=colour124"
+	$tmux set-option pane-active-border-style "fg=colour124"
 }
 
 function tmux {
@@ -359,7 +405,12 @@ function tmux {
 }
 
 function db {
-    isdocker=$(cat /proc/self/cgroup | cut -d/ -f2 | head -1)
+    if [[ $(uname) != Linux ]]; then
+        isdocker=
+    else
+        isdocker=$(cat /proc/self/cgroup | cut -d/ -f2 | head -1)
+    fi
+
     if [[ "$isdocker" == "docker" ]]; then
         echo "Please run this outside docker"
         exit 1
@@ -367,11 +418,12 @@ function db {
 
     if [[ -n "$TMUX" ]]; then
         tmux_int
+        figlet 2
         sync_panes
-        /usr/bin/tmux send-keys "comdb2 $1" Enter
+        $tmux send-keys "/opt/bb/bin/comdb2 $1" Enter
     else
         local n=$(get clusternum)
-        for ((i=1;i<=$n;++i)); do
+        for i in $(seq 1 $n); do
             local mach=$(container-name $i)
             docker exec --user $(id -u) ${mach} /opt/bb/bin/comdb2 $1 &
         done
@@ -382,10 +434,10 @@ function pmux {
     if [[ -n "$TMUX" && "$1" != "-n" ]]; then
         tmux_int
         sync_panes
-        /usr/bin/tmux send-keys "pmux -f" Enter
+        $tmux send-keys "pmux -f" Enter
     else
         local n=$(get clusternum)
-        for ((i=1;i<=$n;++i)); do
+        for i in $(seq 1 $n); do
             local mach=$(container-name $i)
             docker exec --user $(id -u) ${mach} /opt/bb/bin/pmux
         done
@@ -393,7 +445,6 @@ function pmux {
 }
 
 function create {
-	set -e
 	local dir="/opt/bb/var/cdb2/$1"
     mkdir -p $dir
     mkdir -p /opt/bb/var/log/cdb2
@@ -422,7 +473,11 @@ function cfg {
 
 function setup {
     local isdocker
-    isdocker=$(cat /proc/self/cgroup | cut -d/ -f2 | head -1)
+    if [[ $(uname) != Linux ]]; then
+        isdocker=
+    else
+        isdocker=$(cat /proc/self/cgroup | cut -d/ -f2 | head -1)
+    fi
     if [[ "$isdocker" != "docker" ]]; then
         check-containers-ready || exit 1
         docker exec --user $(id -u) $(container-name 0) ${HOME}/bin/cluster setup $*
@@ -438,13 +493,13 @@ function setup {
 function gdb {
 	tmux_int
 	sync_panes
-	/usr/bin/tmux send-keys "gdb -q -ex run -args comdb2 $1" Enter
+	$tmux send-keys "gdb -q -ex run -args comdb2 $1" Enter
 }
 
 function vg {
 	tmux_int
 	sync_panes
-	/usr/bin/tmux send-keys "valgrind comdb2 ${defaultdb}" Enter
+	$tmux send-keys "valgrind comdb2 ${defaultdb}" Enter
 }
 
 function check-containers-ready {
@@ -522,37 +577,66 @@ function docker-status {
 }
 
 function clean-persist {
-    sudo rm -fr ${dir}/persist
+    rm -fr ${dir}/persist
 }
 
 function usage {
 	cat >&2 <<- EOF
-		Usage: cluster <cmd> [arg]
+Usage: cluster <cmd> [arg]
 
-		cmd list:
-		  db [dbname] ----------- Start database cluster-wide
-		  build ----------------- Build docker image
-		  clean ----------------- Kill and remove containers
-		  c|clnt [n] ------------ Get a shell on nth container
-		  copy [dbname] --------- Copy db cluster-wide
-		  setup [dbname] -------- Create db and copy it cluster-wide
-		  gdb [dbname] ---------- Start db under gdb cluster-wide
-		  info  ----------------- Dump settings
-		  init  ----------------- Wipe settings and start from scratch
-		  kill  ----------------- Kill containers
-		  pmux  ----------------- Start pmux cluster-wide
-		  ps    ----------------- List containers
-		  rm    ----------------- Remove containers
-		  run <cluster-size> ---- Initial run of containers
-		  status ---------------- Check container status
-		  start ----------------- Start containers
-		  stop  ----------------- Stop containers
-		  test [n] -------------- Run tests n at a time (default 1)
-		  tmux  ----------------- Container tmux panes
-		  vg    ----------------- Start database under valgrind
+cmd list:
+  db [dbname] ----------- Start database cluster-wide
+  build ----------------- Build docker image
+  clean ----------------- Kill and remove containers
+  c|clnt [n] ------------ Get a shell on nth container
+  copy [dbname] --------- Copy db cluster-wide
+  setup [dbname] -------- Create db and copy it cluster-wide
+  gdb [dbname] ---------- Start db under gdb cluster-wide
+  info  ----------------- Dump settings
+  init  ----------------- Wipe settings and start from scratch
+  kill  ----------------- Kill containers
+  pmux  ----------------- Start pmux cluster-wide
+  ps    ----------------- List containers
+  rm    ----------------- Remove containers
+  root [n] -------------- Root shell on nth container
+  run <cluster-size> ---- Initial run of containers
+  status ---------------- Check container status
+  start ----------------- Start containers
+  stop  ----------------- Stop containers
+  test [n] -------------- Run tests n at a time (default 1)
+  tmux  ----------------- Container tmux panes
+  update ---------------- Update comdb2 from source
+  vg    ----------------- Start database under valgrind
 	EOF
 	exit 1
 }
+
+function update {
+    set -e
+    echo "updating source"
+    local uid=$(id -u)
+    docker exec -ti -u ${uid} m0 rsync -rpt --exclude=build --exclude=.git ${HOME}/src/ ${src}
+    echo "building"
+    docker exec -ti -u ${uid} m0 ninja -C ${src}/build test-tools install
+    echo "syncing"
+    for i in $(seq 1 $(get clusternum)); do
+        m=$(container-name ${i})
+        echo $m
+        docker exec -ti -u ${uid} m0 rsync -r /opt/bb/lib /opt/bb/bin /opt/bb/include $m:/opt/bb/
+    done
+}
+
+function docker-shell {
+    uid=$1
+    shift
+    n=$*
+    [[ -z "$1" ]] && n=0
+    n=$(container-name $n)
+    [[ -z "$n" ]] && usage
+    figlet $n
+    docker exec --user $uid -ti $n /bin/bash -l
+}
+
 
 if [[ ! -d "${dir}" ]]; then 
     if [[ "$1" != "init" ]]; then
@@ -580,7 +664,7 @@ elif [[ "$1" == "run" ]]; then
 elif [[ "$1" == "rm" ]] || [[ "$1" == "stop" ]] || [[ "$1" == "kill" ]] || [[ "$1" == "start" ]]; then
 	do_docker "$1"
     if [[ "$1" == "start" ]]; then
-        start-cluster-jobs
+        start-cluster-jobs 1
     fi
 elif [[ "$1" == "tmux" ]]; then
     check-containers-ready || exit 1
@@ -610,14 +694,10 @@ elif [[ "$1" == "init" ]]; then
     interactive-init
 elif [[ "$1" == "c" || "$1" == "clnt" ]]; then
     shift
-    n=$*
-    [[ -z "$1" ]] && n=0
-    n=$(container-name $n)
-    [[ -z "$n" ]] && usage
-    figlet $n
-    docker exec --user $(id -u) -ti $n /bin/bash -l
+    docker-shell $(id -u) $*
 elif [[ "$1" == "test" ]]; then
     shift
+    $0 stop 2>/dev/null
     $0 clean 2>/dev/null
     $0 run
     n=$(container-name 0)
@@ -627,6 +707,17 @@ elif [[ "$1" == "ps" ]]; then
 	docker ps -a
 elif [[ "$1" == "status" ]]; then
     docker-status
+elif [[ "$1" == "root" ]]; then
+    shift
+    docker-shell 0 $*
+elif [[ "$1" == "hi" ]]; then
+    for i in $(seq 1 $(get clusternum)); do
+        m=$(container-name ${i})
+        echo $m
+        docker exec -ti $m ls -ld ${HOME}
+    done
+elif [[ "$1" == "update" ]]; then
+    update
 else
 	usage
 fi
