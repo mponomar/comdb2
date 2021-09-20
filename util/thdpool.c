@@ -303,7 +303,7 @@ int thdpool_destroy(struct thdpool **pool_p, int coopWaitUs)
                 return -2;
             }
         }
-        logmsg(LOGMSG_INFO,
+        logmsg(LOGMSG_USER,
                "%s: pool %s wait done (%d microseconds)\n", __func__,
                pool->name, elapsedUs);
     }

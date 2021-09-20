@@ -4,6 +4,9 @@
 #include <string.h>
 #include <stddef.h>
 #include <ctype.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 #include <getopt.h>
 #include <unistd.h>
@@ -13,11 +16,23 @@
 #include <signal.h> 
 #include <time.h>
 
+#include <cdb2api.h>
+#include <uuid/uuid.h>
+
 int testnum=0, totaltests=0;
 int lines, cols;
 int passed, failed;
 time_t start_time;
 FILE *testlog = NULL;
+char *dbname = NULL, *tier = NULL;
+char *version = NULL;
+bool havedb = false;
+
+char *version;
+char *runid;
+int64_t run;
+
+cdb2_hndl_tp *dbconn;
 
 enum status {
     ST_UNKNOWN,
@@ -105,6 +120,11 @@ void color(int fg) {
 
 void uncolor() {
     printf("%c[;m", ESC);
+}
+
+void dberr(void) {
+    havedb = false;
+    exit(1);
 }
 
 int regmatch_to_num(char *s, regmatch_t *match) {
@@ -267,6 +287,50 @@ status_type status_from_string(const char *s) {
     return ST_UNKNOWN;
 }
 
+void add_test_db(const char *testname) {
+    cdb2_clearbindings(dbconn);
+    cdb2_bind_param(dbconn, "version", CDB2_CSTRING, version, strlen(version));
+    cdb2_bind_param(dbconn, "run", CDB2_INTEGER, &run, sizeof(run));
+    cdb2_bind_param(dbconn, "testcase", CDB2_CSTRING, testname, strlen(testname));
+    int rc = cdb2_run_statement(dbconn, "insert into cases(version, run, testcase, start) values(@version, @run, @testcase, now())");
+    if (rc) {
+        fprintf(stderr, "%s:%d insert %d %s\n", __func__, __LINE__, rc, cdb2_errstr(dbconn));
+        dberr();
+        return;
+    }
+}
+
+void update_test_db(const char *testname, enum status st) {
+    int status;
+    switch (st) {
+        case ST_SUCCESS:
+            status = 0;
+            break;
+        case ST_FAIL:
+            status = 1;
+            break;
+        case ST_TIMEOUT:
+            status = 2;
+            break;
+        case ST_DBFAIL:
+            status = 3;
+            break;
+        default:
+            dberr();
+            return;
+    }
+    cdb2_clearbindings(dbconn);
+    cdb2_bind_param(dbconn, "status", CDB2_INTEGER, &status, sizeof(status));
+    cdb2_bind_param(dbconn, "version", CDB2_CSTRING, version, strlen(version));
+    cdb2_bind_param(dbconn, "run", CDB2_INTEGER, &run, sizeof(run));
+    cdb2_bind_param(dbconn, "testcase", CDB2_CSTRING, testname, strlen(testname));
+    int rc = cdb2_run_statement(dbconn, "update cases set end=now(), status=@status where version=@version and run=@run and testcase=@testcase");
+    if (rc) {
+        fprintf(stderr, "%s:%d update %d %s\n", __func__, __LINE__, rc, cdb2_errstr(dbconn));
+        dberr();
+    }
+}
+
 void add_test(char *name, char *status) {
     tests = realloc(tests, sizeof(struct test) * (numtests+1));
     if (tests == NULL)
@@ -283,6 +347,9 @@ void add_test(char *name, char *status) {
     tests[numtests].timeout = 0;
     tests[numtests].end_time = 0;
     numtests++;
+    if (havedb) {
+        add_test_db(name);
+    }
 }
 
 char *regmatch_to_str(char *s, regmatch_t *match) {
@@ -346,6 +413,8 @@ void update_test_line(char *testname, char *status) {
 
         if (t->start_time == 0)
             t->start_time = time(NULL);
+        if (st == ST_SUCCESS || st == ST_TIMEOUT || st == ST_DBFAIL || st == ST_FAIL)
+            update_test_db(t->name, t->status);
     }
 }
 
@@ -372,6 +441,98 @@ void dumptests(FILE *f) {
     }
 }
 
+void record_version_run(void) {
+    uuid_t u;
+    char uuid[37];
+
+    uuid_generate(u);
+    uuid_unparse(u, uuid);
+    runid = strdup(uuid);
+
+    FILE *vf = popen("git describe --all --long --always --dirty --tags", "r");
+    if (vf == NULL) {
+        fprintf(stderr, "can't figure out version\n");
+        havedb = false;
+        exit(1);
+    }
+    char ver[100];
+    fgets(ver, sizeof(ver), vf);
+    fclose(vf);
+    char *s = strchr(ver, '\n');
+    if (s)
+        *s = 0;
+    version = strdup(ver);
+
+    cdb2_clearbindings(dbconn);
+    cdb2_bind_param(dbconn, "version", CDB2_CSTRING, version, strlen(version));
+    cdb2_bind_param(dbconn, "runid", CDB2_CSTRING, runid, strlen(runid));
+
+    int rc = cdb2_run_statement(dbconn, "insert into versions(version, runid, start) values(@version, @runid, now())");
+    if (rc) {
+        fprintf(stderr, "%s:%d insert %d %s\n", __func__, __LINE__, rc, cdb2_errstr(dbconn));
+        dberr();
+        return;
+    }
+    rc = cdb2_clearbindings(dbconn);
+    cdb2_bind_param(dbconn, "runid", CDB2_CSTRING, uuid, strlen(uuid));
+    rc = cdb2_run_statement(dbconn, "select run from versions where runid=@runid");
+    if (rc) {
+        fprintf(stderr, "%s:%d fetch %d %s\n", __func__, __LINE__, rc, cdb2_errstr(dbconn));
+        dberr();
+        return;
+    }
+    rc = cdb2_next_record(dbconn);
+    if (rc != CDB2_OK) {
+        if (rc == CDB2_OK_DONE) {
+            fprintf(stderr, "%s:%d inserted record, but can't find it?\n", __func__, __LINE__);
+            dberr();
+            return;
+        }
+        else {
+            fprintf(stderr, "%s:%d next %d %s\n", __func__, __LINE__, rc, cdb2_errstr(dbconn));
+            dberr();
+            return;
+        }
+    }
+    run = *(int64_t*)cdb2_column_value(dbconn, 0);
+
+    rc = cdb2_next_record(dbconn);
+    if (rc != CDB2_OK_DONE) {
+        fprintf(stderr, "%s:%d next %d %s\n", __func__, __LINE__, rc, cdb2_errstr(dbconn));
+        dberr();
+        return;
+    }
+}
+
+void finish_run_db(void) {
+    cdb2_clearbindings(dbconn);
+    cdb2_bind_param(dbconn, "runid", CDB2_CSTRING, runid, strlen(runid));
+    int rc = cdb2_run_statement(dbconn, "update versions set end=now() where runid=@runid");
+    if (rc) {
+        fprintf(stderr, "%s:%d update %d %s\n", __func__, __LINE__, rc, cdb2_errstr(dbconn));
+        dberr();
+        return;
+    }
+    cdb2_close(dbconn);
+}
+
+void initdb(void) {
+    int flags = 0;
+    if (strcmp(tier, "dev") &&
+            strcmp(tier, "alpha") &&
+            strcmp(tier, "beta") &&
+            strcmp(tier, "uat") &&
+            strcmp(tier, "prod")) {
+        flags = CDB2_DIRECT_CPU;
+    }
+
+    int rc = cdb2_open(&dbconn, dbname, tier, flags);
+    if (rc) {
+        fprintf(stderr, "can't open %s/%s %d %s\n", dbname, tier, rc, cdb2_errstr(dbconn));
+        dberr();
+    }
+}
+
 int main(int argc, char *argv[]) {
     char line[1024];
     int rc;
@@ -380,7 +541,7 @@ int main(int argc, char *argv[]) {
     int parallel_jobs = 1;
 
     int opt;
-    while ((opt = getopt(argc, argv, "hj:")) != -1) {
+    while ((opt = getopt(argc, argv, "hj:d:t:")) != -1) {
         switch (opt) {
             case 'h':
                 usage();
@@ -392,11 +553,18 @@ int main(int argc, char *argv[]) {
                     parallel_jobs = 1;
                 }
                 break;
+            case 'd':
+                dbname = (char*) optarg;
+                break;
+            case 't':
+                tier = (char*) optarg;
+                break;
             default:
                 fprintf(stderr, "Unknown option %c\n", (char) opt);
                 return 1;
         }
     }
+    havedb = dbname && tier;
     if (optind >= argc) {
         usage();
         return 1;
@@ -405,6 +573,10 @@ int main(int argc, char *argv[]) {
     if (rc) {
         fprintf(stderr, "cd %s rc %d %s\n", argv[optind], rc, strerror(errno));
         return 1;
+    }
+    if (havedb) {
+        initdb();
+        record_version_run();
     }
 
     char *cmd;
@@ -487,4 +659,6 @@ done:
     qsort(tests, numtests, sizeof(struct test), cmpruntime);
     dumptests(stdout);
     dumptests(testlog);
+    if (havedb)
+        finish_run_db();
 }

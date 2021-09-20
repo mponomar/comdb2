@@ -3437,7 +3437,7 @@ int cdb2_close(cdb2_hndl_tp *hndl)
     free(hndl->query);
     free(hndl->query_hint);
     free(hndl->hint);
-    free(hndl->sql);
+    // free(hndl->sql);
 
     cdb2_clearbindings(hndl);
     cdb2_free_context_msgs(hndl);

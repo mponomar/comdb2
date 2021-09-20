@@ -1,0 +1,19 @@
+// status:
+// 0 - success
+// 1 - fail
+// 2 - timeout
+// 3 - dbfail
+
+schema {
+    cstring version[50]
+    longlong run
+    cstring testcase[50]
+    datetime start
+    datetime end     null=yes
+    short status     null=yes
+}
+
+keys {
+    "version_test_start" = version + run + testcase + start
+    "test_start" = testcase + start
+}

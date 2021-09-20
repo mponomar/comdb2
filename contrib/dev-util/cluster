@@ -7,6 +7,17 @@ tmux=$(which tmux)
 dir=$HOME/.local/share/comdb2-util
 config=$dir/config.sqlite
 
+cores=
+if [[ $(uname) = Linux ]]; then
+    cores=$(dirname $(cat /proc/sys/kernel/core_pattern 2>/dev/null) 2>/dev/null)
+    if [[ -z "$cores" ]]; then
+        echo "WARNING: no core pattern set, we'll miss any cores from the test" >&2
+    elif [[ "$cores" =~ '|.*' ]]; then
+        echo "WARNING: core pattern forwards cores - we'll miss any cores from the test" >&2
+        cores=
+    fi
+fi
+
 function get {
     if [[ ! -f ${config} ]]; then
         echo "No config?"
@@ -159,8 +170,18 @@ function interactive-init {
     [[ -z "$v" ]] && v=4
     put testjobs $v
 
-    docker network ls | grep -qw "comdb2"
-    [[ $? -ne 0 ]] && docker network create comdb2
+    printf "Test db name? []: "
+    read v
+    if [[ -n "$v" ]]; then 
+        put dbname $v
+        printf "Tier? [local]: "
+        read v
+        [[ -z $v ]] && v=local
+        if [[ "$v" = "local" ]]; then
+            v="host.docker.internal"
+        fi
+        put tier $v
+    fi
 
     create-or-copy ${HOME}/.local/share/comdb2/proxy.conf ${dir}/proxy.conf
     create-persist
@@ -174,58 +195,61 @@ function build {
     local uid=$(id -u)
     local id=$(whoami)
 	pushd $DIR
+    docker network create comdb2
 	cat >> Dockerfile <<- EOF
 		FROM $base
 		ENV DEBIAN_FRONTEND=noninteractive
 		ENV LD_LIBRARY_PATH=/opt/bb/lib
 		$(cat ${dir}/proxy.conf)
 		RUN apt-get update
-		RUN apt-get install -y		\
-            bc            \
-            bison       \
-            build-essential \
-            cmake            \
-            figlet            \
-            flex            \
-            gawk            \
-            gdb            \
-            inetutils-ping \
-            jq              \
-            less            \
-            libevent-2.1        \
-            libevent-core-2.1    \
-            libevent-dev       \
-            libevent-openssl-2.1    \
-            libevent-pthreads-2.1    \
-            liblz4-dev      \
-            liblz4-tool        \
-            libprotobuf-c1        \
-            libreadline-dev        \
-            libsqlite3-0        \
-            libsqlite3-dev       \
-            libunwind8        \
-            libprotobuf-c-dev    \
-            libssl-dev           \
-            libunwind-dev        \
-            net-tools            \
-            ncurses-dev          \
-            make            \
-            ninja-build \
-            netcat-openbsd        \
-            openssh-client        \
-            openssh-server        \
-            openssl            \
-            protobuf-c-compiler  \
-            psmisc            \
-            rsync           \
-            sqlite3         \
-            strace            \
-            sudo            \
-            tclsh           \
-            tzdata            \
-            uuid-dev             \
-            valgrind        \
-            vim             \
+        RUN apt-get install -y        \
+            bc                        \
+            bison                     \
+            build-essential           \
+            cmake                     \
+            figlet                    \
+            flex                      \
+            gawk                      \
+            gdb                       \
+            git                       \
+            inetutils-ping            \
+            jq                        \
+            less                      \
+            libevent-2.1              \
+            libevent-core-2.1         \
+            libevent-dev              \
+            libevent-openssl-2.1      \
+            libevent-pthreads-2.1     \
+            liblz4-dev                \
+            liblz4-tool               \
+            libprotobuf-c1            \
+            libreadline-dev           \
+            libsqlite3-0              \
+            libsqlite3-dev            \
+            libunwind8                \
+            libprotobuf-c-dev         \
+            libssl-dev                \
+            libunwind-dev             \
+            net-tools                 \
+            ncurses-dev               \
+            make                      \
+            ninja-build               \
+            netcat-openbsd            \
+            openssh-client            \
+            openssh-server            \
+            openssl                   \
+            protobuf-c-compiler       \
+            psmisc                    \
+            rsync                     \
+            sqlite3                   \
+            strace                    \
+            sudo                      \
+            tclsh                     \
+            tzdata                    \
+            uuid                      \
+            uuid-dev                  \
+            valgrind                  \
+            vim                       \
             zlib1g-dev
         RUN useradd -d ${HOME} -m -u ${uid} -G sudo ${id} -s /bin/bash && \
             sed -i "s/^%sudo.*/%sudo   ALL=(ALL:ALL) NOPASSWD:ALL/" /etc/sudoers
@@ -248,6 +272,8 @@ EOF
 		export HOME=${HOME}
 		export TZ='America/New_York'
 		cd ${HOME}
+		ulimit -c unlimited
+		ulimit -n 65536
 EOF
     grep ENV proxy.conf | sed 's/ENV /export /g' >> bash_profile
 	ssh-keygen -q -t rsa -N '' -f $PWD/id_rsa
@@ -256,49 +282,15 @@ EOF
 		HOST m*
 			StrictHostKeyChecking no
 EOF
-    # If we're on the same distro as $base, just copy over files, otherwise
-    # we need to build the database in container
-    matching_distro=0
-    if [[ "$(uname)" == "Linux" && -f /etc/lsb-release ]]; then
-        source /etc/lsb-release
-        if [[ "$DISTRIB_ID" = "Ubuntu" && -n "$DISTRIB_CODENAME" ]]; then
-            defsource="ubuntu:$DISTRIB_CODENAME"
-            if [[ "$defsource" == "$base" ]]; then
-                matching_distro=1
-            fi
-        fi
-    fi
+    cp -r ${src} db
 	cat > Dockerfile <<- EOF
         FROM comdb2:build
 		RUN mkdir -p /opt/bb/bin /opt/bb/etc/cdb2/config.d /opt/bb/include /opt/bb/lib/cdb2 /opt/bb/lib/pkgconfig /opt/bb/lib/systemd /opt/bb/lib/systemd/system /opt/bb/log/cdb2 /opt/bb/var/cdb2 /opt/bb/var/lib/cdb2 /opt/bb/var/log/cdb2 /opt/bb/tmp
 EOF
-
-    if [[ $matching_distro -eq 1 ]]; then
-        cat >> Dockerfile <<- EOF
-		RUN ln -s ${HOME}/src/build/db/comdb2			/opt/bb/bin/
-		RUN ln -s ${HOME}/src/build/db/comdb2dumpcsc		/opt/bb/bin/
-		RUN ln -s ${HOME}/src/build/db/copycomdb2			/opt/bb/bin/
-		RUN ln -s ${HOME}/src/build/tools/pmux/pmux		/opt/bb/bin/
-		RUN ln -s ${HOME}/src/build/tools/comdb2ar/comdb2ar	/opt/bb/bin/
-		RUN ln -s ${HOME}/src/build/tools/cdb2sql/cdb2sql		/opt/bb/bin/
-		RUN ln -s /opt/bb/bin/comdb2	/opt/bb/bin/cdb2_dump
-		RUN ln -s /opt/bb/bin/comdb2 	/opt/bb/bin/cdb2_printlog
-		RUN ln -s /opt/bb/bin/comdb2 	/opt/bb/bin/cdb2_stat
-		RUN ln -s /opt/bb/bin/comdb2 	/opt/bb/bin/cdb2_load
-		RUN ln -s /opt/bb/bin/comdb2 	/opt/bb/bin/cdb2_sqlreply
-		RUN ln -s /opt/bb/bin/comdb2	/opt/bb/bin/cdb2_verify
-		RUN ln -s ${HOME}/src/build/cdb2api/libcdb2api.so /opt/bb/lib/libcdb2api.so
-EOF
-    else 
-        cp -r ${src} db
-        rm -fr db/.git
-    	cat >> Dockerfile <<- EOF
-            COPY --chown=${id} db ${src}
-            RUN sudo -u ${id} sh -c "cd ${src} && rm -fr build && mkdir build && cd build && cmake -G Ninja .. && ninja && ninja test-tools" && \ 
-                ninja -C ${src}/build install && rm -f ${src}/build/install_manifest.txt
-EOF
-    fi
     cat >> Dockerfile <<- EOF
+           COPY --chown=${id} db ${src}
+           RUN sudo -u ${id} sh -c "cd ${src} && rm -fr build && mkdir build && cd build && cmake -G Ninja .. && ninja && ninja test-tools" && \ 
+               ninja -C ${src}/build install && rm -f ${src}/build/install_manifest.txt
 		RUN mkdir ${HOME}/.ssh /var/run/sshd
 		RUN touch		${HOME}/.hushlogin
 		COPY --chown=${id} config		${HOME}/.ssh/config
@@ -314,6 +306,10 @@ EOF
 		RUN chmod -R 777 /opt/bb/
 		RUN chown -R ${id}:${id} /opt/bb/
 EOF
+    # try to set up cores
+    if [[ -n "$cores" ]]; then
+        echo >> Dockerfile "RUN mkdir -p ${cores} && chmod 777 ${cores}"
+    fi
 	docker build -t comdb2:dev .
 	popd
 	rm -rf $DIR
@@ -353,9 +349,9 @@ function run {
         else
             dbfs="--mount type=tmpfs,destination=/opt/bb:exec"
         fi
-        docker run --ulimit nofile=10000:10000 -it -d --privileged $dbfs --network comdb2 \
+        docker run --ulimit nofile=10000:10000 -it -d --privileged $dbfs --network=comdb2 \
 		    -v $HOME/bin:${HOME}/bin -v $HOME/.vim:${HOME}/.vim -v ${src}:${HOME}/src \
-		    --name ${name} --cap-add sys_ptrace --hostname ${name} comdb2:dev /usr/sbin/sshd -D &
+		    --name ${name} --cap-add sys_ptrace --add-host=host.docker.internal:host-gateway --hostname ${name} --ulimit nofile=65536:65536 comdb2:dev /usr/sbin/sshd -D &
 	done
 	wait
     for i in $(seq 0 $n); do
@@ -603,7 +599,7 @@ cmd list:
   status ---------------- Check container status
   start ----------------- Start containers
   stop  ----------------- Stop containers
-  test [n] -------------- Run tests n at a time (default 1)
+  test  ----------------- Run tests n at a time (default 1)
   tmux  ----------------- Container tmux panes
   update ---------------- Update comdb2 from source
   vg    ----------------- Start database under valgrind
@@ -615,7 +611,7 @@ function update {
     set -e
     echo "updating source"
     local uid=$(id -u)
-    docker exec -ti -u ${uid} m0 rsync -rpt --exclude=build --exclude=.git ${HOME}/src/ ${src}
+    docker exec -ti -u ${uid} m0 rsync -rpt --exclude=build ${HOME}/src/ ${src}
     echo "building"
     docker exec -ti -u ${uid} m0 ninja -C ${src}/build test-tools install
     echo "syncing"
@@ -697,11 +693,24 @@ elif [[ "$1" == "c" || "$1" == "clnt" ]]; then
     docker-shell $(id -u) $*
 elif [[ "$1" == "test" ]]; then
     shift
-    $0 stop 2>/dev/null
-    $0 clean 2>/dev/null
-    $0 run
+    echo update
+    $0 update 2>/dev/null
     n=$(container-name 0)
-    docker exec --user $(id -u) $n bash -c -l ". ~/.bashrc && cd ${HOME}/src/contrib/dev-util && make && TERM=xterm ./testrunner -j ${testjobs} ${HOME}/src/tests $*"
+    echo cleanup tests
+    docker exec $(container-name 0) rm -fr /opt/bb/tmp/testdir
+    if [[ -n "${cores}" ]]; then
+        echo cleanup cores
+        docker exec $(container-name 0) rm -fr "${cores}/*"
+    fi
+    dbname=$(get dbname)
+    runopts=""
+    if [[ -n "$dbname" ]]; then
+        tier=$(get tier)
+        if [[ -n "$dbname" && -n "$tier" ]]; then
+            runopts="$runopts -d $dbname -t $tier"
+        fi
+    fi
+    docker exec -ti --user $(id -u) $n bash -c -l ". ~/.bashrc && cd ${src}/contrib/dev-util && make ; export TERM=xterm ; ./testrunner -j ${testjobs} ${runopts} ${src}/tests $*"
 elif [[ "$1" == "ps" ]]; then
 	figlet $(get clusternum)
 	docker ps -a
@@ -710,12 +719,6 @@ elif [[ "$1" == "status" ]]; then
 elif [[ "$1" == "root" ]]; then
     shift
     docker-shell 0 $*
-elif [[ "$1" == "hi" ]]; then
-    for i in $(seq 1 $(get clusternum)); do
-        m=$(container-name ${i})
-        echo $m
-        docker exec -ti $m ls -ld ${HOME}
-    done
 elif [[ "$1" == "update" ]]; then
     update
 else

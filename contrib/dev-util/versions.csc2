@@ -1,0 +1,12 @@
+schema {
+    cstring version[50]  // git describe --all --long --always --dirty --tags
+    cstring runid[37]
+    longlong run   dbstore=nextsequence
+    datetime start
+    datetime end        null=yes
+}
+
+keys {
+    "version_start" = version + run + start
+    "runid" = runid
+}
