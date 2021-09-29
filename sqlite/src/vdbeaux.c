@@ -18,6 +18,7 @@
 #if defined(SQLITE_BUILDING_FOR_COMDB2)
 #include <stdint.h>
 #include <stddef.h>
+#include <strings.h>
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 #include "sqliteInt.h"
 #include "vdbeInt.h"

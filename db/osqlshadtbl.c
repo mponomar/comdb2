@@ -15,6 +15,7 @@
  */
 
 #include <alloca.h>
+#include <strings.h>
 #include <epochlib.h>
 #include "sql.h"
 #include "osqlshadtbl.h"

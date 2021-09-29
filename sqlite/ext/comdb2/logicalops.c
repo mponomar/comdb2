@@ -18,6 +18,7 @@
 #include "sqlite3ext.h"
 #include <assert.h>
 #include <string.h>
+#include <strings.h>
 #include "comdb2.h"
 #include "sql.h"
 #include "build/db.h"

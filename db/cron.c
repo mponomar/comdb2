@@ -14,6 +14,8 @@
    limitations under the License.
  */
 
+#include <strings.h>
+
 #include "cron.h"
 #include "cron_systable.h"
 

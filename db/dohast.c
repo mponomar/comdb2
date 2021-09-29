@@ -13,6 +13,7 @@
    See the License for the specific language governing permissions and
    limitations under the License.
  */
+#include <strings.h>
 
 #include "comdb2.h"
 #include "sqliteInt.h"

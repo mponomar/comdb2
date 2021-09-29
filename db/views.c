@@ -24,6 +24,7 @@
 #include "comdb2.h"
 #include "crc32c.h"
 #include "sql.h"
+#include <strings.h>
 #include "views.h"
 #include "locks.h"
 #include "schemachange.h"

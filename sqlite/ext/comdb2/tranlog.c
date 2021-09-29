@@ -19,6 +19,7 @@
 #include "tranlog.h"
 #include <assert.h>
 #include <string.h>
+#include <strings.h>
 #include "comdb2.h"
 #include "build/db.h"
 #include "dbinc/db_swap.h"

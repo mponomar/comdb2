@@ -1,5 +1,6 @@
 #include <net.h>
 #include <string.h>
+#include <strings.h>
 #include <build/db.h>
 #include <dbinc/rep_types.h>
 #include "bdb_int.h"

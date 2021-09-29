@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <stddef.h>
 #include <ctype.h>
 #include <arpa/inet.h>

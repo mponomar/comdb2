@@ -81,6 +81,7 @@
 #include <alloca.h>
 #include <string.h>
 #include <assert.h>
+#include <strings.h>
 
 #include <thread_malloc.h>
 

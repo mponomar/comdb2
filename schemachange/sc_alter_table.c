@@ -14,6 +14,7 @@
    limitations under the License.
  */
 
+#include <strings.h>
 #include <unistd.h>
 #include <crc32c.h>
 #include <memory_sync.h>

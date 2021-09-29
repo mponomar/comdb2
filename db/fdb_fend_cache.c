@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <pthread.h>
+#include <strings.h>
 
 #include <comdb2.h>
 #include <sql.h>

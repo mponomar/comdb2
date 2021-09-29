@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>

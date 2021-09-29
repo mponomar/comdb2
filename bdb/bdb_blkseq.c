@@ -30,6 +30,7 @@
 #include <ctrace.h>
 #include <string.h>
 #include <alloca.h>
+#include <strings.h>
 
 #include <logmsg.h>
 #include "util.h"

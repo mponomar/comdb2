@@ -33,6 +33,7 @@
 #include <sys/uio.h>
 #include <unistd.h>
 #include <stddef.h>
+#include <strings.h>
 
 #include <build/db.h>
 #include <epochlib.h>

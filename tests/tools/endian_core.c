@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <strings.h>
 #include "endian_core.h"
 
 /**

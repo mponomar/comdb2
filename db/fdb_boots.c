@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <assert.h>
+#include <strings.h>
 
 #include <rtcpu.h>
 

@@ -17,6 +17,7 @@
 #include <alloca.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <strings.h>
 
 #include "comdb2_plugin.h"
 #include "pb_alloc.h"

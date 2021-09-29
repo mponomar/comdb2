@@ -46,6 +46,7 @@
  */
 #include <stdio.h>
 #include <stdarg.h>
+#include <strings.h>
 #include <ctype.h>
 #include <ctype.h>
 #include <uuid/uuid.h>
