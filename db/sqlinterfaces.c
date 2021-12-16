@@ -1551,6 +1551,7 @@ static void sql_update_usertran_state(struct sqlclntstate *clnt)
 
     if (meta == TSMC_BEGIN) {
         clnt->snapshot = 0;
+        comdb2_results_not_cachable();
 
         /*fprintf(stderr, "got begin\n");*/
         if (clnt->ctrl_sqlengine != SQLENG_NORMAL_PROCESS) {
@@ -1582,6 +1583,7 @@ static void sql_update_usertran_state(struct sqlclntstate *clnt)
         }
     } else if (meta == TSMC_COMMIT) {
         clnt->snapshot = 0;
+        comdb2_results_not_cachable();
 
         if (clnt->ctrl_sqlengine != SQLENG_INTRANS_STATE &&
             clnt->ctrl_sqlengine != SQLENG_STRT_STATE &&
@@ -1605,6 +1607,7 @@ static void sql_update_usertran_state(struct sqlclntstate *clnt)
         }
     } else if (meta == TSMC_ROLLBACK) {
         clnt->snapshot = 0;
+        comdb2_results_not_cachable();
 
         if (clnt->ctrl_sqlengine != SQLENG_INTRANS_STATE &&
             clnt->ctrl_sqlengine != SQLENG_STRT_STATE &&
@@ -4157,8 +4160,10 @@ static int execute_sql_query(struct sqlthdstate *thd, struct sqlclntstate *clnt)
     /* All requests that do not require a sqlite engine are processed next,
      * rc != 0 means processing done */
     if ((rc = handle_non_sqlite_requests(thd, clnt, &outrc)) != 0) {
+        comdb2_results_not_cachable();
         return outrc;
     }
+
 
     /* This is a request that requires a sqlite engine */
     return handle_sqlite_requests(thd, clnt);
@@ -5007,6 +5012,15 @@ int tdef_to_tranlevel(int tdef)
     }
 }
 
+static void clnt_clear_cache_entries(struct sqlclntstate *clnt) {
+    struct cached_response_fragment *f;
+    f = listc_rtl(&clnt->response_fragments);
+    while (f) {
+        free(f);
+        f = listc_rtl(&clnt->response_fragments);
+    }
+}
+
 void cleanup_clnt(struct sqlclntstate *clnt)
 {
     if (clnt->ctrl_sqlengine == SQLENG_INTRANS_STATE) {
@@ -5081,6 +5095,7 @@ void cleanup_clnt(struct sqlclntstate *clnt)
     clnt->dml_tables = NULL;
     destroy_hash(clnt->ddl_contexts, free_clnt_ddl_context);
     clnt->ddl_contexts = NULL;
+    clnt_clear_cache_entries(clnt);
 
     Pthread_mutex_destroy(&clnt->wait_mutex);
     Pthread_cond_destroy(&clnt->wait_cond);
@@ -5112,6 +5127,7 @@ void reset_clnt(struct sqlclntstate *clnt, int initial)
     }
 
     clnt->pPool = NULL; /* REDUNDANT? */
+    clnt->cached_response_size = 0;
 
     if (clnt->rawnodestats) {
         release_node_stats(clnt->argv0, clnt->stack, clnt->origin);

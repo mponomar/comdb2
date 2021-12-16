@@ -30,6 +30,7 @@
 #include <sql.h>
 #include <sqlwriter.h>
 #include <str0.h>
+#include <sql.h>
 
 #include <newsql.h>
 
@@ -140,6 +141,10 @@ static int newsql_done_cb(struct sqlclntstate *clnt)
     if (clnt->query_rc == CDB2ERR_IO_ERROR) { /* dispatch timed out */
         return event_once(appsock_timer_base, newsql_cleanup, appdata);
     }
+
+    add_response_to_cache(clnt);
+    cached_response_cleanup(clnt);
+
     if (clnt->osql.replay == OSQL_RETRY_DO) {
         clnt->done_cb = NULL;
         srs_tran_replay_inline(clnt);
@@ -152,7 +157,8 @@ static int newsql_done_cb(struct sqlclntstate *clnt)
         cdb2__query__free_unpacked(appdata->query, NULL);
         appdata->query = NULL;
     }
-    if (sql_done(appdata->writer) == 0) {
+    int done = sql_done(appdata->writer);
+    if (done == 0) {
         event_once(appsock_timer_base, newsql_read_again, appdata);
     } else {
         event_once(appsock_timer_base, newsql_cleanup, appdata);
@@ -373,11 +379,20 @@ static void process_query(struct newsql_appdata_evbuffer *appdata, CDB2QUERY *qu
     if (clnt->query_timeout) {
         sql_enable_timeout(appdata->writer, clnt->query_timeout);
     }
-    if (dispatch_sql_query_no_wait(clnt) == 0) {
-        sql_enable_heartbeat(appdata->writer);
+    int from_cache = serve_from_result_cache(clnt, query->sqlquery);
+    if (from_cache != 0) {
+        clnt->request_served_from_cache = 0;
+        if (dispatch_sql_query_no_wait(clnt) == 0) {
+            sql_enable_heartbeat(appdata->writer);
+            return;
+        }
+    }
+    else {
+        clnt->request_served_from_cache = 1;
         return;
     }
-out:cdb2__query__free_unpacked(query, NULL);
+out:
+    cdb2__query__free_unpacked(query, NULL);
     event_once(appsock_timer_base, do_read ? newsql_read_again : newsql_cleanup, appdata);
 }
 
@@ -575,6 +590,9 @@ static int newsql_write_evbuffer(struct sqlclntstate *clnt, int type, int state,
         arg.hdr = &hdr;
     }
     arg.resp = resp;
+
+    append_cached_response_fragment(clnt, &hdr, resp, total_len);
+
     return sql_write(appdata->writer, total_len, &arg, flush);
 
 }
@@ -606,6 +624,20 @@ static int newsql_write_dbinfo_evbuffer(struct sqlclntstate *clnt)
     int rc = sql_write_buffer(appdata->writer, wrbuf);
     evbuffer_free(wrbuf);
     return rc || sql_flush(appdata->writer);
+}
+
+void newsql_cached_response_done(const void *data, size_t datalen, void *extra) {
+    struct cached_response *rsp = (struct cached_response*) extra;
+    cached_response_done(rsp);
+}
+
+
+static int newsql_write_cached_response_evbuffer(struct sqlclntstate *clnt, struct cached_response *rsp) {
+    struct newsql_appdata_evbuffer *appdata = clnt->appdata;
+    struct evbuffer *wrbuf = sql_wrbuf(appdata->writer);
+    evbuffer_add_reference(wrbuf, rsp->response, rsp->response_size, newsql_cached_response_done, rsp);
+    sql_flush_cached_response(appdata->writer, appdata->fd, newsql_done_cb);
+    return 0;
 }
 
 static void newsql_setup_clnt_evbuffer(struct appsock_handler_arg *arg, int admin)

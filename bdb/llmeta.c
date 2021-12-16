@@ -9855,7 +9855,7 @@ void init_password_cache()
     password_cache = lrucache_init(password_hash, password_cmp, free,
                                    offsetof(password_cache_entry_t, lnk),
                                    offsetof(password_cache_entry_t, key),
-                                   PASSWD_HASH_SZ, gbl_max_password_cache_size);
+                                   PASSWD_HASH_SZ, gbl_max_password_cache_size, 0);
 }
 
 void destroy_password_cache()
@@ -9955,7 +9955,7 @@ int bdb_user_password_check(tran_type *tran, char *user, char *passwd, int *vali
             memcpy(entry->password, computed.u.p0.hash, sizeof(computed.u.p0.hash));
 
             Pthread_mutex_lock(&password_cache_mu);
-            lrucache_add(password_cache, entry);
+            lrucache_add(password_cache, entry, 0);
             Pthread_mutex_unlock(&password_cache_mu);
         }
     }

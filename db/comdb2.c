@@ -1126,6 +1126,22 @@ static int send_incoherent_message(int num_online, int duration)
     return 0;
 }
 
+struct periodic_thing_to_run {
+    void (*callback)(void);
+    int period;
+};
+
+static int num_things_to_run = 0;
+static struct periodic_thing_to_run *things_to_run;
+
+void plugin_run_periodically(void (*callback)(void), int seconds) {
+    things_to_run = realloc(things_to_run, (num_things_to_run+1) * sizeof(struct periodic_thing_to_run));
+    things_to_run[num_things_to_run].callback = callback;
+    things_to_run[num_things_to_run].period = seconds;
+    num_things_to_run++;
+}
+
+
 /* sorry guys, i hijacked this to be more of a "purge stuff in general" thread
  * -- SJ
  * now blkseq doesn't exist anymore much less a purge function for it, now this
@@ -1147,7 +1163,11 @@ static void *purge_old_blkseq_thread(void *arg)
     sleep(1);
 
     while (!db_is_exiting()) {
-
+        for (int i = 0; i < num_things_to_run; i++) {
+            if (loop % things_to_run[i].period == 0)
+                things_to_run[i].callback();
+        }
+ 
         /* Check del unused files progress about twice per threshold  */
         if (!(loop % (gbl_sc_del_unused_files_threshold_ms / (2 * 1000 /*ms per sec*/))))
             sc_del_unused_files_check_progress();
@@ -4653,6 +4673,8 @@ int throttle_lim = 10000;
 int cpu_throttle_threshold = 100000;
 
 double gbl_cpupercent;
+int64_t gbl_cached_sql_hints;
+
 #include <sc_util.h>
 
 
@@ -4701,6 +4723,7 @@ void *statthd(void *p)
     int diff_locks_aborted;
     int diff_lockwaits;
     int diff_vreplays;
+    int64_t diff_cached_sql;
 
     int last_qtrap = 0;
     int last_fstrap = 0;
@@ -4712,6 +4735,7 @@ void *statthd(void *p)
     int last_nretries = 0;
     int64_t last_ndeadlocks = 0, last_nlocks_aborted = 0, last_nlockwaits = 0;
     int64_t last_vreplays = 0;
+    int64_t last_cached_sql = 0;
 
     int count = 0;
     int last_report_nqtrap = n_qtrap;
@@ -4804,6 +4828,7 @@ void *statthd(void *p)
         diff_conns = conns - last_conns;
         diff_curr_conns = curr_conns - last_curr_conns;
         diff_conn_timeouts = conn_timeouts - last_conn_timeouts;
+        diff_cached_sql = gbl_cached_sql_hints - last_cached_sql;
 
         last_qtrap = nqtrap;
         last_fstrap = nfstrap;
@@ -4822,6 +4847,7 @@ void *statthd(void *p)
         last_conns = conns;
         last_curr_conns = curr_conns;
         last_conn_timeouts = conn_timeouts;
+        last_cached_sql = gbl_cached_sql_hits;
 
         have_scon_header = 0;
         have_scon_stats = 0;
@@ -4829,7 +4855,7 @@ void *statthd(void *p)
         if (diff_qtrap || diff_nsql || diff_newsql || diff_nsql_steps ||
             diff_fstrap || diff_vreplays || diff_bpool_hits ||
             diff_bpool_misses || diff_ncommit_time ||
-            diff_conns || diff_conn_timeouts || diff_curr_conns) {
+            diff_conns || diff_conn_timeouts || diff_curr_conns || diff_cached_sql) {
             if (gbl_report) {
                 logmsg(LOGMSG_USER, "diff");
                 have_scon_header = 1;
@@ -4866,6 +4892,8 @@ void *statthd(void *p)
                     logmsg(LOGMSG_USER, " current_connects %"PRId64, diff_curr_conns);
                 if (diff_conn_timeouts)
                     logmsg(LOGMSG_USER, " connect_timeouts %"PRId64, diff_conn_timeouts);
+                if (diff_cached_sql)
+                    logmsg(LOGMSG_USER, " cached_sql %"PRId64, diff_cached_sql);
                 have_scon_stats = 1;
             }
         }

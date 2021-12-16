@@ -27,6 +27,7 @@
 #include <str0.h>
 
 #include <newsql.h>
+#include "lrucache.h"
 
 extern int gbl_allow_incoherent_sql;
 extern int gbl_disable_skip_rows;
@@ -35,6 +36,11 @@ extern int gbl_return_long_column_names;
 struct newsql_appdata {
     NEWSQL_APPDATA_COMMON
 };
+
+int64_t gbl_cached_sql_hits = 0;
+pthread_mutex_t rscachelk = PTHREAD_MUTEX_INITIALIZER;
+
+static lrucache *cached_responses;
 
 static int newsql_clr_snapshot(struct sqlclntstate *);
 static int newsql_has_high_availability(struct sqlclntstate *);
@@ -311,6 +317,25 @@ static inline int newsql_to_client_type(int newsql_type)
         return -1;
     }
 }
+
+void append_cached_response_fragment(struct sqlclntstate *clnt, struct newsqlheader *hdr, const CDB2SQLRESPONSE *rsp, int sz) {
+    if (clnt->dont_cache_this_request)
+        return;
+
+    sz += sizeof(struct newsqlheader);
+    struct cached_response_fragment *f = malloc(offsetof(struct cached_response_fragment, buf) + sz);
+
+    f->sz = sz;
+    memcpy(f->buf, hdr, sizeof(struct newsqlheader));
+    cdb2__sqlresponse__pack(rsp, (uint8_t*) f->buf + sizeof(struct newsqlheader));
+
+    listc_abl(&clnt->response_fragments, f);
+    clnt->cached_response_size += sz;
+
+    if (clnt->cached_response_size > gbl_result_cache_size)
+        comdb2_results_not_cachable();
+}
+
 static int newsql_response_int(struct sqlclntstate *clnt, const CDB2SQLRESPONSE *r, int h, int flush)
 {
     struct newsql_appdata *appdata = clnt->appdata;
@@ -1975,6 +2000,7 @@ int newsql_loop(struct sqlclntstate *clnt, CDB2SQLQUERY *sql_query)
     if (gbl_rowlocks && clnt->dbtran.mode != TRANLEVEL_SERIAL) {
         clnt->dbtran.mode = TRANLEVEL_SNAPISOL;
     }
+
     /* avoid new accepting new queries/transaction on opened connections
      if we are incoherent (and not in a transaction). */
     if (incoh_reject(clnt->admin, thedb->bdb_env) &&
@@ -1983,6 +2009,7 @@ int newsql_loop(struct sqlclntstate *clnt, CDB2SQLQUERY *sql_query)
         return -1;
     }
     ATOMIC_ADD32(gbl_nnewsql, 1);
+
     return 0;
 }
 
@@ -2021,6 +2048,7 @@ void free_newsql_appdata(struct sqlclntstate *clnt)
         free(appdata->postponed->row);
         free(appdata->postponed);
         appdata->postponed = NULL;
+        // TODO: cleanup here?
     }
     free(appdata->col_info.type);
 }
@@ -2068,4 +2096,164 @@ void newsql_effects(CDB2SQLRESPONSE *r, CDB2EFFECTS *e, struct sqlclntstate *cln
     e->num_deleted = effects->num_deleted;
     e->num_inserted = effects->num_inserted;
     r->effects = e;
+}
+
+void checksum_newsql_query(CDB2SQLQUERY *q, unsigned char out[20]) {
+    SHA256_CTX ctx;
+    SHA256_Init(&ctx);
+
+    SHA256_Update(&ctx, q->dbname, strlen(q->dbname));
+    SHA256_Update(&ctx, q->sql_query, strlen(q->sql_query));
+    SHA256_Update(&ctx, &q->n_flag, sizeof(size_t));
+    for (int i = 0; i < q->n_flag; i++) {
+        SHA256_Update(&ctx, &q->flag[0]->option, sizeof(int32_t));
+        SHA256_Update(&ctx, &q->flag[0]->value, sizeof(int32_t));
+        SHA256_Update(&ctx, &q->little_endian, sizeof(protobuf_c_boolean));
+        SHA256_Update(&ctx, &q->n_bindvars, sizeof(size_t));
+        for (int bindvar = 0; bindvar < q->n_bindvars; bindvar++) {
+            CDB2SQLQUERY__Bindvalue *v = q->bindvars[bindvar];
+            SHA256_Update(&ctx, &v->varname, strlen(v->varname));
+            SHA256_Update(&ctx, &v->value.data, v->value.len);
+
+            SHA256_Update(&ctx, &v->has_isnull, sizeof(protobuf_c_boolean));
+            SHA256_Update(&ctx, &v->isnull, sizeof(protobuf_c_boolean));
+            SHA256_Update(&ctx, &v->has_index, sizeof(protobuf_c_boolean));
+            SHA256_Update(&ctx, &v->index, sizeof(int32_t));
+        }
+    }
+
+    SHA256_Final(out, &ctx);
+}
+
+static unsigned int response_hash(const void *key, int len) {
+    unsigned int h = 0;
+
+    struct cache_key *k = (struct cache_key*) key;
+    int *p = (int*) k->request_checksum;
+
+    for (int i = 0; i < sizeof(k->request_checksum)/sizeof(int); i++)
+        h ^= p[i];
+
+    return h;
+}
+
+static int response_cmp(const void *key1, const void *key2, int len) {
+    struct cache_key *k1 = (struct cache_key*) key1;
+    struct cache_key *k2 = (struct cache_key*) key2;
+    int cmp = memcmp(k1->request_checksum, k2->request_checksum, 20) == 0 && (k1->gen == k2->gen);
+    return !cmp;
+}
+
+static enum lrucache_action maybe_invalidate_cache_entry(void *entp, void *usrptr) {
+    struct cached_response *ent = (struct cached_response *) entp;
+    unsigned long long last_context = *(unsigned long long*)usrptr;
+
+    if (last_context != ent->key.gen) {
+        return LRUCACHE_ACTION_INVALIDATE;
+    }
+    else
+        return LRUCACHE_ACTION_CONTINUE;
+}
+
+static void invalidate_result_cache(void) {
+    unsigned long long last_context_id = 0;
+
+    if (last_context_id == 0)
+        last_context_id = bdb_get_commit_genid(thedb->bdb_env, NULL);
+
+    pthread_mutex_lock(&rscachelk);
+    lrucache_invalidate_if(cached_responses, maybe_invalidate_cache_entry, &last_context_id);
+    pthread_mutex_unlock(&rscachelk);
+}
+
+void response_cache_init(void) {
+    cached_responses = lrucache_init(response_hash, response_cmp, free, 
+            offsetof(struct cached_response, lnk), offsetof(struct cached_response, key),
+            sizeof(struct cache_key), 0, gbl_result_cache_size);
+    plugin_run_periodically(invalidate_result_cache, 5);
+}
+
+void update_response_cache(struct sqlclntstate *clnt) {
+    struct cached_response_fragment *f;
+    char *p;
+    struct cached_response *rsp;
+
+    rsp = malloc(offsetof(struct cached_response, response) + clnt->cached_response_size);
+    p = rsp->response;
+    memcpy(rsp->key.request_checksum, clnt->query_checksum, 20);
+    rsp->key.gen = bdb_get_commit_genid(thedb->bdb_env, NULL);
+    rsp->response_size  = clnt->cached_response_size;
+
+    f = listc_rtl(&clnt->response_fragments);
+    while (f) {
+        memcpy(p, f->buf, f->sz);
+        p += f->sz;
+
+        free(f);
+        f = listc_rtl(&clnt->response_fragments);
+    }
+    clnt->cached_response_size = 0;
+    pthread_mutex_lock(&rscachelk);
+    lrucache_add(cached_responses, rsp, offsetof(struct cached_response, response) + clnt->cached_response_size);
+    pthread_mutex_unlock(&rscachelk);
+}
+
+void cached_response_cleanup(struct sqlclntstate *clnt) {
+    struct cached_response_fragment *f;
+
+    f = listc_rtl(&clnt->response_fragments);
+    while (f) {
+        free(f);
+        f = listc_rtl(&clnt->response_fragments);
+    }
+}
+
+void cached_response_done(struct cached_response *rsp) {
+    pthread_mutex_lock(&rscachelk);
+    lrucache_release(cached_responses, &rsp->key);
+    pthread_mutex_unlock(&rscachelk);
+
+}
+
+// Returns 0 if the query is served from the result cache and calling code has no
+// more work to do.
+int serve_from_result_cache(struct sqlclntstate *clnt, CDB2SQLQUERY *sql_query) {
+    // See if we can serve this out of request cache.  Needs to be enabled
+    // and this statement needs to be cachable.
+    // Things are cacheable unless we determine (later) otherwise.
+    clnt->dont_cache_this_request = 0;
+
+    if (gbl_result_cache_size) {
+        struct cached_response *rsp = NULL;
+        struct cache_key k;
+        checksum_newsql_query(sql_query, clnt->query_checksum);
+        memcpy(k.request_checksum, clnt->query_checksum, sizeof(clnt->query_checksum));
+        k.gen = bdb_get_commit_genid(thedb->bdb_env, NULL);
+        pthread_mutex_lock(&rscachelk);
+        rsp = lrucache_find(cached_responses, &k);
+        pthread_mutex_unlock(&rscachelk);
+        if (rsp) {
+            gbl_cached_sql_hits++;
+            struct newsql_appdata *appdata = clnt->appdata;
+            return appdata->write_cached_response(clnt, rsp);
+        }
+    }
+    else {
+        comdb2_results_not_cachable();
+    }
+
+    return 1;
+}
+
+void add_response_to_cache(struct sqlclntstate *clnt) {
+    // Save the cached response if enabled, and we were not told to not 
+    // cache, and authentication is disable, and it's not already cached
+    if (gbl_result_cache_size && 
+            !clnt->dont_cache_this_request && 
+            !clnt->in_client_trans && 
+            !clnt->request_served_from_cache &&
+            !gbl_uses_externalauth && 
+            !gbl_uses_password) {
+        update_response_cache(clnt);
+    }
 }

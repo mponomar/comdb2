@@ -143,6 +143,8 @@ static int newsql_write_sbuf(struct sqlclntstate *clnt, int t, int s,
     if (flush && (rc = sbuf2flush(appdata->sb)) < 0)
         goto out;
     rc = 0;
+    append_cached_response_fragment(clnt, &hdr, r, len);
+
 out:unlock_client_write_lock(clnt);
     return rc;
 }
@@ -186,7 +188,6 @@ static int newsql_write_postponed_sbuf(struct sqlclntstate *clnt)
         goto out;
     if ((rc = sbuf2write(row, len, appdata->sb)) != len)
         goto out;
-    rc = 0;
 out:unlock_client_write_lock(clnt);
     return rc;
 }
@@ -296,6 +297,28 @@ static void *newsql_destroy_stmt_sbuf(struct sqlclntstate *clnt, void *arg)
     free(stmt);
     return NULL;
 } 
+
+int newsql_write_cached_response_sbuf(struct sqlclntstate *clnt, struct cached_response *rsp) {
+    int rc;
+    struct newsql_appdata_sbuf *appdata = clnt->appdata;
+
+    lock_client_write_lock(clnt);
+    rc = sbuf2write(rsp->response, rsp->response_size, appdata->sb);
+    if (rc != rsp->response_size) {
+        rc = -1;
+        goto done;
+    }
+    rc = sbuf2flush(appdata->sb);
+    if (rc < 0) {
+        rc = -1;
+        goto done;
+    }
+    rc = 0;
+
+done:
+    unlock_client_write_lock(clnt);
+    return rc;
+}
 
 static void newsql_setup_clnt_sbuf(struct sqlclntstate *clnt, SBUF2 *sb)
 {
@@ -621,9 +644,14 @@ static int handle_newsql_request(comdb2_appsock_arg_t *arg)
         if (newsql_loop(&clnt, sql_query) != 0) {
             goto done;
         }
+
         clnt.heartbeat = 1;
         int isCommitRollback;
-        if (newsql_should_dispatch(&clnt, &isCommitRollback) == 0) {
+        if (serve_from_result_cache(&clnt, query->sqlquery) == 0) {
+            clnt.request_served_from_cache = 1;
+        }
+        else if (newsql_should_dispatch(&clnt, &isCommitRollback) == 0) {
+            clnt.request_served_from_cache = 0;
             comdb2bma_pass_priority_back(blobmem);
             rc = dispatch_sql_query(&clnt);
             if (clnt.had_errors && isCommitRollback) {
@@ -662,6 +690,9 @@ static int handle_newsql_request(comdb2_appsock_arg_t *arg)
             }
         }
 
+        add_response_to_cache(&clnt);
+        cached_response_cleanup(&clnt);
+
         if (clnt.added_to_hist) {
             clnt.added_to_hist = 0;
         } else if (appdata->query) {
@@ -691,6 +722,7 @@ done:
 static int newsql_init(void *arg)
 {
     setup_newsql_evbuffer_handlers();
+    response_cache_init();
     return 0;
 }
 

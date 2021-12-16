@@ -48,6 +48,7 @@ struct newsql_postponed_data {
     int (*write_dbinfo)(struct sqlclntstate *);                                \
     int (*write_hdr)(struct sqlclntstate *, int type, int state);              \
     int (*write_postponed)(struct sqlclntstate *);                             \
+    int (*write_cached_response)(struct sqlclntstate *, struct cached_response *); \
     CDB2QUERY *query;                                                          \
     CDB2SQLQUERY *sqlquery;                                                    \
     int8_t send_intrans_response;                                              \
@@ -68,6 +69,13 @@ void newsql_reset(struct sqlclntstate *);
 void free_newsql_appdata(struct sqlclntstate *);
 void newsql_effects(CDB2SQLRESPONSE *, CDB2EFFECTS *, struct sqlclntstate *);
 
+void response_cache_init(void);
+void append_cached_response_fragment(struct sqlclntstate *clnt, struct newsqlheader *hdr, const CDB2SQLRESPONSE *rsp, int sz);
+void checksum_newsql_query(CDB2SQLQUERY *q, unsigned char out[20]);
+int serve_from_result_cache(struct sqlclntstate *, CDB2SQLQUERY *);
+void update_response_cache(struct sqlclntstate *clnt);
+void cached_response_cleanup(struct sqlclntstate *clnt);
+
 #define plugin_set_callbacks_newsql(name)                                      \
     clnt->plugin.close = newsql_close##_##name;                                \
     clnt->plugin.destroy_stmt = newsql_destroy_stmt##_##name;                  \
@@ -84,6 +92,7 @@ void newsql_effects(CDB2SQLRESPONSE *, CDB2EFFECTS *, struct sqlclntstate *);
     appdata->write = newsql_write##_##name;                                    \
     appdata->write_dbinfo = newsql_write_dbinfo##_##name;                      \
     appdata->write_hdr = newsql_write_hdr##_##name;                            \
-    appdata->write_postponed = newsql_write_postponed##_##name;
+    appdata->write_postponed = newsql_write_postponed##_##name;                \
+    appdata->write_cached_response = newsql_write_cached_response##_##name;    \
 
 #endif /* INCLUDED_NEWSQL_H */

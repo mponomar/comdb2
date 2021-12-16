@@ -30,6 +30,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include "comdb2_query_preparer.h"
+#include "sql.h"
 
 struct comdb2_metrics_store {
     int64_t cache_hits;
@@ -96,6 +97,7 @@ struct comdb2_metrics_store {
     int64_t minimum_truncation_timestamp;
     int64_t reprepares;
     int64_t nonsql;
+    int64_t result_set_cache_hits;
 };
 
 static struct comdb2_metrics_store stats;
@@ -257,6 +259,9 @@ comdb2_metric gbl_metrics[] = {
     {"reprepares", "Number of times statements are reprepared by sqlitex",
       STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.reprepares,
       NULL},
+    {"result_set_cache_hits", "SQL result set cache hits",
+     STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_CUMULATIVE, 
+     &stats.result_set_cache_hits, NULL}
 };
 
 const char *metric_collection_type_string(comdb2_collection_type t) {
@@ -492,6 +497,7 @@ int refresh_metrics(void)
     }
     stats.diskspace = refresh_diskspace(thedb, trans);
     curtran_puttran(trans);
+    stats.result_set_cache_hits = gbl_cached_sql_hits;;
 
     return 0;
 }

@@ -178,22 +178,19 @@ do_malloc:
 		bp += sizeof(u_int32_t);
 	}
 	else
-	{
-		LOGCOPY_32(bp, &locks->size);
-		bp += sizeof(locks->size);
-		memcpy(bp, locks->data, locks->size);
-		bp += locks->size;
-      if (gbl_snapisol)
-      {
-         /* save location in the log stream, if any */
-         if (locks->size > 0)
-         {
+    {
+        LOGCOPY_32(bp, &locks->size);
+        bp += sizeof(locks->size);
+        memcpy(bp, locks->data, locks->size);
+        bp += locks->size;
+        /* save location in the log stream, if any */
+        if (locks->size > 0)
+        {
             off_context = (u_int8_t*)bp-((u_int8_t*)(logrec.data))-sizeof(unsigned long long);
 
             assert(off_context>=0);
-         }
-      }
-	}
+        }
+    }
 
 	DB_ASSERT((u_int32_t)(bp - (u_int8_t *)logrec.data) <= logrec.size);
 

@@ -442,3 +442,46 @@ struct sqlwriter *sqlwriter_new(struct sqlwriter_arg *arg)
 
     return writer;
 }
+
+struct cached_reponse_writer {
+    struct sqlwriter *writer;
+    sql_done_fn *done;
+    struct event *ev;
+};
+
+static void sql_flush_cached_response_cb(int fd, short what, void *arg)
+{
+    struct cached_reponse_writer *wr = arg;
+    struct sqlwriter *writer = wr->writer;
+    struct evbuffer *wr_buf = writer->wr_buf;
+    if (!(what & EV_WRITE)) {
+        return;
+    }
+    int n = evbuffer_write(wr_buf, fd);
+    if (n <= 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+        writer->bad = 1;
+        logmsg(LOGMSG_ERROR, "%s write failed fd:%d rc:%d err:%s\n", __func__, fd, n, strerror(errno));
+        goto end_flush;
+    }
+    if (evbuffer_get_length(wr_buf) == 0) {
+        goto end_flush;
+    }
+    return;
+
+end_flush:
+    wr->done(writer->clnt);
+    event_free(wr->ev);
+    free(wr);
+}
+
+void sql_flush_cached_response(struct sqlwriter *writer, int fd, sql_done_fn *done)
+{
+    struct cached_reponse_writer *wr = malloc(sizeof(struct cached_reponse_writer));
+    int flush_flags = EV_WRITE | EV_TIMEOUT | EV_PERSIST;
+    wr->ev = event_new(appsock_timer_base, fd, flush_flags, sql_flush_cached_response_cb, wr);
+    wr->done = done;
+    wr->writer = writer;
+
+    struct timeval timeout = {.tv_sec = 1};
+    event_add(wr->ev, &timeout);
+}

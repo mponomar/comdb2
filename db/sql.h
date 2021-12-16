@@ -35,6 +35,7 @@
 #include <sp.h>
 #include "sql_stmt_cache.h"
 #include "db_access.h"
+#include "lrucache.h"
 
 /* Modern transaction modes, more or less */
 enum transaction_level {
@@ -553,6 +554,12 @@ struct clnt_ddl_context {
 #define RECOVER_DEADLOCK_MAX_STACK 16348
 #endif
 
+struct cached_response_fragment {
+    LINKC_T(struct cached_response_fragment) lnk;
+    int sz;
+    uint8_t buf[1];
+};
+
 enum prepare_flags {
     PREPARE_NONE = 0,
     PREPARE_RECREATE = 1,
@@ -871,6 +878,13 @@ struct sqlclntstate {
     replay_func *recover_ddlk_fail;
     unsigned skip_eventlog: 1;
     unsigned request_fp: 1;
+
+    // result cache
+    LISTC_T(struct cached_response_fragment) response_fragments;
+    int cached_response_size;
+    int dont_cache_this_request;
+    int request_served_from_cache;
+    uint8_t query_checksum[20];
 };
 
 /* Query stats. */
@@ -1333,6 +1347,9 @@ void clnt_change_state(struct sqlclntstate *clnt, enum connection_state state);
 void clnt_register(struct sqlclntstate *clnt);
 void clnt_unregister(struct sqlclntstate *clnt);
 
+void comdb2_results_not_cachable(void);
+extern int64_t gbl_cached_sql_hits;
+
 struct sqlclntstate *get_sql_clnt(void);
 
 struct client_sql_systable_data {
@@ -1400,6 +1417,19 @@ struct sql_col_info {
     int *type;
 };
 
+struct cache_key {
+    unsigned long long gen;
+    unsigned char request_checksum[20];
+};
+
+struct cached_response {
+    struct cache_key key;
+    struct lrucache_link lnk;
+    int response_size;
+    char response[1];
+};
+
+
 void add_lru_evbuffer(struct sqlclntstate *);
 void rem_lru_evbuffer(struct sqlclntstate *);
 void add_sql_evbuffer(struct sqlclntstate *);
@@ -1411,5 +1441,8 @@ void exhausted_appsock_connections(struct sqlclntstate *);
 void update_col_info(struct sql_col_info *info, int);
 void sqlengine_work_appsock(struct sqlthdstate *, struct sqlclntstate *);
 const char *sqlite3ErrStr(int);
+
+void cached_response_done(struct cached_response *rsp);
+void add_response_to_cache(struct sqlclntstate *clnt);
 
 #endif /* _SQL_H_ */

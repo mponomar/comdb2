@@ -63,4 +63,7 @@ struct evbuffer *sql_wrbuf(struct sqlwriter *);
 
 int recover_deadlock_evbuffer(struct sqlclntstate *);
 
+typedef int (sql_done_fn)(struct sqlclntstate *);
+void sql_flush_cached_response(struct sqlwriter *, int, sql_done_fn *);
+
 #endif /* INCLUDED_SQLWRITER_H */

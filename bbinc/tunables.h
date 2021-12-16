@@ -74,6 +74,7 @@ typedef enum {
   Tunable types
 
   * TUNABLE_INTEGER
+  * TUNABLE_INT64
     The tunables of this type, by default, allow all numbers >= 0.
     NOZERO bit can be set to allow all values > 0. The range can be
     extended by setting SIGNED bit to allow positive as well as
@@ -96,6 +97,7 @@ typedef enum {
 */
 typedef enum {
     TUNABLE_INTEGER,
+    TUNABLE_INT64,
     TUNABLE_DOUBLE,
     TUNABLE_BOOLEAN,
     TUNABLE_STRING,

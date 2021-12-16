@@ -2141,5 +2141,8 @@ REGISTER_TUNABLE("externalauth", NULL, TUNABLE_BOOLEAN, &gbl_uses_externalauth, 
 
 REGISTER_TUNABLE("view_feature", "Enables support for VIEWs (Default: ON)",
                  TUNABLE_BOOLEAN, &gbl_view_feature, 0, NULL, NULL, NULL, NULL);
+ 
+REGISTER_TUNABLE("result_cache_size", "SQL result cache size",
+                 TUNABLE_INT64, &gbl_result_cache_size, 0, NULL, NULL, NULL, NULL);
 
 #endif /* _DB_TUNABLES_H */

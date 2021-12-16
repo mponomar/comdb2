@@ -20,6 +20,7 @@
 #include <sys/resource.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 #include <unistd.h>
 #include "comdb2.h"
 #include "tunables.h"
@@ -1115,7 +1116,8 @@ oom_err:
 const char *tunable_type(comdb2_tunable_type type)
 {
     switch (type) {
-    case TUNABLE_INTEGER: return "INTEGER";
+    case TUNABLE_INTEGER: /* fallthrough */
+    case TUNABLE_INT64: return "INTEGER";
     case TUNABLE_DOUBLE: return "DOUBLE";
     case TUNABLE_BOOLEAN: return "BOOLEAN";
     case TUNABLE_STRING: return "STRING";
@@ -1142,13 +1144,13 @@ int register_db_tunables(struct dbenv *db)
     0           Success
     1           Failure
 */
-int parse_int(const char *value, int *num)
+int parse_int(const char *value, int64_t *num)
 {
     char *endptr;
 
     errno = 0;
 
-    *num = strtol(value, &endptr, 10);
+    *num = strtoll(value, &endptr, 10);
 
     if (errno != 0) {
         logmsg(LOGMSG_DEBUG, "parse_int(): Invalid value '%s'.\n", value);
@@ -1168,6 +1170,7 @@ int parse_int(const char *value, int *num)
     return 0;
 }
 
+
 /*
   Parse the given buffer for an unsigned integer and store it at the specified
   location.
@@ -1176,7 +1179,7 @@ int parse_int(const char *value, int *num)
     0           Success
     1           Failure
 */
-int parse_uint(const char *value, int32_t *num)
+int parse_uint(const char *value, int64_t *num)
 {
     char *endptr;
 
@@ -1196,6 +1199,11 @@ int parse_uint(const char *value, int32_t *num)
 
     if (*endptr != '\0') {
         logmsg(LOGMSG_DEBUG, "parse_uint(): Couldn't fully parse the number.\n");
+        return 1;
+    }
+
+    if (*num > UINT_MAX) {
+        logmsg(LOGMSG_DEBUG, "parse_uint(): out of range number.\n");
         return 1;
     }
 
@@ -1247,7 +1255,7 @@ int parse_double(const char *value, double *num)
 */
 static int parse_bool(const char *value, int *num)
 {
-    int n;
+    int64_t n;
 
     if (!(strncasecmp(value, "on", sizeof("on"))) ||
         !(strncasecmp(value, "yes", sizeof("yes")))) {
@@ -1317,8 +1325,9 @@ static comdb2_tunable_err update_tunable(comdb2_tunable *t, const char *value)
     assert(t);
 
     switch (t->type) {
-    case TUNABLE_INTEGER: {
-        int num;
+    case TUNABLE_INTEGER: 
+    case TUNABLE_INT64: {
+        int64_t num;
 
         if ((t->flags & EMPTY) == 0) {
             PARSE_TOKEN;
@@ -1332,6 +1341,12 @@ static comdb2_tunable_err update_tunable(comdb2_tunable *t, const char *value)
                     logmsg(LOGMSG_ERROR, "Invalid argument for '%s'.\n", t->name);
                     return TUNABLE_ERR_INVALID_VALUE;
                 }
+                if (t->type == TUNABLE_INTEGER && num > INT_MAX) {
+                    logmsg(LOGMSG_ERROR,
+                            "invalid argument for '%s' (outside integer range).\n", t->name);
+                    return TUNABLE_ERR_INVALID_VALUE;
+                }
+
                 if (((t->flags & NOZERO) != 0) && (num <= 0)) {
                     logmsg(LOGMSG_ERROR,
                            "Invalid argument for '%s' (should be > 0).\n",
@@ -1368,14 +1383,17 @@ static comdb2_tunable_err update_tunable(comdb2_tunable *t, const char *value)
 
         if (t->update) {
             DO_UPDATE(t, &num);
-        } else {
+        } else if (t->type == TUNABLE_INTEGER) {
             *(int *)t->var = num;
+        } else if (t->type == TUNABLE_INT64) {
+            *(int64_t *)t->var = num;
         }
 
-        if (t->flags & SIGNED)
-            logmsg(LOGMSG_DEBUG, "Tunable '%s' set to %d\n", t->name, num);
+        if (t->flags & SIGNED) {
+            logmsg(LOGMSG_DEBUG, "Tunable '%s' set to %"PRId64"\n", t->name, num);
+        }
         else
-            logmsg(LOGMSG_DEBUG, "Tunable '%s' set to %u\n", t->name, num);
+            logmsg(LOGMSG_DEBUG, "Tunable '%s' set to %u\n", t->name, (unsigned) num);
         break;
     }
     case TUNABLE_DOUBLE: {
@@ -1583,6 +1601,7 @@ comdb2_tunable_err handle_lrl_tunable(char *name, int name_len, char *value,
         */
         if (((t->flags & NOARG) != 0) &&
             ((t->type == TUNABLE_INTEGER) || (t->type == TUNABLE_BOOLEAN) ||
+             (t->type == TUNABLE_INT64) ||
              (t->type == TUNABLE_ENUM))) {
             /* Empty the buffer */
             buf[0] = '\0';
