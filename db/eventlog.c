@@ -343,8 +343,10 @@ static void eventlog_query_plan(cson_object *obj, const struct reqlogger *logger
     for (int i = 0; i < logger->nqueryplan; i++) {
         cson_value *v = cson_value_new_object();
         cson_object *o = cson_value_get_object(v);
-        cson_object_set(o, "dbname", cson_value_new_string(logger->sqlqueryplan[i].dbname,
-                                                           strlen(logger->sqlqueryplan[i].dbname)));
+        if (*logger->sqlqueryplan[i].rmt_dbname != '\0') { // only set dbname for remote dbs
+            cson_object_set(o, "dbname", cson_value_new_string(logger->sqlqueryplan[i].rmt_dbname,
+                                                               strlen(logger->sqlqueryplan[i].rmt_dbname)));
+        }
         cson_object_set(o, "table", cson_value_new_string(logger->sqlqueryplan[i].table,
                                                           strlen(logger->sqlqueryplan[i].table)));
         if (logger->sqlqueryplan[i].index != -1) { // don't set index if just table scan

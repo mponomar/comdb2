@@ -61,7 +61,7 @@ struct tablelist {
 };
 
 struct query_plan_item {
-    char *dbname;
+    char *rmt_dbname;
     char *table;
     int index;
 };
