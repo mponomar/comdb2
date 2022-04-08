@@ -85,6 +85,7 @@ void reqlog_set_rqid(struct reqlogger *logger, void *id, int idlen);
 void reqlog_set_event(struct reqlogger *logger, evtype_t evtype);
 evtype_t reqlog_get_event(struct reqlogger *logger);
 void reqlog_add_table(struct reqlogger *logger, const char *table);
+void reqlog_add_to_query_plan(struct reqlogger *logger, const char *dbname, const char *table, const int index);
 void reqlog_set_error(struct reqlogger *logger, const char *error,
                       int error_code);
 void reqlog_set_origin(struct reqlogger *logger, const char *fmt, ...);

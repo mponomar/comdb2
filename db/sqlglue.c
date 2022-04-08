@@ -6391,19 +6391,25 @@ int sqlite3BtreeCloseCursor(BtCursor *pCur)
         fnd.ix = pCur->ixnum;
 
         if ((qc = hash_find(thd->query_hash, &fnd)) == NULL) {
+            char *dbname = NULL;
             qc = calloc(sizeof(struct query_path_component), 1);
             if (pCur->bt && pCur->bt->is_remote) {
                 strncpy0(qc->rmt_db, pCur->fdbc->dbname(pCur),
                          sizeof(qc->rmt_db));
                 strncpy0(qc->lcl_tbl_name, pCur->fdbc->tblname(pCur),
                          sizeof(qc->lcl_tbl_name));
+                dbname = qc->rmt_db;
             } else if (pCur->db) {
                 strncpy0(qc->lcl_tbl_name, pCur->db->tablename,
                          sizeof(qc->lcl_tbl_name));
+                dbname = pCur->db->dbenv->envname;
             }
             qc->ix = pCur->ixnum;
             hash_add(thd->query_hash, qc);
             listc_abl(&thd->query_stats, qc);
+            if (dbname) {
+                reqlog_add_to_query_plan(thrman_get_reqlogger(thrman_self()), dbname, qc->lcl_tbl_name, qc->ix);
+            }
         }
 
         if (qc) {

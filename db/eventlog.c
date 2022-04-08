@@ -334,6 +334,28 @@ void eventlog_tables(cson_object *obj, const struct reqlogger *logger)
     cson_object_set(obj, "tables", tables);
 }
 
+static void eventlog_query_plan(cson_object *obj, const struct reqlogger *logger) {
+    if (logger->nqueryplan == 0) return;
+
+    cson_value *query_plan = cson_value_new_array();
+    cson_array *arr = cson_value_get_array(query_plan);
+
+    for (int i = 0; i < logger->nqueryplan; i++) {
+        cson_value *v = cson_value_new_object();
+        cson_object *o = cson_value_get_object(v);
+        cson_object_set(o, "dbname", cson_value_new_string(logger->sqlqueryplan[i].dbname,
+                                                           strlen(logger->sqlqueryplan[i].dbname)));
+        cson_object_set(o, "table", cson_value_new_string(logger->sqlqueryplan[i].table,
+                                                          strlen(logger->sqlqueryplan[i].table)));
+        if (logger->sqlqueryplan[i].index != -1) { // don't set index if just table scan
+            cson_object_set(o, "index", cson_new_int(logger->sqlqueryplan[i].index));
+        }
+        cson_array_append(arr, v);
+    }
+
+    cson_object_set(obj, "query_plan", query_plan);
+}
+
 void eventlog_perfdata(cson_object *obj, const struct reqlogger *logger)
 {
     const struct berkdb_thread_stats *thread_stats = bdb_get_thread_stats();
@@ -553,6 +575,7 @@ static void populate_obj(cson_object *obj, const struct reqlogger *logger)
     eventlog_context(obj, logger);
     eventlog_perfdata(obj, logger);
     eventlog_tables(obj, logger);
+    eventlog_query_plan(obj, logger);
     eventlog_path(obj, logger);
 }
 

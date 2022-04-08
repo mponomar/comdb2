@@ -1054,11 +1054,20 @@ static void reqlog_free_tables(struct reqlogger *logger) {
     free(logger->sqltables);
 }
 
+static void reqlog_free_query_plan(struct reqlogger *logger) {
+    for (int i = 0; i < logger->nqueryplan; i++) {
+        free(logger->sqlqueryplan[i].dbname);
+        free(logger->sqlqueryplan[i].table);
+    }
+    free(logger->sqlqueryplan);
+}
+
 static void reqlog_free_all(struct reqlogger *logger)
 {
     reqlog_free_error(logger);
     reqlog_free_events(logger);
     reqlog_free_tables(logger);
+    reqlog_free_query_plan(logger);
 
     put_ref(&logger->sql_ref);
 }
@@ -3055,6 +3064,18 @@ void reqlog_add_table(struct reqlogger *logger, const char *table)
             realloc(logger->sqltables, logger->alloctables * sizeof(char *));
     }
     logger->sqltables[logger->ntables++] = strdup(table);
+}
+
+void reqlog_add_to_query_plan(struct reqlogger *logger, const char *dbname, const char *table, const int index) {
+    if (logger->nqueryplan == logger->allocqueryplan) {
+        logger->allocqueryplan = logger->allocqueryplan * 2 + 10;
+        logger->sqlqueryplan =
+            realloc(logger->sqlqueryplan, logger->allocqueryplan * sizeof(struct query_plan_item));
+    }
+    logger->sqlqueryplan[logger->nqueryplan].dbname = strdup(dbname);
+    logger->sqlqueryplan[logger->nqueryplan].table = strdup(table);
+    logger->sqlqueryplan[logger->nqueryplan].index = index;
+    logger->nqueryplan++;
 }
 
 inline void reqlog_set_error(struct reqlogger *logger, const char *error,
