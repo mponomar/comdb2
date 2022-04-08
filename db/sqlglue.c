@@ -6404,7 +6404,6 @@ int sqlite3BtreeCloseCursor(BtCursor *pCur)
             qc->ix = pCur->ixnum;
             hash_add(thd->query_hash, qc);
             listc_abl(&thd->query_stats, qc);
-            reqlog_add_to_query_plan(thrman_get_reqlogger(thrman_self()), qc->rmt_db, qc->lcl_tbl_name, qc->ix);
         }
 
         if (qc) {

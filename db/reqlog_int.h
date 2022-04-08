@@ -60,11 +60,6 @@ struct tablelist {
     char name[1];
 };
 
-struct query_plan_item {
-    char *rmt_dbname;
-    char *table;
-    int index;
-};
 
 struct reqlogger {
     char origin[128];
@@ -133,10 +128,6 @@ struct reqlogger {
     int ncontext;
     char **context;
     struct sqlclntstate *clnt;
-
-    int nqueryplan;
-    int allocqueryplan;
-    struct query_plan_item *sqlqueryplan;
 };
 
 /* a rage of values to look for */
