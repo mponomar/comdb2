@@ -1240,8 +1240,8 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
 
     if (clnt->query_stats == NULL) {
         record_query_cost(thd, clnt);
-        reqlog_set_path(logger, clnt->query_stats);
     }
+    reqlog_set_path(logger, clnt->query_stats);
     reqlog_set_vreplays(logger, clnt->verify_retries);
 
     if (clnt->saved_rc)
