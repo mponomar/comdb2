@@ -1252,6 +1252,8 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
     if (clnt->osql.sock_started == 0)
         comdb2uuid_clear(clnt->osql.uuid);
 
+    add_query_plan(clnt->query_stats);
+
     if (have_fingerprint) {
         /*
         ** NOTE: The intent of this code is to check if a fingerprint was
