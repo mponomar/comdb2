@@ -1664,6 +1664,7 @@ static void *
 __log_write_td(arg)
 	void *arg;
 {
+    comdb2_name_thread(__func__);
 	DB_LOG *dblp;
 	LOG *lp;
 	uint32_t bytes_written;

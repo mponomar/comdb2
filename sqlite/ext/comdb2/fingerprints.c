@@ -14,6 +14,30 @@
    limitations under the License.
  */
 
+/* This code implements the comdb2_fingerprints table.  comdb2_fingerprint shows what kinds of different queries the
+ * database runs.
+ *
+ * A "fingerprint" is a just a checksum of a normalized version of an SQL query.  The idea is that while applications
+ * submit thousands/millions of different queries, they only generally submit a few TYPES of queries.  Queries that
+ * differ only in parameter or literal values (whether inline or bound) are identical.  In other words,
+ *
+ * select 1
+ * and
+ * select 2
+ * Will have the same fingerprint - they only differ in literal values.
+ *
+ * select a from t
+ * and
+ * select a from q
+ * Will have different fingerprints - the db is looking at different tables.
+ *
+ * This has a few unfortunate corner cases, eg: select 1+1, select 1+1+1, select 1+1+1+1 all have different
+ * fingerprints.  We normalize this for a few common cases like ... where a in (?, ?) will have the same
+ * fingerprint regardless the number of values, but there will always be room for improvement.
+ *
+ * To compute them we normalize an SQL query. See sqlite3_normalized_sql.  Summary:  remove multiple whitespace,
+ * replace any literals that are not references to database objects with ?, take a checksum of the result.*/
+
 #define SQLITE_CORE 1
 
 #include <pthread.h>

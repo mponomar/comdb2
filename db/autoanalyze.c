@@ -89,6 +89,7 @@ static inline void loc_print_date(const time_t *timep)
  */
 void *auto_analyze_table(void *arg)
 {
+    comdb2_name_thread(__func__);
     char *tblname = (char *)arg;
     if (is_sqlite_stat(tblname)) {
         free(tblname);
@@ -318,6 +319,7 @@ void stat_auto_analyze(void)
  */
 void *auto_analyze_main(void *unused)
 {
+    comdb2_name_thread(__func__);
     if (NULL == get_dbtable_by_name("sqlite_stat1")) {
         logmsg(LOGMSG_DEBUG,
                "ANALYZE REQUIRES sqlite_stat1 to run but table is MISSING\n");

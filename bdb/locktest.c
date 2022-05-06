@@ -80,6 +80,7 @@ static const char *counter_print(void)
 #ifndef MYBDB5
 static void *detect(void *_)
 {
+    comdb2_name_thread(__func__);
     int aborted = 0;
     u_int32_t policy;
     int rc;
@@ -130,6 +131,7 @@ typedef struct {
 
 static void *test_lockmgr(void *_arg)
 {
+    comdb2_name_thread(__func__);
     LockMgrArg *arg = _arg;
     uint64_t start, end;
     int i, j;
@@ -315,6 +317,7 @@ static int sleep_sec = 5;
 static int stop;
 static void *test_get_put(void *_mode)
 {
+    comdb2_name_thread(__func__);
     db_lockmode_t mode = (db_lockmode_t)(intptr_t)_mode;
     uint64_t start, end;
     u_int32_t locker;
@@ -588,6 +591,7 @@ static void *ring_tester(void *arg_)
 
 static ssize_t tester(const char *name, size_t num, tester_routine *routine)
 {
+    comdb2_name_thread(__func__);
     tester_arg arg[num];
     pthread_t t[num];
     intptr_t ret[num];
@@ -659,6 +663,7 @@ typedef struct {
 
 static void *get_locks(void *arg_)
 {
+    comdb2_name_thread(__func__);
     GetLocksArg *arg = (GetLocksArg *)arg_;
     int nlocks = arg->nlocks;
     int start = arg->start;
@@ -856,6 +861,7 @@ static int lockvec_as(void *lockdesc, uint32_t id)
 }
 static void *lockvec(void *_)
 {
+    comdb2_name_thread(__func__);
     int num = 0;
     while (num++ < 20000) {
         int prc, crc;
@@ -927,6 +933,7 @@ static void locvec_test()
 
 static void *locktest(void *f)
 {
+    comdb2_name_thread(__func__);
     io_override_set_std(f);
     TIME_IT(berkdb_tester);
     TIME_IT(sprint);

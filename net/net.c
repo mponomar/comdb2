@@ -3830,7 +3830,7 @@ static void *writer_thread(void *args)
     snprintf(thdname, sizeof(thdname), "writer_thread %s", host_node_ptr->host);
     comdb2_name_thread(thdname);
     netinfo_type *netinfo_ptr;
-
+    host_node_type *host_node_ptr;
     write_data *write_list_ptr, *write_list_back;
     int rc, flags, maxage;
     struct timespec waittime;
@@ -3841,6 +3841,7 @@ static void *writer_thread(void *args)
     thread_started("net writer");
     ENABLE_PER_THREAD_MALLOC(__func__);
 
+    host_node_ptr = args;
     netinfo_ptr = host_node_ptr->netinfo_ptr;
 
     host_node_ptr->writer_thread_arch_tid = getarchtid();
@@ -4108,7 +4109,7 @@ static int process_hello_common(netinfo_type *netinfo_ptr,
 
 static void *reader_thread(void *arg)
 {
-    // TODO: node!
+    netinfo_type *netinfo_ptr;
     host_node_type *host_node_ptr;
     host_node_ptr = arg;
 
@@ -4124,6 +4125,7 @@ static void *reader_thread(void *arg)
     thread_started("net reader");
     ENABLE_PER_THREAD_MALLOC(__func__);
 
+    host_node_ptr = arg;
     netinfo_ptr = host_node_ptr->netinfo_ptr;
 
     host_node_ptr->reader_thread_arch_tid = getarchtid();
@@ -4583,6 +4585,7 @@ static void *connect_thread(void *arg)
     struct pollfd pfd;
     int err;
 
+    host_node_ptr = arg;
     netinfo_ptr = host_node_ptr->netinfo_ptr;
 
     host_node_ptr->connect_thread_arch_tid = getarchtid();

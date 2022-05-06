@@ -361,6 +361,7 @@ mempsync_out_of_band_init(void)
 int
 __memp_sync_out_of_band(DB_ENV *dbenv, DB_LSN *lsn)
 {
+    comdb2_name_thread(__func__);
 	gblenv = dbenv;
 	pthread_once(&mempsync_once, mempsync_out_of_band_init);
 

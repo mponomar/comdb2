@@ -463,6 +463,7 @@ void comdb2_early_ack(DB_ENV *, DB_LSN, uint32_t generation);
 
 static void *apply_thread(void *arg) 
 {
+    comdb2_name_thread(__func__);
 	int ret, rc = 0, log_more_count = 0, log_fill_count, now;
 	int i_am_replicant;
 	uint32_t more_behind_count = 0;
@@ -7271,6 +7272,7 @@ typedef struct del_repdb_args {
 static void *
 del_thd(void *arg)
 {
+    comdb2_name_thread(__func__);
 	del_repdb_args_t *delr = (del_repdb_args_t *)arg;
 	DB_ENV *dbenv;
 	DB *dbp;

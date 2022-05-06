@@ -1207,6 +1207,12 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
     int64_t prepTime;
     int64_t rows;
 
+    char *plan = NULL;
+    if (1 || clnt->query_stats == NULL) {
+        record_query_cost(thd, clnt);
+        reqlog_set_path(logger, clnt->query_stats);
+        plan = add_query_plan(clnt->query_stats);
+    }
     if (gbl_fingerprint_queries) {
         if (h->sql_ref) {
             if (is_stored_proc_sql(string_ref_cstr(h->sql_ref))) {
@@ -1223,12 +1229,12 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
             if (clnt->work.zOrigNormSql) { /* NOTE: Not subject to prepare. */
                 add_fingerprint(clnt, stmt, string_ref_cstr(h->sql_ref), clnt->work.zOrigNormSql,
                                 cost, time, prepTime, rows, logger,
-                                fingerprint);
+                                fingerprint, plan);
                 have_fingerprint = 1;
             } else if (clnt->work.zNormSql &&
                        sqlite3_is_success(clnt->prep_rc)) {
                 add_fingerprint(clnt, stmt, string_ref_cstr(h->sql_ref), clnt->work.zNormSql, cost,
-                                time, prepTime, rows, logger, fingerprint);
+                                time, prepTime, rows, logger, fingerprint, plan);
                 have_fingerprint = 1;
             } else {
                 reqlog_reset_fingerprint(logger, FINGERPRINTSZ);
@@ -1238,10 +1244,7 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
         }
     }
 
-    if (1 || clnt->query_stats == NULL) {
-        record_query_cost(thd, clnt);
-        reqlog_set_path(logger, clnt->query_stats);
-    }
+
     reqlog_set_vreplays(logger, clnt->verify_retries);
 
     if (clnt->saved_rc)
@@ -1251,8 +1254,6 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
     reqlog_end_request(logger, stmt_rc, __func__, __LINE__);
     if (clnt->osql.sock_started == 0)
         comdb2uuid_clear(clnt->osql.uuid);
-
-    add_query_plan(clnt->query_stats);
 
     if (have_fingerprint) {
         /*
@@ -5657,10 +5658,13 @@ static int record_query_cost(struct sql_thread *thd, struct sqlclntstate *clnt)
             return -1;
         }
 
+#if 0
         if (c->nfind == 0 && c->nnext == 0 && c->nwrite == 0) {
             query_info->n_components--;
             continue;
         }
+#endif
+
         stats[i].nfind = c->nfind;
         stats[i].nnext = c->nnext;
         stats[i].nwrite = c->nwrite;
@@ -6486,6 +6490,48 @@ void run_internal_sql(char *sql)
             logmsg(LOGMSG_ERROR, "%s: Error: '%s' \n", __func__, clnt.saved_errstr);
     }
     end_internal_sql_clnt(&clnt);
+}
+
+struct run_with_params_args {
+    int nparams;
+    struct param_data *params;
+};
+
+int internal_run_param_count(struct sqlclntstate *clnt) {
+    struct run_with_params_args *args = (struct run_with_params_args *) clnt->internal_args;
+    return args->nparams;
+}
+
+int internal_run_param_value(struct sqlclntstate *clnt, struct param_data *params, int param_num) {
+    struct run_with_params_args *args = (struct run_with_params_args *) clnt->internal_args;
+    if (param_num < 0 || param_num >= args->nparams)
+        return -1;
+    return 0;
+}
+
+// Like run_internal_sql - but allows parameters and leaves the clnt undestroyed when done so we
+// can examine it after the call is complete.  Pass a pointer to a stack allocated clnt, this
+// call will initialize it.  Call end_internal_sql_clnt on it to clean it up
+int run_internal_sql_with_params(struct sqlclntstate *clnt, char *sql, int nparams, struct param_data *params) {
+    start_internal_sql_clnt(clnt);
+
+    struct run_with_params_args args;
+    clnt->internal_args = &args;
+
+    clnt->plugin.param_count = internal_run_param_count;
+    clnt->plugin.param_value = internal_run_param_value;
+
+    clnt->sql = skipws(sql);
+    int rc = dispatch_sql_query(clnt);
+    printf("%s rc %d query_rc %d saved_errstr %s", clnt->sql, rc, clnt->query_rc, clnt->saved_errstr);
+    if (rc || clnt->query_rc || clnt->saved_errstr) {
+        if (clnt->query_rc)
+            logmsg(LOGMSG_ERROR, "%s: Error from query: '%s' (rc = %d) \n", __func__, sql, clnt->query_rc);
+        if (clnt->saved_errstr)
+            logmsg(LOGMSG_ERROR, "%s: Error: '%s' \n", __func__, clnt->saved_errstr);
+    }
+    printf("returning %d\n", rc);
+    return rc;
 }
 
 void clnt_register(struct sqlclntstate *clnt) {

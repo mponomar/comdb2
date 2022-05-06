@@ -67,6 +67,20 @@ enum transaction_level {
 /* Static rootpages numbers. */
 enum { RTPAGE_SQLITE_MASTER = 1, RTPAGE_START = 2 };
 
+struct plan_example {
+    char *plan;
+    char *sql;
+    char *fingerprint;  // This field is technically unneeded - we can get at it in fingerprint_track.
+                        // It's unset in fingerprint_track and friends.
+                        // It's there so we can use this struct in queryplans.c to map back to a fingerprint.
+    int64_t nrows;
+    int64_t ncalls;
+    int64_t cost;
+    int64_t last_used;
+    int nparams;
+    struct param_data *params;
+};
+
 struct fingerprint_track {
     unsigned char fingerprint[FINGERPRINTSZ]; /* md5 digest hex string */
     int64_t count;    /* Cumulative number of times executed */
@@ -83,6 +97,7 @@ struct fingerprint_track {
     size_t nNormSql;  /* Length of normalized SQL query */
     int typeMismatch; /* Type(s) did not match when compared to sqlitex's */
     int nameMismatch; /* Column name(s) did not match when compared to sqlitex's */
+    hash_t *plans;
 };
 
 struct sql_authorizer_state {
@@ -628,6 +643,7 @@ struct sqlclntstate {
     /* appsock plugin specific data */
     void *authdata;
     void *appdata;
+    void *internal_args;
     struct plugin_callbacks plugin;
 
     /* bplog write plugin */
@@ -888,6 +904,8 @@ struct sqlclntstate {
     char *sqlengine_state_file;
     int sqlengine_state_line;
     int last_sqlengine_state;
+
+    double last_cost;
 };
 
 /* Query stats. */
@@ -1343,7 +1361,8 @@ void calc_fingerprint(const char *zNormSql, size_t *pnNormSql,
                       unsigned char fingerprint[FINGERPRINTSZ]);
 void add_fingerprint(struct sqlclntstate *, sqlite3_stmt *, const char *,
                      const char *, int64_t, int64_t, int64_t, int64_t,
-                     struct reqlogger *, unsigned char *fingerprint_out);
+                     struct reqlogger *, unsigned char *fingerprint_out,
+                     char *plan);
 
 long long run_sql_return_ll(const char *query, struct errstat *err);
 long long run_sql_thd_return_ll(const char *query, struct sql_thread *thd,
@@ -1354,7 +1373,7 @@ struct query_plan_item {
     double total_cost;
     int nexecutions;
 };
-void add_query_plan(struct client_query_stats *query_stats);
+char* add_query_plan(struct client_query_stats *query_stats);
 
 /* Connection tracking */
 int gather_connection_info(struct connection_info **info, int *num_connections);
@@ -1442,9 +1461,11 @@ void exhausted_appsock_connections(struct sqlclntstate *);
 void update_col_info(struct sql_col_info *info, int);
 void sqlengine_work_appsock(struct sqlthdstate *, struct sqlclntstate *);
 const char *sqlite3ErrStr(int);
-char *param_string_value(struct sqlclntstate *clnt, int n, char *out, int outlen);
+char *param_string_value(struct param_data *p, int n, char *out, int outlen, const char *tz);
 void ssl_set_clnt_user(struct sqlclntstate *);
-
 int check_sql_client_disconnect(struct sqlclntstate *clnt, char *file, int line);
+int get_all_query_plans(void **outp, int *count);
+void free_all_query_plans(void *data, int count);
+
 
 #endif /* _SQL_H_ */

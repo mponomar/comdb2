@@ -1134,6 +1134,7 @@ static int send_incoherent_message(int num_online, int duration)
  * cpick */
 static void *purge_old_blkseq_thread(void *arg)
 {
+    comdb2_name_thread(__func__);
     struct dbenv *dbenv;
     dbenv = arg;
     int loop;
@@ -1286,6 +1287,7 @@ static inline void sleep_with_check_for_exiting(int secs)
 
 static void *purge_old_files_thread(void *arg)
 {
+    comdb2_name_thread(__func__);
     struct dbenv *dbenv = (struct dbenv *)arg;
     int rc;
     tran_type *trans;
@@ -2756,6 +2758,7 @@ struct dbenv *newdbenv(char *dbname, char *lrlname)
     dbenv->queue_depth = time_metric_new("queue_depth");
     dbenv->concurrent_queries = time_metric_new("concurrent_queries");
     dbenv->connections = time_metric_new("connections");
+    dbenv->sql_per_conn = time_metric_new("sql_per_conn");
 
     return dbenv;
 }
@@ -4392,6 +4395,7 @@ static inline void log_tbl_item(int curr, unsigned int *prev, const char *(*type
 
 void *statthd(void *p)
 {
+    comdb2_name_thread(__func__);
     struct dbenv *dbenv;
     int nqtrap;
     int nfstrap;
@@ -4522,6 +4526,9 @@ void *statthd(void *p)
         diff_conns = conns - last_conns;
         diff_curr_conns = curr_conns - last_curr_conns;
         diff_conn_timeouts = conn_timeouts - last_conn_timeouts;
+
+        int64_t sql_per_conn = diff_conns == 0 ? 0 : (diff_nsql + diff_newsql) / diff_conns;
+        time_metric_add(dbenv->sql_per_conn, sql_per_conn);
 
         last_qtrap = nqtrap;
         last_fstrap = nfstrap;

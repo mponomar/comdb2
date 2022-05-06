@@ -230,6 +230,7 @@ static int fastwritev(int fd, struct iovec *iniov, int niov, int timeoutms)
 
 static void *fstdump_thread(void *arg)
 {
+    comdb2_name_thread(__func__);
     fstdump_per_thread_t *fstdump = (fstdump_per_thread_t *)arg;
     fstdump_t *common = fstdump->common;
     void *ret = NULL;
@@ -294,6 +295,7 @@ static void *fstdump_thread(void *arg)
  */
 static void *fstdump_thread2(void *voidarg)
 {
+    comdb2_name_thread(__func__);
     struct fstdump_thread2_arg *args = voidarg;
 
     /*thread_started("bdb fstdump2");*/

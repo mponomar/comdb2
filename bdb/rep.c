@@ -1092,6 +1092,7 @@ uint64_t gbl_election_count;
 
 static void *elect_thread(void *args)
 {
+    comdb2_name_thread(__func__);
     int rc, count, i;
     bdb_state_type *bdb_state;
     char *master_host;
@@ -1440,12 +1441,14 @@ static void *dummy_add_thread_int(void *arg, int add_delay)
 
 void *dummy_add_thread_nodelay(void *arg)
 {
+    comdb2_name_thread(__func__);
     dummy_add_thread_int(arg, 0 /* add_delay */);
     return NULL;
 }
 
 void *dummy_add_thread(void *arg)
 {
+    comdb2_name_thread(__func__);
     dummy_add_thread_int(arg, 1 /* add_delay */);
     return NULL;
 }
@@ -1453,6 +1456,7 @@ void *dummy_add_thread(void *arg)
 /* Only allow one at a time */
 void *rep_catchup_add_thread(void *arg)
 {
+    comdb2_name_thread(__func__);
     static pthread_mutex_t lk = PTHREAD_MUTEX_INITIALIZER;
     static int rep_catchup_add_running = 0;
     Pthread_mutex_lock(&lk);
@@ -1728,6 +1732,7 @@ int gbl_reset_on_unelectable_cluster = 1;
 
 void *hostdown_thread(void *arg)
 {
+    comdb2_name_thread(__func__);
     bdb_state_type *bdb_state;
     hostdown_type *hostdown_buf;
     char *host;
@@ -5184,6 +5189,7 @@ void bdb_dump_threads_and_maybe_abort(bdb_state_type *bdb_state, int watchdog,
 
 void *watcher_thread(void *arg)
 {
+    comdb2_name_thread(__func__);
     bdb_state_type *bdb_state;
     extern int gbl_rep_lock_time_ms;
     extern int gbl_truncating_log;

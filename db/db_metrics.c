@@ -509,6 +509,7 @@ int refresh_metrics(void)
     stats.vreplays = gbl_verify_tran_replays;
     stats.nsslfullhandshakes = gbl_ssl_num_full_handshakes;
     stats.nsslpartialhandshakes = gbl_ssl_num_partial_handshakes;
+
     curtran_puttran(trans);
 
     return 0;

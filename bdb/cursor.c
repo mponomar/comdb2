@@ -2146,6 +2146,7 @@ static void dump_fileid_queues()
 
 static void *pglogs_asof_thread(void *arg)
 {
+    comdb2_name_thread(__func__);
     bdb_state_type *bdb_state = (bdb_state_type *)arg;
     static int fileid_max_count = 0;
     struct pglogs_queue_heads qh = {0};

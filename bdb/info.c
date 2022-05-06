@@ -1078,6 +1078,8 @@ struct bdb_thread_args {
 
 static void *bdb_thread_wrapper(void *p)
 {
+    // should really have the callers set this
+    comdb2_name_thread(__func__);
     struct bdb_thread_args *args = (struct bdb_thread_args *)p;
 
     thread_started("bdb_thread");

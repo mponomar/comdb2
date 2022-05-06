@@ -646,6 +646,7 @@ static void udp_reader(int fd, short what, void *arg)
 
 static void *udp_reader_thd(void *arg)
 {
+    comdb2_name_thread(__func__);
     bdb_state_type *bdb_state = arg;
     repinfo_type *repinfo = bdb_state->repinfo;
     int fd = repinfo->udp_fd;

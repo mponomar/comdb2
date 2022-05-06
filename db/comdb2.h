@@ -973,6 +973,7 @@ struct dbenv {
     struct time_metric* connections;
     struct time_metric *sql_queue_time;
     struct time_metric *handle_buf_queue_time;
+    struct time_metric *sql_per_conn;
     LISTC_T(struct lrl_handler) lrl_handlers;
     LISTC_T(struct message_handler) message_handlers;
 

@@ -2978,6 +2978,9 @@ clipper_usage:
                         &gbl_debug_sql_opcodes);
         } else if (tokcmp(tok, ltok, "dumphints") == 0) {
             sql_dump_hints();
+        } else if (tokcmp(tok, ltok, "replay") == 0) {
+            extern int retry_queries(void);
+            retry_queries();
         }
     } else if (tokcmp(tok, ltok, "ixstat") == 0) {
         ixstats(dbenv);

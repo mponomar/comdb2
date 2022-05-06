@@ -244,6 +244,7 @@ static void _destroy_event(cron_sched_t *sched, cron_event_t *event)
  */
 static void *_cron_runner(void *arg)
 {
+    comdb2_name_thread(__func__);
     cron_sched_t *sched = (cron_sched_t *)arg;
     cron_event_t *event;
     int rc;

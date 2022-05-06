@@ -36,6 +36,8 @@ extern int gbl_fingerprint_queries;
 extern int gbl_verbose_normalized_queries;
 int gbl_fingerprint_max_queries = 1000;
 
+static void param_dup(struct param_data *p);
+
 static int free_fingerprint(void *obj, void *arg)
 {
     struct fingerprint_track *t = (struct fingerprint_track *)obj;
@@ -167,7 +169,7 @@ static void do_type_checks(struct sqlclntstate *clnt, sqlite3_stmt *stmt,
 void add_fingerprint(struct sqlclntstate *clnt, sqlite3_stmt *stmt,
                      const char *zSql, const char *zNormSql, int64_t cost,
                      int64_t time, int64_t prepTime, int64_t nrows,
-                     struct reqlogger *logger, unsigned char *fingerprint_out)
+                     struct reqlogger *logger, unsigned char *fingerprint_out, char *plan)
 {
     size_t nNormSql = 0;
     unsigned char fingerprint[FINGERPRINTSZ];
@@ -229,6 +231,7 @@ void add_fingerprint(struct sqlclntstate *clnt, sqlite3_stmt *stmt,
             if (!have_type_overrides(clnt))
                 do_type_checks(clnt, stmt, t);
         }
+        t->plans = hash_init_strptr(offsetof(struct plan_example, plan));
     } else {
         /* Analyze just ran, just check if cost increased for every fingerprint or not */
         if ((gbl_analyze_gen > t->curr_analyze_gen) && (t->check_next_queries == 0) && (t->count > CHECK_NEXT_QUERIES)) {
@@ -269,6 +272,28 @@ void add_fingerprint(struct sqlclntstate *clnt, sqlite3_stmt *stmt,
         assert( t->nNormSql==nNormSql );
         assert( strncmp(t->zNormSql,zNormSql,t->nNormSql)==0 );
     }
+    struct plan_example *e = NULL;
+    if (plan) {
+        e = hash_find(t->plans, &plan);
+        // TODO: refresh time? update query and params every 15 minutes
+        if (e == NULL) {
+            e = calloc(1, sizeof(struct plan_example));
+            e->plan = plan;
+            e->sql = strdup(zSql);
+            e->nparams = clnt->plugin.param_count(clnt);
+            e->params = malloc(e->nparams * sizeof(struct param_data));
+            for (int i = 0; i < e->nparams; i++) {
+                clnt->plugin.param_value(clnt, &e->params[i], i);
+                param_dup(&e->params[i]);
+            }
+            hash_add(t->plans, e);
+            printf(">>>>>>> add %s\n", e->sql);
+        }
+        e->ncalls++;
+        e->nrows += nrows;
+        e->cost += cost;
+        e->last_used = comdb2_time_epoch();
+    }
 
     Pthread_mutex_unlock(&gbl_fingerprint_hash_mu);
 
@@ -280,4 +305,160 @@ void add_fingerprint(struct sqlclntstate *clnt, sqlite3_stmt *stmt,
 done:
     if (fingerprint_out)
         memcpy(fingerprint_out, fingerprint, FINGERPRINTSZ);
+}
+
+// Return true if a type has data that's stored outside the param values (strings, blobs, etc.)
+static int param_type_has_external_data(int type) {
+    // types are of CLIENT_TYPE variety, not CDB2_* types
+    switch (type) {
+        case CLIENT_CSTR:
+        case CLIENT_PSTR:
+        case CLIENT_BYTEARRAY:
+        case CLIENT_PSTR2:
+        case CLIENT_BLOB:
+        case CLIENT_VUTF8:
+        case CLIENT_BLOB2:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+void param_dup(struct param_data *p) {
+    p->name = strdup(p->name);
+    if (param_type_has_external_data(p->type)) {
+        void *data = malloc(p->len);
+        memcpy(data, p->u.p, p->len);
+        p->u.p = data;
+    }
+}
+
+// Code to collect fingerprints and plans for comdb2_fingerprints, see sqlite/ext/queryplans.c
+struct track_plan_samples {
+    int nsamples;
+    int allocated;
+    char current_fingerprint[FINGERPRINTSZ*2+1];
+    int copy_params;
+    struct plan_example *plans;
+};
+
+void dump_plan(struct plan_example *plan);
+
+int collect_plan_for_fingerprint(void *obj, void *arg) {
+    struct plan_example *e = (struct plan_example*) obj;
+    struct track_plan_samples *plans = (struct track_plan_samples*) arg;
+
+    if (plans->nsamples >= plans->allocated) {
+        int new_allocated = plans->allocated * 2 + 16;
+        struct plan_example *n = realloc(plans->plans, sizeof(struct plan_example) * (new_allocated));
+        if (n == NULL)
+            return -1;
+        plans->plans = n;
+        plans->allocated = new_allocated;
+    }
+    struct plan_example *p = &plans->plans[plans->nsamples];
+    p->fingerprint = strdup(plans->current_fingerprint);
+    p->nrows = e->nrows;
+    p->cost = e->cost;
+    p->plan = strdup(e->plan);
+    p->sql = strdup(e->sql);
+    if (plans->copy_params) {
+        p->nparams = e->nparams;
+        p->params = malloc(sizeof(struct param_data) * p->nparams);
+        for (int param = 0; param < p->nparams; param++) {
+            p->params[param] = e->params[param];
+            if (param_type_has_external_data(e->params[param].type)) {
+                p->params[param].u.p = malloc(p->params[param].len);
+                if (p->params[param].u.p == NULL)
+                    return -1;
+                memcpy(p->params[param].u.p, e->params[param].u.p, e->params[param].len);
+            }
+        }
+    }
+    else {
+        for (int param = 0; param < p->nparams; param++)
+            p->params = NULL;
+    }
+    plans->nsamples++;
+
+    return 0;
+}
+
+static int collect_plans(void *obj, void *arg) {
+    struct fingerprint_track *t = (struct fingerprint_track*) obj;
+    struct track_plan_samples *plans = (struct track_plan_samples*) arg;
+
+    util_tohex(plans->current_fingerprint, (char*) t->fingerprint, FINGERPRINTSZ);
+    hash_for(t->plans, collect_plan_for_fingerprint, plans);
+
+    return 0;
+}
+
+int get_all_query_plans(void **outp, int *count) {
+    struct track_plan_samples plans = {0};
+    int rc;
+
+    Pthread_mutex_lock(&gbl_fingerprint_hash_mu);
+    rc = hash_for(gbl_fingerprint_hash, collect_plans, &plans);
+    Pthread_mutex_unlock(&gbl_fingerprint_hash_mu);
+    if (rc)
+        return rc;
+    *count = plans.nsamples;
+    *outp = (void*) plans.plans;
+    return 0;
+}
+
+
+void free_all_query_plans(void *data, int count) {
+    struct plan_example *plans = (struct plan_example*) data;
+    for (int plan = 0; plan < count; plan++) {
+        free(plans[plan].sql);
+        free(plans[plan].plan);
+        free(plans[plan].fingerprint);
+        for (int param = 0; param < plans[plan].nparams; param++) {
+            if (param_type_has_external_data(plans[plan].params[param].type)) {
+                free(plans[plan].params[param].u.p);
+            }
+        }
+        free(plans[plan].params);
+    }
+    free(data);
+}
+
+// Retry all the queries we squirreled away examples of
+int retry_queries(void) {
+    struct track_plan_samples plans = {.copy_params=1};
+
+    Pthread_mutex_lock(&gbl_fingerprint_hash_mu);
+    int rc = hash_for(gbl_fingerprint_hash, collect_plans, &plans);
+    Pthread_mutex_unlock(&gbl_fingerprint_hash_mu);
+    if (rc)
+        // out of memory?  not a lot of other reasons we can possibly fail
+        goto done;
+
+    for (int i = 0; i < plans.nsamples; i++) {
+        dump_plan(&plans.plans[i]);
+        struct sqlclntstate clnt;
+        rc = run_internal_sql_with_params(&clnt, plans.plans[i].sql, plans.plans[i].nparams, plans.plans[i].params);
+        if (rc)
+            return rc;
+        // TODO: examine here
+        printf("%s cost %f\n", clnt.sql, clnt.query_stats->cost);
+        end_internal_sql_clnt(&clnt);
+    }
+
+done:
+    free_all_query_plans(plans.plans, plans.nsamples);
+    return rc;
+}
+
+void dump_plan(struct plan_example *plan) {
+    printf("%s %s\n", plan->fingerprint, plan->sql);
+    for (int parmnum = 0; parmnum < plan->nparams; parmnum++) {
+        struct param_data *param = &plan->params[parmnum];
+        char pstr[255];
+        char *s = param_string_value(param, parmnum, pstr, sizeof(pstr), "America/New_York");
+        if (s)
+            printf("%s\n", s);
+    }
 }

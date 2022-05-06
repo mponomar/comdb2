@@ -9388,9 +9388,12 @@ void sql_dump_running_statements(void)
             int nparams = thd->clnt->plugin.param_count(thd->clnt);
             char param[255];
             for (int i = 0; i < nparams; i++) {
-                char *value = param_string_value(thd->clnt, i, param, sizeof(param));
-                if (value)
-                    logmsg(LOGMSG_USER, "    %s\n", value);
+                struct param_data param_value;
+                if (thd->clnt->plugin.param_value(thd->clnt, &param_value, i) == 0) {
+                    char *value = param_string_value(&param_value, i, param, sizeof(param), thd->clnt->tzname);
+                    if (value)
+                        logmsg(LOGMSG_USER, "    %s\n", value);
+                }
             }
 
 

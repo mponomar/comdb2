@@ -32,13 +32,13 @@
 #define LKWRAP_FIRST(...) LKWRAP_FIRST_(__VA_ARGS__, 0)
 #define WRAP_PTHREAD(FUNC, ...)                                                \
     do {                                                                       \
-        int rc;                                                                \
+        int thread_rc;                                                         \
         LKDBG_TRACE(TRY, FUNC, LKWRAP_FIRST(__VA_ARGS__));                     \
-        if ((rc = FUNC(__VA_ARGS__)) != 0) {                                   \
+        if ((thread_rc = FUNC(__VA_ARGS__)) != 0) {                            \
             logmsg(LOGMSG_FATAL,                                               \
                    "%s:%d " #FUNC "(0x%" PRIxPTR ") rc:%d (%s) thd:%p\n",      \
                    __func__, __LINE__, (uintptr_t)LKWRAP_FIRST(__VA_ARGS__),   \
-                   rc, strerror(rc), (void *)pthread_self());                  \
+                   thread_rc, strerror(thread_rc), (void *)pthread_self());    \
             abort();                                                           \
         }                                                                      \
         LKDBG_TRACE(GOT, FUNC, LKWRAP_FIRST(__VA_ARGS__));                     \

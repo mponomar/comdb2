@@ -290,7 +290,7 @@ static void *watchdog_thread(void *arg)
                 test_io_time = gbl_epoch_time;
             }
 
-            watchdogsql();
+            // watchdogsql();
 
             /* if nothing was bad, update the timestamp */
             if (!its_bad && !its_bad_slow) {

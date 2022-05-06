@@ -1001,6 +1001,7 @@ static void*
 __memp_send_sparse_page_thread(_)
 	void *_;
 {
+    comdb2_name_thread(__func__);
 	DB_ENV *dbenv;
 	int32_t fileid;
 	DBT dbt;

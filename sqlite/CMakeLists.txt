@@ -55,6 +55,7 @@ add_library(sqlite
   ext/comdb2/users.c
   ext/comdb2/views.c
   ext/comdb2/fdb.c
+  ext/comdb2/queryplans.c
   ext/misc/carray.c
   ext/misc/completion.c
   ext/misc/regexp.c
@@ -126,8 +127,7 @@ add_library(sqlite
   src/where.c
   src/wherecode.c
   src/whereexpr.c
-  src/window.c
-)
+  src/window.c)
 include(${PROJECT_SOURCE_DIR}/sqlite/definitions.cmake)
 add_definitions(${SQLITE_FLAGS})
 target_compile_definitions(sqlite PRIVATE ${SQLITE_FLAGS})

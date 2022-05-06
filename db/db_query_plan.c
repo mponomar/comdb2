@@ -45,10 +45,10 @@ static char *form_query_plan(struct client_query_stats *query_stats) {
     return query_plan;
 }
 
-void add_query_plan(struct client_query_stats *query_stats) {
+char* add_query_plan(struct client_query_stats *query_stats) {
     char *query_plan = form_query_plan(query_stats);
     if (!query_plan) {
-        return;
+        return NULL;
     }
 
     double current_cost = query_stats->cost;
@@ -94,5 +94,5 @@ void add_query_plan(struct client_query_stats *query_stats) {
     logmsg(LOGMSG_WARN, "END\n");
 
     Pthread_mutex_unlock(&gbl_query_plan_hash_mu);
-    free(query_plan);
+    return query_plan;
 }

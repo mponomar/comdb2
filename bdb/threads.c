@@ -61,6 +61,7 @@ void auto_analyze(int dummyfd, short what, void *arg)
  */
 void *udpbackup_and_autoanalyze_thd(void *arg)
 {
+    comdb2_name_thread(__func__);
     unsigned pollms = 500;
     unsigned count = 0;
     thrman_register(THRTYPE_GENERIC);
@@ -90,6 +91,7 @@ static inline int try_set(int *thread_running)
 
 void *memp_trickle_thread(void *arg)
 {
+    comdb2_name_thread(__func__);
     unsigned int time;
     bdb_state_type *bdb_state;
     static int memp_trickle_thread_running = 0;
@@ -149,6 +151,7 @@ void *memp_trickle_thread(void *arg)
 
 void *deadlockdetect_thread(void *arg)
 {
+    comdb2_name_thread(__func__);
     bdb_state_type *bdb_state;
     int aborted;
 
@@ -206,6 +209,7 @@ void *deadlockdetect_thread(void *arg)
 
 void *master_lease_thread(void *arg)
 {
+    comdb2_name_thread(__func__);
     int pollms, renew, lease_time;
     bdb_state_type *bdb_state = (bdb_state_type *)arg;
     repinfo_type *repinfo = bdb_state->repinfo;
@@ -244,6 +248,7 @@ void *master_lease_thread(void *arg)
 
 void *coherency_lease_thread(void *arg)
 {
+    comdb2_name_thread(__func__);
     int pollms, renew, lease_time, inc_wait, add_interval;
     static time_t last_add_record = 0;
     bdb_state_type *bdb_state = (bdb_state_type *)arg;
@@ -315,6 +320,7 @@ void *coherency_lease_thread(void *arg)
 
 void *logdelete_thread(void *arg)
 {
+    comdb2_name_thread(__func__);
     bdb_state_type *bdb_state = (bdb_state_type *)arg;
     if (bdb_state->parent) bdb_state = bdb_state->parent;
 
@@ -355,6 +361,7 @@ int backend_opened(void);
 
 void *checkpoint_thread(void *arg)
 {
+    comdb2_name_thread(__func__);
     int rc, now;
     int checkpointtime;
     int checkpointtimepoll;
@@ -495,6 +502,7 @@ int bdb_get_checkpoint_time(bdb_state_type *bdb_state)
 
 void *lwm_printer_thd(void *p)
 {
+    comdb2_name_thread(__func__);
     int rc;
     bdb_state_type *bdb_state = p;
     int numtrans;

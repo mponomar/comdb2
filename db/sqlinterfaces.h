@@ -70,6 +70,7 @@ enum {
 struct sql_thread;
 double query_cost(struct sql_thread *thd);
 void run_internal_sql(char *sql);
+int run_internal_sql_with_params(struct sqlclntstate *clnt, char *sql, int nparams, struct param_data *params);
 void start_internal_sql_clnt(struct sqlclntstate *clnt);
 int run_internal_sql_clnt(struct sqlclntstate *clnt, char *sql);
 void end_internal_sql_clnt(struct sqlclntstate *clnt);
