@@ -6516,6 +6516,8 @@ int run_internal_sql_with_params(struct sqlclntstate *clnt, char *sql, int npara
     start_internal_sql_clnt(clnt);
 
     struct run_with_params_args args;
+    args.nparams = nparams;
+    args.params = params;
     clnt->internal_args = &args;
 
     clnt->plugin.param_count = internal_run_param_count;
