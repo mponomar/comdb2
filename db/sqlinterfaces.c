@@ -6525,14 +6525,12 @@ int run_internal_sql_with_params(struct sqlclntstate *clnt, char *sql, int npara
 
     clnt->sql = skipws(sql);
     int rc = dispatch_sql_query(clnt);
-    printf("%s rc %d query_rc %d saved_errstr %s", clnt->sql, rc, clnt->query_rc, clnt->saved_errstr);
     if (rc || clnt->query_rc || clnt->saved_errstr) {
         if (clnt->query_rc)
             logmsg(LOGMSG_ERROR, "%s: Error from query: '%s' (rc = %d) \n", __func__, sql, clnt->query_rc);
         if (clnt->saved_errstr)
             logmsg(LOGMSG_ERROR, "%s: Error: '%s' \n", __func__, clnt->saved_errstr);
     }
-    printf("returning %d\n", rc);
     return rc;
 }
 

@@ -287,7 +287,6 @@ void add_fingerprint(struct sqlclntstate *clnt, sqlite3_stmt *stmt,
                 param_dup(&e->params[i]);
             }
             hash_add(t->plans, e);
-            printf(">>>>>>> add %s\n", e->sql);
         }
         e->ncalls++;
         e->nrows += nrows;
@@ -360,6 +359,7 @@ int collect_plan_for_fingerprint(void *obj, void *arg) {
     p->fingerprint = strdup(plans->current_fingerprint);
     p->nrows = e->nrows;
     p->cost = e->cost;
+    p->nparams = e->nparams;
     p->plan = strdup(e->plan);
     p->sql = strdup(e->sql);
     if (plans->copy_params) {

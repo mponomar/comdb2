@@ -3830,7 +3830,6 @@ static void *writer_thread(void *args)
     snprintf(thdname, sizeof(thdname), "writer_thread %s", host_node_ptr->host);
     comdb2_name_thread(thdname);
     netinfo_type *netinfo_ptr;
-    host_node_type *host_node_ptr;
     write_data *write_list_ptr, *write_list_back;
     int rc, flags, maxage;
     struct timespec waittime;
@@ -4116,7 +4115,6 @@ static void *reader_thread(void *arg)
     char thdname[32];
     snprintf(thdname, sizeof(thdname), "writer_thread %s", host_node_ptr->host);
     comdb2_name_thread(thdname);
-    netinfo_type *netinfo_ptr;
     wire_header_type wire_header;
     int rc, set_qstat = 0;
     char fromhost[256], tohost[256];

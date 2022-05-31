@@ -84,15 +84,6 @@ char* add_query_plan(struct client_query_stats *query_stats) {
         q->total_cost += current_cost;
         q->nexecutions++;
     }
-
-    void *ent;
-    unsigned int bkt;
-    logmsg(LOGMSG_WARN, "START\n");
-    for (q = (struct query_plan_item*)hash_first(gbl_query_plan_hash, &ent, &bkt); q; q = (struct query_plan_item*)hash_next(gbl_query_plan_hash, &ent, &bkt)) {
-        logmsg(LOGMSG_WARN, "plan: %s, total cost: %f, num executions: %d, average: %f\n", q->plan, q->total_cost, q->nexecutions, q->total_cost / q->nexecutions);
-    }
-    logmsg(LOGMSG_WARN, "END\n");
-
     Pthread_mutex_unlock(&gbl_query_plan_hash_mu);
     return query_plan;
 }

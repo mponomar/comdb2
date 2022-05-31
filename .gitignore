@@ -12,6 +12,7 @@
 /comdb2
 /comdb2ar
 /pmux
+/cmake-build-*/**
 
 # jdbc driver
 !cdb2jdbc/**
@@ -86,3 +87,4 @@ compile_commands.json
 cscope.*
 CMakeLists.txt.user
 plugins/.gitignore
+.idea
