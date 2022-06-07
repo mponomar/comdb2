@@ -62,6 +62,7 @@ extern int __berkdb_read_alarm_ms;
 #include "comdb2_ruleset.h"
 #include "osqluprec.h"
 #include "schemachange.h"
+#include "sql.h"
 
 extern struct ruleset *gbl_ruleset;
 extern int gbl_exit_alarm_sec;
@@ -2979,7 +2980,6 @@ clipper_usage:
         } else if (tokcmp(tok, ltok, "dumphints") == 0) {
             sql_dump_hints();
         } else if (tokcmp(tok, ltok, "replay") == 0) {
-            extern int retry_queries(void);
             retry_queries();
         }
     } else if (tokcmp(tok, ltok, "ixstat") == 0) {

@@ -906,6 +906,8 @@ struct sqlclntstate {
     int last_sqlengine_state;
 
     double last_cost;
+
+    int use_untested_stats;
 };
 
 /* Query stats. */
@@ -961,6 +963,7 @@ typedef enum {
     CURSORCLASS_INDEX,
     CURSORCLASS_STAT24,
     CURSORCLASS_REMOTE,
+    CURSORCLASS_TEMPSTATS
 } cursorclass_type;
 
 
@@ -1466,6 +1469,8 @@ void ssl_set_clnt_user(struct sqlclntstate *);
 int check_sql_client_disconnect(struct sqlclntstate *clnt, char *file, int line);
 int get_all_query_plans(void **outp, int *count);
 void free_all_query_plans(void *data, int count);
+void retry_queries(void);
 
+int init_stat_tables(void);
 
 #endif /* _SQL_H_ */

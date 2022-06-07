@@ -27,6 +27,7 @@
   low level code needed to support sql
  */
 
+#include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
@@ -8623,6 +8624,110 @@ done:
     return rc;
 }
 
+// TODO: where do these go?
+static struct temp_table *stat1=NULL, *stat4=NULL;
+int64_t stat1id=1, stat4id=1;
+static struct temp_cursor *stat1c=NULL, *stat4c=NULL;
+static pthread_mutex_t statlk = PTHREAD_MUTEX_INITIALIZER;
+static pthread_once_t statonce = PTHREAD_ONCE_INIT;
+
+void init_stat_temp_tables(void) {
+    int bdberr = BDBERR_NOERROR;
+    stat1 = bdb_temp_table_create(thedb->bdb_env, &bdberr);
+    if (stat1 == NULL || bdberr != BDBERR_NOERROR) {
+        logmsg(LOGMSG_FATAL, "can't create temp table for sqlite_stat1 for analyze: bdberr %d", bdberr);
+        abort();
+    }
+    stat1c = bdb_temp_table_cursor(thedb->bdb_env, stat1, NULL, &bdberr);
+    if (stat1c == NULL || bdberr != BDBERR_NOERROR) {
+        logmsg(LOGMSG_FATAL, "can't create temp table cursor for sqlite_stat1 for analyze: bdberr %d", bdberr);
+        abort();
+    }
+    stat4 = bdb_temp_table_create(thedb->bdb_env, &bdberr);
+    if (stat1 == NULL || bdberr != BDBERR_NOERROR) {
+        logmsg(LOGMSG_FATAL, "can't create temp table for sqlite_stat4 for analyze: bdberr %d", bdberr);
+        abort();
+    }
+    stat4c = bdb_temp_table_cursor(thedb->bdb_env, stat4, NULL, &bdberr);
+    if (stat1c == NULL || bdberr != BDBERR_NOERROR) {
+        logmsg(LOGMSG_FATAL, "can't create temp table cursor for sqlite_stat1 for analyze: bdberr %d", bdberr);
+        abort();
+    }
+}
+
+static int clear_temp_table(struct temp_cursor *cur) {
+    int rc;
+    int bdberr;
+    int rows = 0;
+    do {
+        rc = bdb_temp_table_first(thedb->bdb_env, cur, &bdberr);
+        if (rc && rc != IX_EMPTY) {
+            logmsg(LOGMSG_FATAL, "%s: can't get first row: rc %d bdberr %d", __func__, rc, bdberr);
+            abort();
+        }
+        else if (rc == IX_EMPTY)
+            break;
+        int delrc = bdb_temp_table_delete(thedb->bdb_env, cur, &bdberr);
+        if (delrc) {
+            logmsg(LOGMSG_FATAL, "%s: can't delete row: rc %d bdberr %d", __func__, delrc, bdberr);
+            abort();
+        }
+        rows++;
+    } while (rc != IX_EMPTY);
+    printf("deleted %d rows\n", rows);
+    return 0;
+}
+
+int init_stat_tables(void) {
+    int rc;
+    pthread_once(&statonce, init_stat_temp_tables);
+    Pthread_mutex_lock(&statlk);
+    stat1id = 0;
+    stat4id = 0;
+    printf("stat1: ");
+    rc = clear_temp_table(stat1c);
+    if (rc == 0) {
+        printf("stat4: ");
+        rc = clear_temp_table(stat4c);
+    }
+    Pthread_mutex_unlock(&statlk);
+    return rc;
+}
+
+int save_stat1(const void *pData, int nData, blob_buffer_t *pblobs) {
+    pthread_once(&statonce, init_stat_temp_tables);
+    int rc;
+    int bdberr = BDBERR_NOERROR;
+    Pthread_mutex_lock(&statlk);
+    rc = bdb_temp_table_insert(thedb->bdb_env, stat1c, &stat1id, sizeof(int64_t), pData, nData, &bdberr);
+    stat1id++;
+    Pthread_mutex_unlock(&statlk);
+    if (rc || bdberr != BDBERR_NOERROR) {
+        logmsg(LOGMSG_ERROR, "%s: insert rc %d bdberr %d", __func__, rc, bdberr);
+    }
+    logmsg(LOGMSG_ERROR, "stat1: ");
+    hexdump(LOGMSG_ERROR, pData, nData);
+    return rc;
+}
+
+// TODO: save_stat - one routine instead of stat1/stat4
+int save_stat4(const void *pData, int nData, blob_buffer_t *pblobs) {
+    pthread_once(&statonce, init_stat_temp_tables);
+    int rc;
+    int bdberr = BDBERR_NOERROR;
+    Pthread_mutex_lock(&statlk);
+    rc = bdb_temp_table_insert(thedb->bdb_env, stat4c, &stat4id, sizeof(int64_t), pData, nData, &bdberr);
+    stat4id++;
+    Pthread_mutex_unlock(&statlk);
+    if (rc || bdberr != BDBERR_NOERROR) {
+        logmsg(LOGMSG_ERROR, "%s: insert rc %d bdberr %d", __func__, rc, bdberr);
+    }
+    logmsg(LOGMSG_ERROR, "stat4: ");
+    hexdump(LOGMSG_ERROR, pData, nData);
+    return rc;
+}
+
+
 /*
  ** Insert a new record into the BTree.  The key is given by (pKey,nKey)
  ** and the data is given by (pData,nData).  The cursor is used only to
@@ -8642,8 +8747,7 @@ done:
 int sqlite3BtreeInsert(
     BtCursor *pCur, /* Insert data into the table of this cursor */
     const BtreePayload *pPayload, /* The key and data of the new record */
-    int bias, int seekResult, int flags)
-{
+    int bias, int seekResult, int flags) {
     const void *pKey;
     sqlite3_int64 nKey;
     const void *pData;
@@ -8679,6 +8783,16 @@ int sqlite3BtreeInsert(
 
     CHECK_CLNT_READONLY_BUT_SQL_IS_WRITING(clnt, pCur);
 
+    // TODO: mark in pCur so we don't have to do this at every record?
+    if (pCur->db && strcmp(pCur->db->tablename, "sqlite_stat1") == 0) {
+        if (pData)
+            save_stat1(pData, nData, pblobs);
+    }
+    else if (pCur->db && strcmp(pCur->db->tablename, "sqlite_stat4") == 0) {
+        if (pData)
+            save_stat4(pData, nData, pblobs);
+    }
+
     if (unlikely(pCur->cursor_class == CURSORCLASS_STAT24)) {
         rc = make_stat_record(thd, pCur, pData, nData, pblobs);
         if (rc) {
@@ -8690,6 +8804,7 @@ int sqlite3BtreeInsert(
                     __func__, errs);
             goto done;
         }
+        // squirrel it away for later
     }
 
     /* send opcode to reload stats at commit */
@@ -8734,6 +8849,7 @@ int sqlite3BtreeInsert(
         rc = SQLITE_OK;
 
     } else if (unlikely(pCur->rootpage == RTPAGE_SQLITE_MASTER)) {
+        printf("is master\n");
 
         /* sqlite driven ddl, the only thing we support now are views */
 
@@ -8775,7 +8891,6 @@ int sqlite3BtreeInsert(
         goto done;
 
     } else { /* real insert */
-
         int is_update = 0;
 
         /* check authentication */

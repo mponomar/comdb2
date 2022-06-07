@@ -1471,6 +1471,10 @@ void comdb2analyze(Parse* pParse, int opt, Token* nm, Token* lnm, int pc)
     if (comdb2AuthenticateUserOp(pParse))
         return;
 
+    // TODO: what do we do on error?
+    int rc = init_stat_tables();
+    if (rc)
+        goto err;
     Vdbe *v  = sqlite3GetVdbe(pParse);
     int threads = GET_ANALYZE_THREAD(opt);
     int sum_threads = GET_ANALYZE_SUMTHREAD(opt);

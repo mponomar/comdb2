@@ -231,10 +231,10 @@ static int curid; /* for debug trace only */
 
 #ifdef DEBUGMODE
 extern void dbgtrace(int, const char *fmt, ...);
-extern void dbghexdump(int, void *buf, size_t len);
+extern void dbghexdump(int, const void *buf, size_t len);
 #else
 static void dbgtrace(int flag, const char *fmt, ...) {}
-static void dbghexdump(int flag, void *buf, size_t len) {}
+static void dbghexdump(int flag, const void *buf, size_t len) {}
 #endif
 
 static int key_memcmp(void *usermem, int key1len, const void *key1, int key2len,
@@ -243,7 +243,7 @@ static int temp_table_compare(DB *db, const DBT *dbt1, const DBT *dbt2);
 
 /* refactored both insert and put code paths here */
 static int bdb_temp_table_insert_put(bdb_state_type *, struct temp_table *,
-                                     void *key, int keylen, void *data,
+                                     const void *key, int keylen, const void *data,
                                      int dtalen, int *bdberr);
 
 void *bdb_temp_table_get_cur(struct temp_cursor *skippy) { return skippy->cur; }
@@ -897,7 +897,7 @@ done:
 }
 
 int bdb_temp_table_insert(bdb_state_type *bdb_state, struct temp_cursor *cur,
-                          void *key, int keylen, void *data, int dtalen,
+                          const void *key, int keylen, const void *data, int dtalen,
                           int *bdberr)
 {
     DBT dkey, ddata;
@@ -916,8 +916,8 @@ int bdb_temp_table_insert(bdb_state_type *bdb_state, struct temp_cursor *cur,
     dkey.flags = ddata.flags = DB_DBT_USERMEM;
     dkey.ulen = dkey.size = keylen;
     ddata.ulen = ddata.size = dtalen;
-    ddata.data = data;
-    dkey.data = key;
+    ddata.data = (void*) data;
+    dkey.data = (void*) key;
 
     rc = cur->cur->c_put(cur->cur, &dkey, &ddata, DB_KEYFIRST);
     if (rc && rc != DB_KEYEXIST) {
@@ -2361,8 +2361,8 @@ int bdb_temp_table_maybe_reset_priority_thread(bdb_state_type *bdb_state,
 }
 
 static int bdb_temp_table_insert_put(bdb_state_type *bdb_state,
-                                     struct temp_table *tbl, void *key,
-                                     int keylen, void *data, int dtalen,
+                                     struct temp_table *tbl, const void *key,
+                                     int keylen, const void *data, int dtalen,
                                      int *bdberr)
 {
     int rc, cmp, lo, hi, mid;

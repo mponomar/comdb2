@@ -1219,7 +1219,7 @@ int bdb_temp_table_close_cursor(bdb_state_type *bdb_state,
                                 struct temp_cursor *cursor, int *bdberr);
 
 int bdb_temp_table_insert(bdb_state_type *bdb_state, struct temp_cursor *cursor,
-                          void *key, int keylen, void *data, int dtalen,
+                          const void *key, int keylen, const void *data, int dtalen,
                           int *bdberr);
 int bdb_temp_table_update(bdb_state_type *bdb_state, struct temp_cursor *cur,
                           void *key, int keylen, void *data, int dtalen,
