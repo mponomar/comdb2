@@ -184,7 +184,7 @@ __bam_cmp_inline(dbp, dbt, h, indx, func, cmpp, buf)
 		}
 		break;
 	default:
-		return (__db_pgfmt(dbp->dbenv, PGNO(h)));
+		return (__db_pgfmt(dbp, PGNO(h), h));
 	}
 
 	/*
@@ -783,7 +783,7 @@ next:		if (recnop != NULL)
         case P_IBTREE:
             break;
         default:
-            return (__db_pgfmt(dbp->dbenv, PGNO(h)));
+            return (__db_pgfmt(dbp, PGNO(h), h));
         }
 
 		if (cached_pg) {
