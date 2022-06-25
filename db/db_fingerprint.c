@@ -376,8 +376,7 @@ int collect_plan_for_fingerprint(void *obj, void *arg) {
         }
     }
     else {
-        for (int param = 0; param < p->nparams; param++)
-            p->params = NULL;
+        p->params = NULL;
     }
     plans->nsamples++;
 

@@ -1469,7 +1469,7 @@ void ssl_set_clnt_user(struct sqlclntstate *);
 int check_sql_client_disconnect(struct sqlclntstate *clnt, char *file, int line);
 int get_all_query_plans(void **outp, int *count);
 void free_all_query_plans(void *data, int count);
-void retry_queries(void);
+int retry_queries(void);
 
 int init_stat_tables(void);
 

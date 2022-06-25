@@ -8046,6 +8046,195 @@ static inline int use_rowlocks(struct sqlclntstate *clnt)
     return 0;
 }
 
+// HERE:
+//
+// A couple of temp tables and cursor for lookaside stat1/stat4 tables.
+static struct temp_table *stat1=NULL, *stat4=NULL;
+int64_t stat1id=1, stat4id=1;
+static struct temp_cursor *stat1c=NULL, *stat4c=NULL;
+static pthread_mutex_t statlk = PTHREAD_MUTEX_INITIALIZER;
+static pthread_once_t statonce = PTHREAD_ONCE_INIT;
+
+void init_stat_temp_tables(void) {
+    int bdberr = BDBERR_NOERROR;
+    printf("init_stat_temp_tables\n");
+    stat1 = bdb_temp_table_create(thedb->bdb_env, &bdberr);
+    if (stat1 == NULL || bdberr != BDBERR_NOERROR) {
+        logmsg(LOGMSG_FATAL, "can't create temp table for sqlite_stat1 for analyze: bdberr %d", bdberr);
+        abort();
+    }
+    stat1c = bdb_temp_table_cursor(thedb->bdb_env, stat1, NULL, &bdberr);
+    if (stat1c == NULL || bdberr != BDBERR_NOERROR) {
+        logmsg(LOGMSG_FATAL, "can't create temp table cursor for sqlite_stat1 for analyze: bdberr %d", bdberr);
+        abort();
+    }
+    stat4 = bdb_temp_table_create(thedb->bdb_env, &bdberr);
+    if (stat1 == NULL || bdberr != BDBERR_NOERROR) {
+        logmsg(LOGMSG_FATAL, "can't create temp table for sqlite_stat4 for analyze: bdberr %d", bdberr);
+        abort();
+    }
+    stat4c = bdb_temp_table_cursor(thedb->bdb_env, stat4, NULL, &bdberr);
+    if (stat1c == NULL || bdberr != BDBERR_NOERROR) {
+        logmsg(LOGMSG_FATAL, "can't create temp table cursor for sqlite_stat1 for analyze: bdberr %d", bdberr);
+        abort();
+    }
+}
+
+static int clear_temp_table(struct temp_cursor *cur) {
+    int rc;
+    int bdberr;
+    int rows = 0;
+    do {
+        rc = bdb_temp_table_first(thedb->bdb_env, cur, &bdberr);
+        if (rc && rc != IX_EMPTY) {
+            logmsg(LOGMSG_FATAL, "%s: can't get first row: rc %d bdberr %d", __func__, rc, bdberr);
+            abort();
+        }
+        else if (rc == IX_EMPTY)
+            break;
+        int delrc = bdb_temp_table_delete(thedb->bdb_env, cur, &bdberr);
+        if (delrc) {
+            logmsg(LOGMSG_FATAL, "%s: can't delete row: rc %d bdberr %d", __func__, delrc, bdberr);
+            abort();
+        }
+        rows++;
+    } while (rc != IX_EMPTY);
+    printf("deleted %d rows\n", rows);
+    return 0;
+}
+
+int init_stat_tables(void) {
+    int rc;
+    pthread_once(&statonce, init_stat_temp_tables);
+    Pthread_mutex_lock(&statlk);
+    stat1id = 0;
+    stat4id = 0;
+    printf("stat1: ");
+    rc = clear_temp_table(stat1c);
+    if (rc == 0) {
+        printf("stat4: ");
+        rc = clear_temp_table(stat4c);
+    }
+    Pthread_mutex_unlock(&statlk);
+    return rc;
+}
+
+int save_stat1(const void *pData, int nData, blob_buffer_t *pblobs) {
+    pthread_once(&statonce, init_stat_temp_tables);
+    int rc;
+    int bdberr = BDBERR_NOERROR;
+    printf("save_stat1\n");
+    Pthread_mutex_lock(&statlk);
+    rc = bdb_temp_table_insert(thedb->bdb_env, stat1c, &stat1id, sizeof(int64_t), pData, nData, &bdberr);
+    stat1id++;
+    Pthread_mutex_unlock(&statlk);
+    if (rc || bdberr != BDBERR_NOERROR) {
+        logmsg(LOGMSG_ERROR, "%s: insert rc %d bdberr %d", __func__, rc, bdberr);
+    }
+    logmsg(LOGMSG_ERROR, "stat1: ");
+    hexdump(LOGMSG_ERROR, pData, nData);
+    return rc;
+}
+
+// TODO: save_stat - one routine instead of stat1/stat4
+int save_stat4(const void *pData, int nData, blob_buffer_t *pblobs) {
+    pthread_once(&statonce, init_stat_temp_tables);
+    int rc;
+    int bdberr = BDBERR_NOERROR;
+    Pthread_mutex_lock(&statlk);
+    rc = bdb_temp_table_insert(thedb->bdb_env, stat4c, &stat4id, sizeof(int64_t), pData, nData, &bdberr);
+    stat4id++;
+    Pthread_mutex_unlock(&statlk);
+    if (rc || bdberr != BDBERR_NOERROR) {
+        logmsg(LOGMSG_ERROR, "%s: insert rc %d bdberr %d", __func__, rc, bdberr);
+    }
+    logmsg(LOGMSG_ERROR, "stat4: ");
+    hexdump(LOGMSG_ERROR, pData, nData);
+    return rc;
+}
+
+
+/*
+** CAPI3REF: One-Step Query Execution Interface
+** METHOD: sqlite3
+**
+** The sqlite3_exec() interface is a convenience wrapper around
+** [sqlite3_prepare_v2()], [sqlite3_step()], and [sqlite3_finalize()],
+** that allows an application to run multiple statements of SQL
+** without having to use a lot of C code.
+**
+** ^The sqlite3_exec() interface runs zero or more UTF-8 encoded,
+** semicolon-separate SQL statements passed into its 2nd argument,
+** in the context of the [database connection] passed in as its 1st
+** argument.  ^If the callback function of the 3rd argument to
+** sqlite3_exec() is not NULL, then it is invoked for each result row
+** coming out of the evaluated SQL statements.  ^The 4th argument to
+** sqlite3_exec() is relayed through to the 1st argument of each
+** callback invocation.  ^If the callback pointer to sqlite3_exec()
+** is NULL, then no callback is ever invoked and result rows are
+** ignored.
+**
+** ^If an error occurs while evaluating the SQL statements passed into
+** sqlite3_exec(), then execution of the current statement stops and
+** subsequent statements are skipped.  ^If the 5th parameter to sqlite3_exec()
+** is not NULL then any error message is written into memory obtained
+** from [sqlite3_malloc()] and passed back through the 5th parameter.
+** To avoid memory leaks, the application should invoke [sqlite3_free()]
+** on error message strings returned through the 5th parameter of
+** sqlite3_exec() after the error message string is no longer needed.
+** ^If the 5th parameter to sqlite3_exec() is not NULL and no errors
+** occur, then sqlite3_exec() sets the pointer in its 5th parameter to
+** NULL before returning.
+**
+** ^If an sqlite3_exec() callback returns non-zero, the sqlite3_exec()
+** routine returns SQLITE_ABORT without invoking the callback again and
+** without running any subsequent SQL statements.
+**
+** ^The 2nd argument to the sqlite3_exec() callback function is the
+** number of columns in the result.  ^The 3rd argument to the sqlite3_exec()
+** callback is an array of pointers to strings obtained as if from
+** [sqlite3_column_text()], one for each column.  ^If an element of a
+** result row is NULL then the corresponding string pointer for the
+** sqlite3_exec() callback is a NULL pointer.  ^The 4th argument to the
+** sqlite3_exec() callback is an array of pointers to strings where each
+** entry represents the name of corresponding result column as obtained
+** from [sqlite3_column_name()].
+**
+** ^If the 2nd parameter to sqlite3_exec() is a NULL pointer, a pointer
+** to an empty string, or a pointer that contains only whitespace and/or
+** SQL comments, then no SQL statements are evaluated and the database
+** is not changed.
+**
+** Restrictions:
+**
+** <ul>
+** <li> The application must ensure that the 1st parameter to sqlite3_exec()
+**      is a valid and open [database connection].
+** <li> The application must not close the [database connection] specified by
+**      the 1st parameter to sqlite3_exec() while sqlite3_exec() is running.
+** <li> The application must not modify the SQL statement text passed into
+**      the 2nd parameter of sqlite3_exec() while sqlite3_exec() is running.
+** </ul>
+*/
+
+int sqlite3LoadAlternateStats(sqlite3 *db, char *zSql, int (*callback)(void *, int, char **, char **), void *pInfo) {
+    int rc;
+    int bdberr;
+    rc = bdb_temp_table_first(thedb->bdb_env, stat1c, &bdberr);
+    int i = 0;
+    while (rc == 0) {
+        printf("%2d ", i);
+        fsnapf(stdout, bdb_temp_table_data(stat1c), bdb_temp_table_datasize(stat1c));
+        rc = bdb_temp_table_next(thedb->bdb_env, stat1c, &bdberr);
+    }
+    if (rc != IX_EMPTY && rc != IX_PASTEOF) {
+        return rc;
+    }
+    return 0;
+}
+
+
+
 static int
 sqlite3BtreeCursor_cursor(Btree *pBt,      /* The btree */
                           int iTable,      /* Root page of table to open */
@@ -8064,6 +8253,7 @@ sqlite3BtreeCursor_cursor(Btree *pBt,      /* The btree */
     int sz = 0;
     struct schema *sc;
     void *shadow_tran = NULL;
+
 
     assert(iTable >= RTPAGE_START);
     /* INVALID: assert(iTable < thd->rootpage_nentries + RTPAGE_START); */
@@ -8349,6 +8539,7 @@ int sqlite3BtreeCursor(
 
     if (pBt->is_temporary) { /* temp table */
         assert(iTable >= 1); /* can never be zero or negative */
+
         int pgno = iTable;
         if (forOpen) {
             /*
@@ -8357,7 +8548,7 @@ int sqlite3BtreeCursor(
             **       opcodes by the VDBE, the temporary table may not have
             **       been created yet.  Attempt to do that now.
             */
-            if (hash_find(pBt->temp_tables, &pgno) == NULL) {
+            if (pBt->temp_tables == NULL || hash_find(pBt->temp_tables, &pgno) == NULL) {
                 assert(tmptbl_clone == NULL);
                 rc = sqlite3BtreeCreateTable(pBt, &pgno, BTREE_INTKEY);
             }
@@ -8372,8 +8563,10 @@ int sqlite3BtreeCursor(
         cur->move_cost = CDB2_TEMP_MOVE_COST;
         cur->write_cost = CDB2_TEMP_WRITE_COST;
     }
+
+
     /* sqlite_master table */
-    else if (iTable == RTPAGE_SQLITE_MASTER && fdb_master_is_local(cur)) {
+    if (iTable == RTPAGE_SQLITE_MASTER && fdb_master_is_local(cur)) {
         rc = sqlite3BtreeCursor_master(
             pBt, iTable, wrFlag & BTREE_CUR_WR, sqlite3VdbeCompareRecordPacked,
             pKeyInfo, cur, thd, clnt->keyDdl, clnt->dataDdl, clnt->nDataDdl);
@@ -8625,108 +8818,6 @@ done:
 }
 
 // TODO: where do these go?
-static struct temp_table *stat1=NULL, *stat4=NULL;
-int64_t stat1id=1, stat4id=1;
-static struct temp_cursor *stat1c=NULL, *stat4c=NULL;
-static pthread_mutex_t statlk = PTHREAD_MUTEX_INITIALIZER;
-static pthread_once_t statonce = PTHREAD_ONCE_INIT;
-
-void init_stat_temp_tables(void) {
-    int bdberr = BDBERR_NOERROR;
-    stat1 = bdb_temp_table_create(thedb->bdb_env, &bdberr);
-    if (stat1 == NULL || bdberr != BDBERR_NOERROR) {
-        logmsg(LOGMSG_FATAL, "can't create temp table for sqlite_stat1 for analyze: bdberr %d", bdberr);
-        abort();
-    }
-    stat1c = bdb_temp_table_cursor(thedb->bdb_env, stat1, NULL, &bdberr);
-    if (stat1c == NULL || bdberr != BDBERR_NOERROR) {
-        logmsg(LOGMSG_FATAL, "can't create temp table cursor for sqlite_stat1 for analyze: bdberr %d", bdberr);
-        abort();
-    }
-    stat4 = bdb_temp_table_create(thedb->bdb_env, &bdberr);
-    if (stat1 == NULL || bdberr != BDBERR_NOERROR) {
-        logmsg(LOGMSG_FATAL, "can't create temp table for sqlite_stat4 for analyze: bdberr %d", bdberr);
-        abort();
-    }
-    stat4c = bdb_temp_table_cursor(thedb->bdb_env, stat4, NULL, &bdberr);
-    if (stat1c == NULL || bdberr != BDBERR_NOERROR) {
-        logmsg(LOGMSG_FATAL, "can't create temp table cursor for sqlite_stat1 for analyze: bdberr %d", bdberr);
-        abort();
-    }
-}
-
-static int clear_temp_table(struct temp_cursor *cur) {
-    int rc;
-    int bdberr;
-    int rows = 0;
-    do {
-        rc = bdb_temp_table_first(thedb->bdb_env, cur, &bdberr);
-        if (rc && rc != IX_EMPTY) {
-            logmsg(LOGMSG_FATAL, "%s: can't get first row: rc %d bdberr %d", __func__, rc, bdberr);
-            abort();
-        }
-        else if (rc == IX_EMPTY)
-            break;
-        int delrc = bdb_temp_table_delete(thedb->bdb_env, cur, &bdberr);
-        if (delrc) {
-            logmsg(LOGMSG_FATAL, "%s: can't delete row: rc %d bdberr %d", __func__, delrc, bdberr);
-            abort();
-        }
-        rows++;
-    } while (rc != IX_EMPTY);
-    printf("deleted %d rows\n", rows);
-    return 0;
-}
-
-int init_stat_tables(void) {
-    int rc;
-    pthread_once(&statonce, init_stat_temp_tables);
-    Pthread_mutex_lock(&statlk);
-    stat1id = 0;
-    stat4id = 0;
-    printf("stat1: ");
-    rc = clear_temp_table(stat1c);
-    if (rc == 0) {
-        printf("stat4: ");
-        rc = clear_temp_table(stat4c);
-    }
-    Pthread_mutex_unlock(&statlk);
-    return rc;
-}
-
-int save_stat1(const void *pData, int nData, blob_buffer_t *pblobs) {
-    pthread_once(&statonce, init_stat_temp_tables);
-    int rc;
-    int bdberr = BDBERR_NOERROR;
-    Pthread_mutex_lock(&statlk);
-    rc = bdb_temp_table_insert(thedb->bdb_env, stat1c, &stat1id, sizeof(int64_t), pData, nData, &bdberr);
-    stat1id++;
-    Pthread_mutex_unlock(&statlk);
-    if (rc || bdberr != BDBERR_NOERROR) {
-        logmsg(LOGMSG_ERROR, "%s: insert rc %d bdberr %d", __func__, rc, bdberr);
-    }
-    logmsg(LOGMSG_ERROR, "stat1: ");
-    hexdump(LOGMSG_ERROR, pData, nData);
-    return rc;
-}
-
-// TODO: save_stat - one routine instead of stat1/stat4
-int save_stat4(const void *pData, int nData, blob_buffer_t *pblobs) {
-    pthread_once(&statonce, init_stat_temp_tables);
-    int rc;
-    int bdberr = BDBERR_NOERROR;
-    Pthread_mutex_lock(&statlk);
-    rc = bdb_temp_table_insert(thedb->bdb_env, stat4c, &stat4id, sizeof(int64_t), pData, nData, &bdberr);
-    stat4id++;
-    Pthread_mutex_unlock(&statlk);
-    if (rc || bdberr != BDBERR_NOERROR) {
-        logmsg(LOGMSG_ERROR, "%s: insert rc %d bdberr %d", __func__, rc, bdberr);
-    }
-    logmsg(LOGMSG_ERROR, "stat4: ");
-    hexdump(LOGMSG_ERROR, pData, nData);
-    return rc;
-}
-
 
 /*
  ** Insert a new record into the BTree.  The key is given by (pKey,nKey)
@@ -8785,12 +8876,16 @@ int sqlite3BtreeInsert(
 
     // TODO: mark in pCur so we don't have to do this at every record?
     if (pCur->db && strcmp(pCur->db->tablename, "sqlite_stat1") == 0) {
-        if (pData)
-            save_stat1(pData, nData, pblobs);
+        if (pData) {
+            rc = save_stat1(pData, nData, pblobs);
+            if (rc)goto done;
+        }
     }
     else if (pCur->db && strcmp(pCur->db->tablename, "sqlite_stat4") == 0) {
-        if (pData)
-            save_stat4(pData, nData, pblobs);
+        if (pData) {
+            rc = save_stat4(pData, nData, pblobs);
+            if (rc)goto done;
+        }
     }
 
     if (unlikely(pCur->cursor_class == CURSORCLASS_STAT24)) {

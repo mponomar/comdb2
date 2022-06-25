@@ -172,6 +172,9 @@ void get_disable_skipscan_all();
 
 static __thread int skip4;
 int64_t analyze_get_nrecs( int iTable );
+
+int sqlite3LoadAlternateStats(sqlite3 *db, char *zSql, int (*callback)(void *, int, char **, char **), void *pInfo);
+
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 
 /*
@@ -1921,6 +1924,11 @@ static int analysisLoader(void *pData, int argc, char **argv, char **NotUsed){
 #endif
     pIndex->bUnordered = 0;
     decodeIntArray((char*)z, nCol, aiRowEst, pIndex->aiRowLogEst, pIndex);
+    printf("%s %s %d: ", pTable->zName, pIndex->zName, nCol);
+    for (int i = 0; i < nCol; i++) {
+        printf("%d", aiRowEst[i]);
+    }
+    printf("\n");
     pIndex->hasStat1 = 1;
     if( pIndex->pPartIdxWhere==0 ){
       pTable->nRowLogEst = pIndex->aiRowLogEst[0];
@@ -2493,7 +2501,12 @@ int sqlite3AnalysisLoad(sqlite3 *db, int iDb){
     if( zSql==0 ){
       rc = SQLITE_NOMEM_BKPT;
     }else{
-      rc = sqlite3_exec(db, zSql, analysisLoader, &sInfo, 0);
+#if defined(SQLITE_BUILDING_FOR_COMDB2)
+      if (db->isAnalyzeTest)
+          rc = sqlite3LoadAlternateStats(db, zSql, analysisLoader, &sInfo);
+      else
+#endif
+          rc = sqlite3_exec(db, zSql, analysisLoader, &sInfo, 0);
       sqlite3DbFree(db, zSql);
     }
   }

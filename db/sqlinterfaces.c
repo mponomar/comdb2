@@ -2839,8 +2839,9 @@ static int prepare_engine(struct sqlthdstate *, struct sqlclntstate *, int);
 int sqlengine_prepare_engine(struct sqlthdstate *thd,
                              struct sqlclntstate *clnt, int flags)
 {
+    int rc;
     clnt->in_sqlite_init = 1;
-    int rc = prepare_engine(thd, clnt, flags);
+    rc = prepare_engine(thd, clnt, flags);
     clnt->in_sqlite_init = 0;
     return rc;
 }
@@ -4011,7 +4012,7 @@ static int prepare_engine(struct sqlthdstate *thd, struct sqlclntstate *clnt,
     }
 
 check_version:
-    if (thd->sqldb && (rc = check_thd_gen(thd, clnt, flags)) != SQLITE_OK) {
+    if (thd->sqldb && (((rc = check_thd_gen(thd, clnt, flags)) != SQLITE_OK) || clnt->use_untested_stats)) {
         if (rc != SQLITE_SCHEMA_REMOTE) {
             if (!recreate) {
                 goto done;
@@ -4068,15 +4069,17 @@ check_version:
             /* cache analyze gen first because gbl_analyze_gen is NOT protected
              * by schema_lk */
             thd->analyze_gen = gbl_analyze_gen;
-            int rc = sqlite3_open_serial("db", &thd->sqldb, thd);
-            if (rc != 0) {
+            int openrc = sqlite3_open_serial("db", &thd->sqldb, thd);
+            if (openrc != 0) {
                 logmsg(LOGMSG_ERROR, "%s:sqlite3_open_serial failed %d: %s\n", __func__,
-                       rc, sqlite3_errmsg(thd->sqldb));
+                       openrc, sqlite3_errmsg(thd->sqldb));
                 sqlite3_close_serial(&thd->sqldb);
                 /* there is no really way forward, grab core */
                 abort();
             }
             thd->dbopen_gen = bdb_get_dbopen_gen();
+            if (clnt->use_untested_stats)
+                thd->sqldb->isAnalyzeTest = 1;
         }
 
         comdb2_reset_authstate(thd);
@@ -4451,15 +4454,6 @@ void sqlengine_work_appsock(struct sqlthdstate *thd, struct sqlclntstate *clnt)
     sqlthd->clnt = clnt;
     clnt->thd = thd;
 
-    // We want to force sqlite to reload stats from an alternate place
-    if (clnt->use_untested_stats) {
-        // load with a low analyze_gen so the next run forces another reload
-        rc = reload_analyze(thd, clnt, -1);
-        if (rc) {
-            logmsg(LOGMSG_ERROR, "%s: unable to reload sqlite_stat*\n", __func__);
-            // TODO: fatal?
-        }
-    }
 
     thr_set_user("appsock", (intptr_t)clnt->appsock_id);
 
@@ -6343,6 +6337,8 @@ int internal_run_param_value(struct sqlclntstate *clnt, struct param_data *param
     struct run_with_params_args *args = (struct run_with_params_args *) clnt->internal_args;
     if (param_num < 0 || param_num >= args->nparams)
         return -1;
+
+    params[param_num] = args->params[param_num];
     return 0;
 }
 
@@ -6362,7 +6358,7 @@ int run_internal_sql_with_params(struct sqlclntstate *clnt, char *sql, int npara
     clnt->plugin.param_value = internal_run_param_value;
 
     clnt->sql = skipws(sql);
-    int rc = dispatch_sql_query(clnt);
+   int rc = dispatch_sql_query(clnt);
     if (rc || clnt->query_rc || clnt->saved_errstr) {
         if (clnt->query_rc)
             logmsg(LOGMSG_ERROR, "%s: Error from query: '%s' (rc = %d) \n", __func__, sql, clnt->query_rc);
