@@ -1193,7 +1193,7 @@ int fdb_svc_cursor_find(char *cid, int keylen, char *key, int last,
 
             /* convert key to ondisk */
             rc = sqlite_to_ondisk(sc, key, keylen, cur->outbuf, NULL, NULL, 0,
-                                  &convfail, NULL);
+                                  &convfail);
             if (rc <= 0) {
                 logmsg(LOGMSG_ERROR, "%s: failed to convert key rc=%d\n", __func__,
                         rc);

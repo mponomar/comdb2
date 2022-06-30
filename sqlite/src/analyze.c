@@ -173,8 +173,10 @@ void get_disable_skipscan_all();
 static __thread int skip4;
 int64_t analyze_get_nrecs( int iTable );
 
-int sqlite3LoadAlternateStats(sqlite3 *db, char *zSql, int (*callback)(void *, int, char **, char **), void *pInfo);
-
+int sqlite3LoadAlternativeStat1(sqlite3 *db, char *zSql, int (*callback)(void *, int, char **, char **), void *pInfo);
+int sqlite3LoadAlternativeStat4(sqlite3 *db, const char *zDb,
+                                int (*callback)(sqlite3 *, const char *, const char *, const char *, int, const void *,
+                                                const unsigned char *, const unsigned char *, const unsigned char *));
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 
 /*
@@ -2228,6 +2230,139 @@ static int loadStatTbl(
 #include <vdbecompare.c>
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 
+static int loadStat4Record(sqlite3 *db, const char *zDb, const char *zTable, const char *zIndex,
+                           int sampleSize, const void *sample, const unsigned char* neq, const unsigned char* nlt,
+                           const unsigned char* ndlt) {
+    Index *pIdx;
+    int nCol, iPos, nAlloc;
+    IndexSample *pSample;
+
+    pIdx = findIndexOrPrimaryKey(db, zIndex, zDb);
+    if( pIdx==0 ) return 0;
+    if( pIdx->pKeyInfo==0 ){
+        Parse parse;
+        int j;
+        memset(&parse, 0, sizeof(Parse));
+        parse.db = db;
+        pIdx->pKeyInfo = sqlite3KeyInfoOfIndex(&parse, pIdx);
+        if( pIdx->pKeyInfo==0 ) return 0;
+        for(j=0; j<pIdx->nKeyCol; j++){
+            if( pIdx->pKeyInfo->aColl[j] ) break; /* DATACOPY */
+        }
+        pIdx->nSampleCol = j;
+    }
+    nCol = pIdx->nSampleCol;
+    nAlloc = pIdx->nAlloc;
+    if( pIdx->nSample>=nAlloc ){
+        int i, bOom;
+        int nSize = (nCol + 1) * sizeof(tRowcnt);
+        if( nAlloc==0 ){
+            nAlloc = MAX(pIdx->nSample, SQLITE_STAT4_SAMPLES);
+            assert( pIdx->aAvgEq==0 );
+            pIdx->aAvgEq = sqlite3DbMallocZero(db, nSize);
+            if( pIdx->aAvgEq==0 ){
+                return SQLITE_NOMEM_BKPT;
+            }
+        }else{
+            nAlloc = pIdx->nSample * 2;
+        }
+        assert( nAlloc>=pIdx->nSample );
+        pIdx->aSample = sqlite3DbRealloc(db, pIdx->aSample,
+                                         nAlloc * sizeof(IndexSample));
+        if( pIdx->aSample==0 ){
+            return SQLITE_NOMEM_BKPT;
+        }
+        /* Zero out the new slots */
+        memset(&pIdx->aSample[pIdx->nSample], 0,
+               (nAlloc - pIdx->nSample) * sizeof(IndexSample));
+        /* TODO: Make this whole loop use one big malloc. */
+        bOom = 0;
+        for(i=pIdx->nSample; i<nAlloc; i++){
+            pIdx->aSample[i].anEq  = sqlite3DbMallocZero(db, nSize);
+            if( pIdx->aSample[i].anEq==0 ){ bOom = 1; break; }
+            pIdx->aSample[i].anLt  = sqlite3DbMallocZero(db, nSize);
+            if( pIdx->aSample[i].anLt==0 ){ bOom = 1; break; }
+            pIdx->aSample[i].anDLt = sqlite3DbMallocZero(db, nSize);
+            if( pIdx->aSample[i].anDLt==0 ){ bOom = 1; break; }
+        }
+        if( bOom ){
+            return SQLITE_NOMEM_BKPT;
+        }
+        pIdx->nAlloc = nAlloc;
+    }
+
+    /* Find position for this sample */
+    iPos = pIdx->nSample;
+    if( iPos>0 ){
+        int x, cmp;
+        int iPosGreater = iPos;
+        int iPosSmaller = 0;
+        UnpackedRecord *pUnpacked = sqlite3VdbeAllocUnpackedRecord(pIdx->pKeyInfo);
+        if( pUnpacked==0 ){
+            return SQLITE_NOMEM_BKPT;
+        }
+        sqlite3VdbeRecordUnpack(pIdx->pKeyInfo, sampleSize,
+                                sample, pUnpacked);
+        /* find first less than the new item */
+        {
+            /* Most of the time, last slot is the correct position. */
+            x = iPosGreater - 1;
+            cmp = sqlite3VdbeRecordCompare(pIdx->aSample[x].n,
+                                           pIdx->aSample[x].p, pUnpacked);
+            if( cmp<0 ) iPosSmaller = iPosGreater;
+        }
+        /* TODO: What is special about 32 here? */
+        while( iPosGreater-iPosSmaller>32 ){ /* binary search */
+            x = (iPosSmaller + iPosGreater) / 2;
+            cmp = sqlite3VdbeRecordCompare(pIdx->aSample[x].n,
+                                           pIdx->aSample[x].p, pUnpacked);
+            if( cmp<0 ){
+                iPosSmaller = x;
+            }else{
+                iPosGreater = x;
+            }
+        }
+        for(iPos=iPosGreater; iPos>iPosSmaller; iPos--){
+            x = iPos - 1;
+            cmp = sqlite3VdbeRecordCompare(pIdx->aSample[x].n,
+                                           pIdx->aSample[x].p, pUnpacked);
+            if( cmp<0 ) break;
+        }
+        sqlite3DbFree(db, pUnpacked);
+        /* Make room for sample @pos */
+        if( iPos<pIdx->nSample ){
+            int k;
+            IndexSample tmp = pIdx->aSample[pIdx->nSample];
+            for(k=pIdx->nSample-1; k>=iPos; k--){
+                pIdx->aSample[k+1] = pIdx->aSample[k];
+            }
+            pIdx->aSample[iPos] = tmp;
+        }
+    }
+    assert( iPos>=0 && iPos<pIdx->nAlloc );
+    pSample = &pIdx->aSample[iPos];
+    decodeIntArray((char*)neq,nCol,pSample->anEq,0,0);
+    decodeIntArray((char*)nlt,nCol,pSample->anLt,0,0);
+    decodeIntArray((char*)ndlt,nCol,pSample->anDLt,0,0);
+
+    /* Take a copy of the sample. Add two 0x00 bytes the end of the buffer.
+    ** This is in case the sample record is corrupted. In that case, the
+    ** sqlite3VdbeRecordCompare() may read up to two varints past the
+    ** end of the allocated buffer before it realizes it is dealing with
+    ** a corrupt record. Adding the two 0x00 bytes prevents this from causing
+    ** a buffer overread.  */
+    pSample->n = sampleSize;
+    pSample->p = sqlite3DbMallocZero(db, pSample->n + 2);
+    if( pSample->p==0 ){
+        return SQLITE_NOMEM_BKPT;
+    }
+    memcpy(pSample->p, sample, pSample->n);
+    memset((u8*)pSample->p + pSample->n, 0, 2);
+    pIdx->nSample++;
+
+    return 0;
+}
+
 /*
 ** Load content from the sqlite_stat4 and sqlite_stat3 tables into 
 ** the Index.aSample[] arrays of all indices.
@@ -2237,12 +2372,19 @@ static int loadStat4(sqlite3 *db, const char *zDb){
   int rc;                   /* Result codes from subroutines */
   sqlite3_stmt *pStmt = 0;  /* An SQL statement being run */
   char *zSql;
+  /*                           0   1   2    3     4    5                            */
   const char *zSql2 = "SELECT idx,neq,nlt,ndlt,sample,tbl FROM %Q.sqlite_stat4"
                       " WHERE tbl not like 'cdb2.%%.sav';";
 
   if( sqlite3FindTableCheckOnly(db, "sqlite_stat4", zDb)==0 ){
     return SQLITE_OK;
   }
+
+  if (db->isAnalyzeTest) {
+      return sqlite3LoadAlternativeStat4(db, zDb, loadStat4Record);
+  }
+
+
   zSql = sqlite3MPrintf(db, zSql2, zDb);
   if( !zSql ) return SQLITE_NOMEM_BKPT;
   rc = sqlite3_prepare(db, zSql, -1, &pStmt, 0);
@@ -2252,143 +2394,20 @@ static int loadStat4(sqlite3 *db, const char *zDb){
   while( sqlite3_step(pStmt)==SQLITE_ROW ){
     char *zTable;
     char *zIndex;
-    Index *pIdx;
-    int nCol, iPos, nAlloc;
-    IndexSample *pSample;
 
     zTable = (char *)sqlite3_column_text(pStmt, 5);
     if( strncmp("cdb2.", zTable, 5)==0 ) continue;
     zIndex = (char *)sqlite3_column_text(pStmt, 0);
     if( zIndex==0 ) continue;
-    pIdx = findIndexOrPrimaryKey(db, zIndex, zDb);
-    if( pIdx==0 ) continue;
-    if( pIdx->pKeyInfo==0 ){
-      Parse parse;
-      int j;
-      memset(&parse, 0, sizeof(Parse));
-      parse.db = db;
-      pIdx->pKeyInfo = sqlite3KeyInfoOfIndex(&parse, pIdx);
-      if( pIdx->pKeyInfo==0 ) continue;
-      for(j=0; j<pIdx->nKeyCol; j++){
-        if( pIdx->pKeyInfo->aColl[j] ) break; /* DATACOPY */
-      }
-      pIdx->nSampleCol = j;
-    }
-    nCol = pIdx->nSampleCol;
-    nAlloc = pIdx->nAlloc;
-    if( pIdx->nSample>=nAlloc ){
-      int i, bOom;
-      int nSize = (nCol + 1) * sizeof(tRowcnt);
-      if( nAlloc==0 ){
-        nAlloc = MAX(pIdx->nSample, SQLITE_STAT4_SAMPLES);
-        assert( pIdx->aAvgEq==0 );
-        pIdx->aAvgEq = sqlite3DbMallocZero(db, nSize);
-        if( pIdx->aAvgEq==0 ){
-          sqlite3_finalize(pStmt);
-          return SQLITE_NOMEM_BKPT;
-        }
-      }else{
-        nAlloc = pIdx->nSample * 2;
-      }
-      assert( nAlloc>=pIdx->nSample );
-      pIdx->aSample = sqlite3DbRealloc(db, pIdx->aSample,
-                                       nAlloc * sizeof(IndexSample));
-      if( pIdx->aSample==0 ){
-        sqlite3_finalize(pStmt);
-        return SQLITE_NOMEM_BKPT;
-      }
-      /* Zero out the new slots */
-      memset(&pIdx->aSample[pIdx->nSample], 0,
-             (nAlloc - pIdx->nSample) * sizeof(IndexSample));
-      /* TODO: Make this whole loop use one big malloc. */
-      bOom = 0;
-      for(i=pIdx->nSample; i<nAlloc; i++){
-        pIdx->aSample[i].anEq  = sqlite3DbMallocZero(db, nSize);
-        if( pIdx->aSample[i].anEq==0 ){ bOom = 1; break; }
-        pIdx->aSample[i].anLt  = sqlite3DbMallocZero(db, nSize);
-        if( pIdx->aSample[i].anLt==0 ){ bOom = 1; break; }
-        pIdx->aSample[i].anDLt = sqlite3DbMallocZero(db, nSize);
-        if( pIdx->aSample[i].anDLt==0 ){ bOom = 1; break; }
-      }
-      if( bOom ){
-        sqlite3_finalize(pStmt);
-        return SQLITE_NOMEM_BKPT;
-      }
-      pIdx->nAlloc = nAlloc;
-    }
 
-    /* Find position for this sample */
-    iPos = pIdx->nSample;
-    if( iPos>0 ){
-      int x, cmp;
-      int iPosGreater = iPos;
-      int iPosSmaller = 0;
-      UnpackedRecord *pUnpacked = sqlite3VdbeAllocUnpackedRecord(pIdx->pKeyInfo);
-      if( pUnpacked==0 ){
+    rc = loadStat4Record(db, zDb, zTable, zIndex, sqlite3_column_bytes(pStmt, 4), sqlite3_column_blob(pStmt, 4),
+                         sqlite3_column_text(pStmt, 1), sqlite3_column_text(pStmt, 2), sqlite3_column_text(pStmt, 3));
+    if (rc) {
         sqlite3_finalize(pStmt);
-        return SQLITE_NOMEM_BKPT;
-      }
-      sqlite3VdbeRecordUnpack(pIdx->pKeyInfo, sqlite3_column_bytes(pStmt, 4),
-                              sqlite3_column_blob(pStmt, 4), pUnpacked);
-      /* find first less than the new item */
-      {
-        /* Most of the time, last slot is the correct position. */
-        x = iPosGreater - 1;
-        cmp = sqlite3VdbeRecordCompare(pIdx->aSample[x].n,
-                                       pIdx->aSample[x].p, pUnpacked);
-        if( cmp<0 ) iPosSmaller = iPosGreater;
-      }
-      /* TODO: What is special about 32 here? */
-      while( iPosGreater-iPosSmaller>32 ){ /* binary search */
-        x = (iPosSmaller + iPosGreater) / 2;
-        cmp = sqlite3VdbeRecordCompare(pIdx->aSample[x].n,
-                                       pIdx->aSample[x].p, pUnpacked);
-        if( cmp<0 ){
-          iPosSmaller = x;
-        }else{
-          iPosGreater = x;
-        }
-      }
-      for(iPos=iPosGreater; iPos>iPosSmaller; iPos--){
-        x = iPos - 1;
-        cmp = sqlite3VdbeRecordCompare(pIdx->aSample[x].n,
-                                       pIdx->aSample[x].p, pUnpacked);
-        if( cmp<0 ) break;
-      }
-      sqlite3DbFree(db, pUnpacked);
-      /* Make room for sample @pos */
-      if( iPos<pIdx->nSample ){
-        int k;
-        IndexSample tmp = pIdx->aSample[pIdx->nSample];
-        for(k=pIdx->nSample-1; k>=iPos; k--){
-          pIdx->aSample[k+1] = pIdx->aSample[k];
-        }
-        pIdx->aSample[iPos] = tmp;
-      }
+        return rc;
     }
-    assert( iPos>=0 && iPos<pIdx->nAlloc );
-    pSample = &pIdx->aSample[iPos];
-    decodeIntArray((char*)sqlite3_column_text(pStmt,1),nCol,pSample->anEq,0,0);
-    decodeIntArray((char*)sqlite3_column_text(pStmt,2),nCol,pSample->anLt,0,0);
-    decodeIntArray((char*)sqlite3_column_text(pStmt,3),nCol,pSample->anDLt,0,0);
-
-    /* Take a copy of the sample. Add two 0x00 bytes the end of the buffer.
-    ** This is in case the sample record is corrupted. In that case, the
-    ** sqlite3VdbeRecordCompare() may read up to two varints past the
-    ** end of the allocated buffer before it realizes it is dealing with
-    ** a corrupt record. Adding the two 0x00 bytes prevents this from causing
-    ** a buffer overread.  */
-    pSample->n = sqlite3_column_bytes(pStmt, 4);
-    pSample->p = sqlite3DbMallocZero(db, pSample->n + 2);
-    if( pSample->p==0 ){
-      sqlite3_finalize(pStmt);
-      return SQLITE_NOMEM_BKPT;
-    }
-    memcpy(pSample->p, sqlite3_column_blob(pStmt, 4), pSample->n);
-    memset((u8*)pSample->p + pSample->n, 0, 2);
-    pIdx->nSample++;
   }
-  return sqlite3_finalize(pStmt);
+    return sqlite3_finalize(pStmt);
 #else /* defined(SQLITE_BUILDING_FOR_COMDB2) */
   int rc = SQLITE_OK;             /* Result codes from subroutines */
 
@@ -2412,6 +2431,8 @@ static int loadStat4(sqlite3 *db, const char *zDb){
   return rc;
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 }
+
+
 #endif /* SQLITE_ENABLE_STAT3_OR_STAT4 */
 
 /*
@@ -2502,8 +2523,9 @@ int sqlite3AnalysisLoad(sqlite3 *db, int iDb){
       rc = SQLITE_NOMEM_BKPT;
     }else{
 #if defined(SQLITE_BUILDING_FOR_COMDB2)
-      if (db->isAnalyzeTest)
-          rc = sqlite3LoadAlternateStats(db, zSql, analysisLoader, &sInfo);
+      if (db->isAnalyzeTest) {
+          rc = sqlite3LoadAlternativeStat1(db, zSql, analysisLoader, &sInfo);
+      }
       else
 #endif
           rc = sqlite3_exec(db, zSql, analysisLoader, &sInfo, 0);

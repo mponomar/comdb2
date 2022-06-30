@@ -737,9 +737,9 @@ static int _fdb_svc_indexes_to_ondisk(unsigned char **pIndexes, struct dbtable *
             return -1;
         }
         rc = sqlite_to_ondisk(db->ixschema[i],
-                              (unsigned char *)pIndexes[i] + sizeof(int),
-                              *((int *)pIndexes[i]), ix, "America/New_York",
-                              NULL, 0, fail_reason, pCur);
+                              (unsigned char *) pIndexes[i] + sizeof(int),
+                              *((int *) pIndexes[i]), ix, "America/New_York",
+                              NULL, 0, fail_reason);
         if (rc != getkeysize(db, i)) {
             char errs[128];
             convert_failure_reason_str(fail_reason, db->tablename,
@@ -798,7 +798,7 @@ int fdb_svc_cursor_insert(struct sqlclntstate *clnt, char *tblname,
 
     /* convert sqlite row to comdb2 row for bplog */
     rc = sqlite_to_ondisk(db->schema, data, datalen, row, "America/New_York",
-                          rowblobs, MAXBLOBS, &clnt->fail_reason, &bCur);
+                          rowblobs, MAXBLOBS, &clnt->fail_reason);
     if (rc < 0) {
         char errs[128];
         convert_failure_reason_str(&clnt->fail_reason, db->tablename,
@@ -936,7 +936,7 @@ int fdb_svc_cursor_update(struct sqlclntstate *clnt, char *tblname,
 
     /* convert sqlite row to comdb2 row for bplog */
     rc = sqlite_to_ondisk(db->schema, data, datalen, row, "America/New_York",
-                          rowblobs, MAXBLOBS, &clnt->fail_reason, &bCur);
+                          rowblobs, MAXBLOBS, &clnt->fail_reason);
     if (rc < 0) {
         char errs[128];
         convert_failure_reason_str(&clnt->fail_reason, db->tablename,

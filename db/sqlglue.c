@@ -1335,9 +1335,8 @@ done:
     return rc ? -1 : 0;
 }
 
-int sqlite_to_ondisk(struct schema *s, const void *inp, int len, void *outp,
-                     const char *tzname, blob_buffer_t *outblob, int maxblobs,
-                     struct convert_failure *fail_reason, BtCursor *pCur)
+int sqlite_to_ondisk(struct schema *s, const void *inp, int len, void *outp, const char *tzname, blob_buffer_t *outblob,
+                     int maxblobs, struct convert_failure *fail_reason)
 {
     Mem m;
     unsigned int hdrsz, type;
@@ -4843,6 +4842,11 @@ int sqlite3BtreeCommit(Btree *pBt)
     int irc = 0;
     int bdberr = 0;
 
+    if (clnt->use_untested_stats) {
+        // we don't want to actually write, so rollback instead
+        return sqlite3BtreeRollback(pBt);
+    }
+
 #ifdef DEBUG_TRAN
     if (gbl_debug_sql_opcodes) {
         uuidstr_t us;
@@ -5111,7 +5115,7 @@ int rollback_tran(struct sql_thread *thd, struct sqlclntstate *clnt)
  ** This will release the write lock on the database file.  If there
  ** are no active cursors, it also releases the read lock.
  */
-int sqlite3BtreeRollback(Btree *pBt, int dummy, int writeOnlyDummy)
+int sqlite3BtreeRollback(Btree *pBt)
 {
     struct sql_thread *thd = pthread_getspecific(query_info_key);
     struct sqlclntstate *clnt = thd->clnt;
@@ -8057,7 +8061,6 @@ static pthread_once_t statonce = PTHREAD_ONCE_INIT;
 
 void init_stat_temp_tables(void) {
     int bdberr = BDBERR_NOERROR;
-    printf("init_stat_temp_tables\n");
     stat1 = bdb_temp_table_create(thedb->bdb_env, &bdberr);
     if (stat1 == NULL || bdberr != BDBERR_NOERROR) {
         logmsg(LOGMSG_FATAL, "can't create temp table for sqlite_stat1 for analyze: bdberr %d", bdberr);
@@ -8099,7 +8102,6 @@ static int clear_temp_table(struct temp_cursor *cur) {
         }
         rows++;
     } while (rc != IX_EMPTY);
-    printf("deleted %d rows\n", rows);
     return 0;
 }
 
@@ -8109,12 +8111,11 @@ int init_stat_tables(void) {
     Pthread_mutex_lock(&statlk);
     stat1id = 0;
     stat4id = 0;
-    printf("stat1: ");
     rc = clear_temp_table(stat1c);
     if (rc == 0) {
-        printf("stat4: ");
         rc = clear_temp_table(stat4c);
     }
+    printf("cleared stat temp tables\n");
     Pthread_mutex_unlock(&statlk);
     return rc;
 }
@@ -8123,7 +8124,6 @@ int save_stat1(const void *pData, int nData, blob_buffer_t *pblobs) {
     pthread_once(&statonce, init_stat_temp_tables);
     int rc;
     int bdberr = BDBERR_NOERROR;
-    printf("save_stat1\n");
     Pthread_mutex_lock(&statlk);
     rc = bdb_temp_table_insert(thedb->bdb_env, stat1c, &stat1id, sizeof(int64_t), pData, nData, &bdberr);
     stat1id++;
@@ -8131,8 +8131,8 @@ int save_stat1(const void *pData, int nData, blob_buffer_t *pblobs) {
     if (rc || bdberr != BDBERR_NOERROR) {
         logmsg(LOGMSG_ERROR, "%s: insert rc %d bdberr %d", __func__, rc, bdberr);
     }
-    logmsg(LOGMSG_ERROR, "stat1: ");
-    hexdump(LOGMSG_ERROR, pData, nData);
+//    logmsg(LOGMSG_ERROR, "stat1: ");
+//    hexdump(LOGMSG_ERROR, pData, nData);
     return rc;
 }
 
@@ -8148,91 +8148,137 @@ int save_stat4(const void *pData, int nData, blob_buffer_t *pblobs) {
     if (rc || bdberr != BDBERR_NOERROR) {
         logmsg(LOGMSG_ERROR, "%s: insert rc %d bdberr %d", __func__, rc, bdberr);
     }
-    logmsg(LOGMSG_ERROR, "stat4: ");
-    hexdump(LOGMSG_ERROR, pData, nData);
+//    logmsg(LOGMSG_ERROR, "stat4: ");
+//    hexdump(LOGMSG_ERROR, pData, nData);
     return rc;
 }
 
 
-/*
-** CAPI3REF: One-Step Query Execution Interface
-** METHOD: sqlite3
-**
-** The sqlite3_exec() interface is a convenience wrapper around
-** [sqlite3_prepare_v2()], [sqlite3_step()], and [sqlite3_finalize()],
-** that allows an application to run multiple statements of SQL
-** without having to use a lot of C code.
-**
-** ^The sqlite3_exec() interface runs zero or more UTF-8 encoded,
-** semicolon-separate SQL statements passed into its 2nd argument,
-** in the context of the [database connection] passed in as its 1st
-** argument.  ^If the callback function of the 3rd argument to
-** sqlite3_exec() is not NULL, then it is invoked for each result row
-** coming out of the evaluated SQL statements.  ^The 4th argument to
-** sqlite3_exec() is relayed through to the 1st argument of each
-** callback invocation.  ^If the callback pointer to sqlite3_exec()
-** is NULL, then no callback is ever invoked and result rows are
-** ignored.
-**
-** ^If an error occurs while evaluating the SQL statements passed into
-** sqlite3_exec(), then execution of the current statement stops and
-** subsequent statements are skipped.  ^If the 5th parameter to sqlite3_exec()
-** is not NULL then any error message is written into memory obtained
-** from [sqlite3_malloc()] and passed back through the 5th parameter.
-** To avoid memory leaks, the application should invoke [sqlite3_free()]
-** on error message strings returned through the 5th parameter of
-** sqlite3_exec() after the error message string is no longer needed.
-** ^If the 5th parameter to sqlite3_exec() is not NULL and no errors
-** occur, then sqlite3_exec() sets the pointer in its 5th parameter to
-** NULL before returning.
-**
-** ^If an sqlite3_exec() callback returns non-zero, the sqlite3_exec()
-** routine returns SQLITE_ABORT without invoking the callback again and
-** without running any subsequent SQL statements.
-**
-** ^The 2nd argument to the sqlite3_exec() callback function is the
-** number of columns in the result.  ^The 3rd argument to the sqlite3_exec()
-** callback is an array of pointers to strings obtained as if from
-** [sqlite3_column_text()], one for each column.  ^If an element of a
-** result row is NULL then the corresponding string pointer for the
-** sqlite3_exec() callback is a NULL pointer.  ^The 4th argument to the
-** sqlite3_exec() callback is an array of pointers to strings where each
-** entry represents the name of corresponding result column as obtained
-** from [sqlite3_column_name()].
-**
-** ^If the 2nd parameter to sqlite3_exec() is a NULL pointer, a pointer
-** to an empty string, or a pointer that contains only whitespace and/or
-** SQL comments, then no SQL statements are evaluated and the database
-** is not changed.
-**
-** Restrictions:
-**
-** <ul>
-** <li> The application must ensure that the 1st parameter to sqlite3_exec()
-**      is a valid and open [database connection].
-** <li> The application must not close the [database connection] specified by
-**      the 1st parameter to sqlite3_exec() while sqlite3_exec() is running.
-** <li> The application must not modify the SQL statement text passed into
-**      the 2nd parameter of sqlite3_exec() while sqlite3_exec() is running.
-** </ul>
-*/
+void sqlite3_row_callback(sqlite3 *db, int (*callback)(void *, int, char **, char **), void *pInfo);
 
-int sqlite3LoadAlternateStats(sqlite3 *db, char *zSql, int (*callback)(void *, int, char **, char **), void *pInfo) {
+int sqlite3LoadAlternativeStat1(sqlite3 *db, char *zSql, int (*callback)(void *, int, char **, char **), void *pInfo) {
     int rc;
     int bdberr;
+
+    // SQLite runs this query to get sqlite_stat1 stats
+    // "SELECT tbl,idx,stat FROM %Q.sqlite_stat1 WHERE tbl not like 'cdb2.%%.sav'"
+    // Set up column names accordingly.
+//    int nCol = 3;
+//    char *colnames[] = { "tbl", "idx", "stat" };
+
+    struct dbtable *sqlite_stat1 = get_dbtable_by_name("sqlite_stat1");
+    struct schema *s = get_schema(sqlite_stat1, -1);
+    int sz = get_size_of_schema(s);
+    void *buf = malloc(sz);
+    struct convert_failure fail;
+    char *names[] = {
+            "tbl", "idx", "stat"
+    };
+    char *values[] = {
+            (char*) buf + s->member[0].offset,
+            (char*) buf + s->member[1].offset,
+            (char*) buf + s->member[2].offset,
+    };
     rc = bdb_temp_table_first(thedb->bdb_env, stat1c, &bdberr);
-    int i = 0;
     while (rc == 0) {
-        printf("%2d ", i);
-        fsnapf(stdout, bdb_temp_table_data(stat1c), bdb_temp_table_datasize(stat1c));
+        rc = sqlite_to_ondisk(s, bdb_temp_table_data(stat1c), bdb_temp_table_datasize(stat1c), buf, "UTC", NULL, 0,
+                              &fail);
+        if (rc < 0) {
+            char err[128];
+            convert_failure_reason_str(&fail, "sqlite_stat1", "SQLite format", ".ONDISK", err, sizeof(err));
+            logmsg(LOGMSG_ERROR, "Can't decode stat1 record: %s\n", err);
+        }
+        rc = callback(pInfo, 3, names, values);
+        if (rc) {
+            logmsg(LOGMSG_ERROR, "Can't recreate stat from stat1 record: %d\n", rc);
+            rc = -1;
+            break;
+        }
+
         rc = bdb_temp_table_next(thedb->bdb_env, stat1c, &bdberr);
     }
     if (rc != IX_EMPTY && rc != IX_PASTEOF) {
+        logmsg(LOGMSG_ERROR, "%s: temp table op rc %d %d\n", __func__, rc, bdberr);
         return rc;
     }
     return 0;
 }
 
+int sqlite3LoadAlternativeStat4(sqlite3 *db, const char *zDb,
+                                int (*callback)(sqlite3 *, const char *, const char *, const char *, int, const void *,
+                                                const unsigned char *, const unsigned char *, const unsigned char *)) {
+    int rc;
+    int bdberr = 0;
+    int i = 1;
+
+    // I don't remember the historical reasons for this decision, but stat4's schema is not what SQLite expects.
+    // We store all the SQLite fields in a single blob, in SQLite format.  We need to decode that here to
+    // pass it back to SQLite, since at the point it calls this code the SQLite format record is already broken
+    // into its fields.
+    struct stat4_value {
+        char idx[100];
+        char neq[1000];
+        char nlt[1000];
+        char ndlt[1000];
+        char sample[4096];
+        char tbl[100];
+    };
+    // We're being very conservative here with sizes, so allocate this on heap.
+    struct stat4_value *v = malloc(sizeof(struct stat4_value));
+
+#define STAT4_FIELD(f, tp)                          \
+    .type = (tp),                                     \
+    .name = #f,                                     \
+    .len = sizeof(v->f),                            \
+    .offset = offsetof(struct stat4_value, f),      \
+
+    struct field fields[6] = {
+            [0] = { STAT4_FIELD(idx, SERVER_BCSTR) },
+            [1] = { STAT4_FIELD(neq, SERVER_BCSTR) },
+            [2] = { STAT4_FIELD(nlt, SERVER_BCSTR) },
+            [3] = { STAT4_FIELD(ndlt, SERVER_BCSTR) },
+            [4] = { STAT4_FIELD(sample, SERVER_BCSTR) },
+            [5] = { STAT4_FIELD(tbl, SERVER_BCSTR) },
+    };
+    struct schema stat4_schema = {
+            .nmembers = 6,
+            .member = fields,
+    };
+    struct convert_failure fail_reason;
+
+    rc = bdb_temp_table_first(thedb->bdb_env, stat4c, &bdberr);
+    while (rc == 0) {
+        rc = sqlite_to_ondisk(&stat4_schema, bdb_temp_table_data(stat4c), bdb_temp_table_datasize(stat4c), v, "UTC",
+                              NULL, 0, &fail_reason);
+        // sqlite_to_ondisk returns size on success and -1 on error
+        if (rc < 0) {
+            char err[100];
+            convert_failure_reason_str(&fail_reason, "sqlite_stat4", ".ONDISK", "sqlite", err, sizeof(err));
+            logmsg(LOGMSG_ERROR, "Error converting save stat4 record: %s\n", err);
+        }
+
+//        static int loadStat4Record(sqlite3 *db, const char *zDb, const char *zTable, const char *zIndex,
+//                                   int sampleSize, const void *sample, const unsigned char* neq, const unsigned char* nlt,
+//                                   const unsigned char* ndlt) {
+
+        rc = callback(db, zDb, v->tbl, v->idx, /* TODO!!! */ 100, v->sample, (unsigned char*) v->neq, (unsigned char*)v->nlt, (unsigned char*) v->ndlt);
+        if (rc)
+            break;
+
+        i++;
+        rc = bdb_temp_table_next(thedb->bdb_env, stat4c, &bdberr);
+    }
+    if (rc != IX_EMPTY && rc != IX_PASTEOF) {
+        logmsg(LOGMSG_ERROR, "%s: temp table op rc %d %d\n", __func__, rc, bdberr);
+        goto done;
+    }
+    rc = 0;
+
+done:
+    if (v)
+        free(v);
+    return rc;
+}
 
 
 static int
@@ -8253,7 +8299,6 @@ sqlite3BtreeCursor_cursor(Btree *pBt,      /* The btree */
     int sz = 0;
     struct schema *sc;
     void *shadow_tran = NULL;
-
 
     assert(iTable >= RTPAGE_START);
     /* INVALID: assert(iTable < thd->rootpage_nentries + RTPAGE_START); */
@@ -8539,7 +8584,6 @@ int sqlite3BtreeCursor(
 
     if (pBt->is_temporary) { /* temp table */
         assert(iTable >= 1); /* can never be zero or negative */
-
         int pgno = iTable;
         if (forOpen) {
             /*
@@ -8548,7 +8592,7 @@ int sqlite3BtreeCursor(
             **       opcodes by the VDBE, the temporary table may not have
             **       been created yet.  Attempt to do that now.
             */
-            if (pBt->temp_tables == NULL || hash_find(pBt->temp_tables, &pgno) == NULL) {
+            if (hash_find(pBt->temp_tables, &pgno) == NULL) {
                 assert(tmptbl_clone == NULL);
                 rc = sqlite3BtreeCreateTable(pBt, &pgno, BTREE_INTKEY);
             }
@@ -8563,10 +8607,8 @@ int sqlite3BtreeCursor(
         cur->move_cost = CDB2_TEMP_MOVE_COST;
         cur->write_cost = CDB2_TEMP_WRITE_COST;
     }
-
-
     /* sqlite_master table */
-    if (iTable == RTPAGE_SQLITE_MASTER && fdb_master_is_local(cur)) {
+    else if (iTable == RTPAGE_SQLITE_MASTER && fdb_master_is_local(cur)) {
         rc = sqlite3BtreeCursor_master(
             pBt, iTable, wrFlag & BTREE_CUR_WR, sqlite3VdbeCompareRecordPacked,
             pKeyInfo, cur, thd, clnt->keyDdl, clnt->dataDdl, clnt->nDataDdl);
@@ -8653,8 +8695,7 @@ static int make_stat_record(struct sql_thread *thd, BtCursor *pCur,
 
     /* extract first n fields from packed record */
     if (sqlite_to_ondisk(sc, pData, nData, pCur->ondisk_buf, pCur->clnt->tzname,
-                         blobs, MAXBLOBS, &thd->clnt->fail_reason,
-                         pCur) < 0) {
+                         blobs, MAXBLOBS, &thd->clnt->fail_reason) < 0) {
         logmsg(LOGMSG_ERROR, "%s failed\n", __func__);
         return SQLITE_INTERNAL;
     }
@@ -8817,8 +8858,6 @@ done:
     return rc;
 }
 
-// TODO: where do these go?
-
 /*
  ** Insert a new record into the BTree.  The key is given by (pKey,nKey)
  ** and the data is given by (pData,nData).  The cursor is used only to
@@ -8838,7 +8877,8 @@ done:
 int sqlite3BtreeInsert(
     BtCursor *pCur, /* Insert data into the table of this cursor */
     const BtreePayload *pPayload, /* The key and data of the new record */
-    int bias, int seekResult, int flags) {
+    int bias, int seekResult, int flags)
+{
     const void *pKey;
     sqlite3_int64 nKey;
     const void *pData;
@@ -8874,19 +8914,6 @@ int sqlite3BtreeInsert(
 
     CHECK_CLNT_READONLY_BUT_SQL_IS_WRITING(clnt, pCur);
 
-    // TODO: mark in pCur so we don't have to do this at every record?
-    if (pCur->db && strcmp(pCur->db->tablename, "sqlite_stat1") == 0) {
-        if (pData) {
-            rc = save_stat1(pData, nData, pblobs);
-            if (rc)goto done;
-        }
-    }
-    else if (pCur->db && strcmp(pCur->db->tablename, "sqlite_stat4") == 0) {
-        if (pData) {
-            rc = save_stat4(pData, nData, pblobs);
-            if (rc)goto done;
-        }
-    }
 
     if (unlikely(pCur->cursor_class == CURSORCLASS_STAT24)) {
         rc = make_stat_record(thd, pCur, pData, nData, pblobs);
@@ -8899,12 +8926,20 @@ int sqlite3BtreeInsert(
                     __func__, errs);
             goto done;
         }
-        // squirrel it away for later
+        rc = save_stat4(pData, nData, pblobs);
+        if (rc) goto done;
     }
 
+
     /* send opcode to reload stats at commit */
-    if (clnt->is_analyze && pCur->db && is_stat1(pCur->db->tablename))
+    if (clnt->is_analyze && pCur->db && is_stat1(pCur->db->tablename)) {
         rc = osql_updstat(pCur, thd, pCur->ondisk_buf, getdatsize(pCur->db), 0);
+        if (rc == 0) {
+            rc = save_stat1(pData, nData, pblobs);
+            if (rc)
+                goto done;
+        }
+    }
 
     if (pCur->bt->is_temporary) {
         /* data: nKey is 'rrn', pData is record, nData is size of record
@@ -8944,7 +8979,6 @@ int sqlite3BtreeInsert(
         rc = SQLITE_OK;
 
     } else if (unlikely(pCur->rootpage == RTPAGE_SQLITE_MASTER)) {
-        printf("is master\n");
 
         /* sqlite driven ddl, the only thing we support now are views */
 
@@ -8986,6 +9020,7 @@ int sqlite3BtreeInsert(
         goto done;
 
     } else { /* real insert */
+
         int is_update = 0;
 
         /* check authentication */
@@ -9021,7 +9056,7 @@ int sqlite3BtreeInsert(
                 likely(pCur->bt == NULL || pCur->bt->is_remote == 0) &&
                 gbl_expressions_indexes && pCur->db->ix_expr) {
                 rc = sqlite_to_ondisk(pCur->db->ixschema[pCur->ixnum], pKey, nKey, pCur->ondisk_key, clnt->tzname,
-                                      pblobs, MAXBLOBS, &thd->clnt->fail_reason, pCur);
+                                      pblobs, MAXBLOBS, &thd->clnt->fail_reason);
                 if (rc != getkeysize(pCur->db, pCur->ixnum)) {
                     char errs[128];
                     convert_failure_reason_str(
@@ -9071,7 +9106,7 @@ int sqlite3BtreeInsert(
         if (likely(pCur->cursor_class != CURSORCLASS_STAT24) && likely(pCur->bt == NULL || pCur->bt->is_remote == 0) &&
             pData != NULL) {
             rc = sqlite_to_ondisk(pCur->db->schema, pData, nData, pCur->ondisk_buf, clnt->tzname, pblobs, MAXBLOBS,
-                                  &thd->clnt->fail_reason, pCur);
+                                  &thd->clnt->fail_reason);
             if (rc < 0) {
                 char errs[128];
                 convert_failure_reason_str(&thd->clnt->fail_reason,

@@ -1353,7 +1353,7 @@ void sqlite3RollbackAll(sqlite3 *db, int tripCode){
       if( sqlite3BtreeIsInTrans(p) ){
         inTrans = 1;
       }
-      sqlite3BtreeRollback(p, tripCode, !schemaChange);
+        sqlite3BtreeRollback(p);
     }
   }
   sqlite3VtabRollback(db);

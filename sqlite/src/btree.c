@@ -4164,14 +4164,14 @@ int sqlite3BtreeTripAllCursors(Btree *pBtree, int errCode, int writeOnly){
 ** This will release the write lock on the database file.  If there
 ** are no active cursors, it also releases the read lock.
 */
-int sqlite3BtreeRollback(Btree *p, int tripCode, int writeOnly){
+int sqlite3BtreeRollback(Btree *pBt) {
   int rc;
-  BtShared *pBt = p->pBt;
+  BtShared *pBt = pBt->pBt;
   MemPage *pPage1;
 
   assert( writeOnly==1 || writeOnly==0 );
   assert( tripCode==SQLITE_ABORT_ROLLBACK || tripCode==SQLITE_OK );
-  sqlite3BtreeEnter(p);
+  sqlite3BtreeEnter(pBt);
   if( tripCode==SQLITE_OK ){
     rc = tripCode = saveAllCursors(pBt, 0, 0);
     if( rc ) writeOnly = 0;
@@ -4179,13 +4179,13 @@ int sqlite3BtreeRollback(Btree *p, int tripCode, int writeOnly){
     rc = SQLITE_OK;
   }
   if( tripCode ){
-    int rc2 = sqlite3BtreeTripAllCursors(p, tripCode, writeOnly);
+    int rc2 = sqlite3BtreeTripAllCursors(pBt, tripCode, writeOnly);
     assert( rc==SQLITE_OK || (writeOnly==0 && rc2==SQLITE_OK) );
     if( rc2!=SQLITE_OK ) rc = rc2;
   }
-  btreeIntegrity(p);
+  btreeIntegrity(pBt);
 
-  if( p->inTrans==TRANS_WRITE ){
+  if(pBt->inTrans == TRANS_WRITE ){
     int rc2;
 
     assert( TRANS_WRITE==pBt->inTransaction );
@@ -4210,8 +4210,8 @@ int sqlite3BtreeRollback(Btree *p, int tripCode, int writeOnly){
     btreeClearHasContent(pBt);
   }
 
-  btreeEndTransaction(p);
-  sqlite3BtreeLeave(p);
+  btreeEndTransaction(pBt);
+  sqlite3BtreeLeave(pBt);
   return rc;
 }
 

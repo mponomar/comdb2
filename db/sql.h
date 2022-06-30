@@ -1224,9 +1224,8 @@ void reset_clnt(struct sqlclntstate *, int initial);
 void cleanup_clnt(struct sqlclntstate *);
 void reset_query_effects(struct sqlclntstate *);
 
-int sqlite_to_ondisk(struct schema *s, const void *inp, int len, void *outp,
-                     const char *tzname, blob_buffer_t *outblob, int maxblobs,
-                     struct convert_failure *fail_reason, BtCursor *pCur);
+int sqlite_to_ondisk(struct schema *s, const void *inp, int len, void *outp, const char *tzname, blob_buffer_t *outblob,
+                     int maxblobs, struct convert_failure *fail_reason);
 
 int has_sqlcache_hint(const char *sql, const char **start, const char **end);
 void clnt_reset_cursor_hints(struct sqlclntstate *);

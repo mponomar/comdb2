@@ -77,7 +77,7 @@ int sqlite3BtreeBeginTrans(struct Vdbe*,Btree*,int,int*); /* COMDB2 */
 int sqlite3BtreeCommitPhaseOne(Btree*, const char *zMaster);
 int sqlite3BtreeCommitPhaseTwo(Btree*, int);
 int sqlite3BtreeCommit(Btree*);
-int sqlite3BtreeRollback(Btree*,int,int);
+int sqlite3BtreeRollback(Btree *pBt);
 int sqlite3BtreeBeginStmt(Btree*,int);
 int sqlite3BtreeCreateTable(Btree*, int*, int flags);
 int sqlite3BtreeIsInTrans(Btree*);
