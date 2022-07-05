@@ -8204,70 +8204,116 @@ int sqlite3LoadAlternativeStat1(sqlite3 *db, char *zSql, int (*callback)(void *,
     return 0;
 }
 
+void dump_stat4(sqlite3 *db) {
+    for (HashElem *i = sqliteHashFirst(&db->aDb[0].pSchema->idxHash); i;
+         i = sqliteHashNext(i)) {
+        Index *idx = sqliteHashData(i);
+
+        if (idx->aSample == NULL)
+            continue;
+        printf("idx:%s.%s samples:%d cols:%d aAvgEq: ", idx->pTable->zName,
+                idx->zName, idx->nSample, idx->nSampleCol);
+        for (int j = 0; j < idx->nSampleCol; ++j) {
+            printf("%d ", idx->aAvgEq[j]);
+        }
+        printf("\n");
+
+        for (int k = 0; k < idx->nSample; ++k) {
+            printf("sample:%d anEq:", k);
+            for (int j = 0; j < idx->nSampleCol; ++j) {
+                printf("%d ", idx->aSample[k].anEq[j]);
+            }
+            printf("anLt:");
+            for (int j = 0; j < idx->nSampleCol; ++j) {
+                printf("%d ", idx->aSample[k].anLt[j]);
+            }
+            printf("anDLt:");
+            for (int j = 0; j < idx->nSampleCol; ++j) {
+                printf("%d ", idx->aSample[k].anDLt[j]);
+            }
+
+            printf("sample => {");
+            {
+                void *in = idx->aSample[k].p;
+                u32 hdrsz;
+                u8 hdroffset = sqlite3GetVarint32(in, &hdrsz);
+                u32 dataoffset = hdrsz;
+                const char *comma = "";
+                while (hdroffset < hdrsz) {
+                    u32 type;
+                    Mem m = {{0}};
+                    hdroffset += sqlite3GetVarint32(in + hdroffset, &type);
+                    dataoffset +=
+                            sqlite3VdbeSerialGet(in + dataoffset, type, &m);
+                    printf("%s", comma);
+                    comma = ", ";
+                    if (m.flags & MEM_Null) {
+                        printf("NULL");
+                    } else if (m.flags & MEM_Int) {
+                        printf("%" PRId64, m.u.i);
+                    } else if (m.flags & MEM_Real) {
+                        printf("%f", m.u.r);
+                    } else if (m.flags & MEM_Str) {
+                        printf("\"%.*s\"", m.n, m.z);
+                    } else if (m.flags & MEM_Datetime) {
+                        time_t t = m.du.dt.dttz_sec;
+                        char ct[64];
+                        ctime_r(&t, ct);
+                        ct[strlen(ct) - 1] = 0;
+                        printf("%s", ct);
+                    } else if (m.flags & MEM_Blob) { /* a byte array */
+                        printf("x'");
+                        for (int i = 0; i != m.n; ++i)
+                            printf("%02X", (unsigned char)m.z[i]);
+                        printf("'");
+                    } else {
+                        printf("type:%d", m.flags);
+                    }
+                }
+            }
+            printf("}\n");
+        }
+    }
+}
+
 int sqlite3LoadAlternativeStat4(sqlite3 *db, const char *zDb,
                                 int (*callback)(sqlite3 *, const char *, const char *, const char *, int, const void *,
                                                 const unsigned char *, const unsigned char *, const unsigned char *)) {
     int rc;
     int bdberr = 0;
-    int i = 1;
-
-    // I don't remember the historical reasons for this decision, but stat4's schema is not what SQLite expects.
-    // We store all the SQLite fields in a single blob, in SQLite format.  We need to decode that here to
-    // pass it back to SQLite, since at the point it calls this code the SQLite format record is already broken
-    // into its fields.
-    struct stat4_value {
-        char idx[100];
-        char neq[1000];
-        char nlt[1000];
-        char ndlt[1000];
-        char sample[4096];
-        char tbl[100];
-    };
-    // We're being very conservative here with sizes, so allocate this on heap.
-    struct stat4_value *v = malloc(sizeof(struct stat4_value));
-
-#define STAT4_FIELD(f, tp)                          \
-    .type = (tp),                                     \
-    .name = #f,                                     \
-    .len = sizeof(v->f),                            \
-    .offset = offsetof(struct stat4_value, f),      \
-
-    struct field fields[6] = {
-            [0] = { STAT4_FIELD(idx, SERVER_BCSTR) },
-            [1] = { STAT4_FIELD(neq, SERVER_BCSTR) },
-            [2] = { STAT4_FIELD(nlt, SERVER_BCSTR) },
-            [3] = { STAT4_FIELD(ndlt, SERVER_BCSTR) },
-            [4] = { STAT4_FIELD(sample, SERVER_BCSTR) },
-            [5] = { STAT4_FIELD(tbl, SERVER_BCSTR) },
-    };
-    struct schema stat4_schema = {
-            .nmembers = 6,
-            .member = fields,
-    };
-    struct convert_failure fail_reason;
 
     rc = bdb_temp_table_first(thedb->bdb_env, stat4c, &bdberr);
     while (rc == 0) {
-        rc = sqlite_to_ondisk(&stat4_schema, bdb_temp_table_data(stat4c), bdb_temp_table_datasize(stat4c), v, "UTC",
-                              NULL, 0, &fail_reason);
-        // sqlite_to_ondisk returns size on success and -1 on error
-        if (rc < 0) {
-            char err[100];
-            convert_failure_reason_str(&fail_reason, "sqlite_stat4", ".ONDISK", "sqlite", err, sizeof(err));
-            logmsg(LOGMSG_ERROR, "Error converting save stat4 record: %s\n", err);
+        int dataoffset = 0;
+        u32 hdrsz;
+        int hdroffset = 0;
+        u32 type;
+        unsigned char *in = bdb_temp_table_data(stat4c);
+        Mem m[6] = {0};
+        int fld = 0;
+
+        hdroffset = sqlite3GetVarint32(in, &hdrsz);
+        dataoffset = hdrsz;
+        while (hdroffset < hdrsz) {
+            if (fld >= 6) {
+                break;
+
+            }
+            hdroffset += sqlite3GetVarint32(in + hdroffset, &type);
+            dataoffset += sqlite3VdbeSerialGet(in + dataoffset, type, &m[fld]);
+            fld++;
         }
-
-//        static int loadStat4Record(sqlite3 *db, const char *zDb, const char *zTable, const char *zIndex,
-//                                   int sampleSize, const void *sample, const unsigned char* neq, const unsigned char* nlt,
-//                                   const unsigned char* ndlt) {
-
-        rc = callback(db, zDb, v->tbl, v->idx, /* TODO!!! */ 100, v->sample, (unsigned char*) v->neq, (unsigned char*)v->nlt, (unsigned char*) v->ndlt);
+        if (fld != 6) {
+            logmsg(LOGMSG_USER, "Unexpected columns in stat4 record? expected 6, got %d\n", fld);
+            rc = -1;
+            goto done;
+        }
+        rc = callback(db, zDb, m[0].z, m[1].z, m[5].n, m[5].z, (unsigned char*)m[2].z, (unsigned char*)m[3].z, (unsigned char*)m[4].z);
         if (rc)
-            break;
-
-        i++;
+            goto done;
         rc = bdb_temp_table_next(thedb->bdb_env, stat4c, &bdberr);
     }
+    printf("end of %s: rc %d\n", __func__, rc);
     if (rc != IX_EMPTY && rc != IX_PASTEOF) {
         logmsg(LOGMSG_ERROR, "%s: temp table op rc %d %d\n", __func__, rc, bdberr);
         goto done;
@@ -8275,8 +8321,6 @@ int sqlite3LoadAlternativeStat4(sqlite3 *db, const char *zDb,
     rc = 0;
 
 done:
-    if (v)
-        free(v);
     return rc;
 }
 

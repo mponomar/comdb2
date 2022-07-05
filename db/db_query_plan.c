@@ -79,7 +79,7 @@ char* add_query_plan(struct client_query_stats *query_stats) {
     } else {
         average_cost = q->total_cost / q->nexecutions;
         if (fabs(current_cost - average_cost) > 100) {
-            logmsg(LOGMSG_WARN, "Average cost for this query was %f, now is %f\n", average_cost, current_cost);
+//            logmsg(LOGMSG_WARN, "Average cost for this query was %f, now is %f\n", average_cost, current_cost);
         }
         q->total_cost += current_cost;
         q->nexecutions++;

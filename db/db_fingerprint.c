@@ -436,13 +436,12 @@ int retry_queries(void) {
         goto done;
 
     for (int i = 0; i < plans.nsamples; i++) {
-        dump_plan(&plans.plans[i]);
+//        dump_plan(&plans.plans[i]);
         struct sqlclntstate clnt;
         rc = run_internal_sql_with_params(&clnt, plans.plans[i].sql, plans.plans[i].nparams, plans.plans[i].params);
         if (rc)
             return rc;
         // TODO: examine here
-        printf("%s cost %f\n", clnt.sql, clnt.query_stats->cost);
         end_internal_sql_clnt(&clnt);
     }
 
