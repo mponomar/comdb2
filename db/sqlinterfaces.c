@@ -1817,7 +1817,6 @@ static int do_commitrollback(struct sqlthdstate *thd, struct sqlclntstate *clnt)
         }
 
         case TRANLEVEL_SOSQL:
-
             if (clnt->ctrl_sqlengine == SQLENG_FNSH_RBK_STATE) {
                 /* user cancelled the transaction */
                 clnt->osql.xerr.errval = SQLITE_INTERNAL;
@@ -6759,4 +6758,14 @@ void wait_for_transactions(void) {
     }
     if (ntrans && nwaits)
         logmsg(LOGMSG_INFO, "giving up and exiting with pending transactions\n");
+}
+
+int apply_systable_op(char *tblname, void *payload, uint32_t len, int op, int isundo) {
+    // TODO: yet another clever registration system? YAGNI?
+    if (strcmp(tblname, "comdb2_log_bloat") == 0) {
+        return process_bloat(payload, len);
+    } else {
+        return 0;
+    }
+    return 0;
 }

@@ -62,6 +62,7 @@ int handle_repblob(DB_ENV *dbenv, u_int32_t rectype, llog_repblob_args *repblob,
 int bdb_blkseq_recover(DB_ENV *dbenv, u_int32_t rectype,
                        llog_blkseq_args *repblob, DB_LSN *lsn, db_recops op);
 
+
 int bdb_apprec(DB_ENV *dbenv, DBT *log_rec, DB_LSN *lsn, db_recops op)
 {
     u_int32_t rectype, *bp;
@@ -89,6 +90,7 @@ int bdb_apprec(DB_ENV *dbenv, DBT *log_rec, DB_LSN *lsn, db_recops op)
 
     llog_rowlocks_log_bench_args *rl_log_bench;
     llog_commit_log_bench_args *c_log_bench;
+    llog_systable_op_args *systbl_op;
 
     int rc;
     bdb_state_type *bdb_state;
@@ -277,6 +279,14 @@ int bdb_apprec(DB_ENV *dbenv, DBT *log_rec, DB_LSN *lsn, db_recops op)
             return rc;
         logp = c_log_bench;
         rc = handle_commit_log_bench(dbenv, rectype, c_log_bench, lsn, op);
+        break;
+
+    case DB_llog_systable_op:
+        rc = llog_systable_op_read(dbenv, log_rec->data, &systbl_op);
+        if (rc)
+            return rc;
+        logp = systbl_op;
+        rc = handle_systable_op(dbenv, rectype, systbl_op, lsn, op);
         break;
 
     default:

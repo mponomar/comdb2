@@ -5076,6 +5076,7 @@ int sqlite3BtreeRollback(Btree *pBt, int dummy, int writeOnlyDummy)
     struct sqlclntstate *clnt = thd->clnt;
     int rc = SQLITE_OK;
 
+    printf("rollback\n");
     /*
      * fprintf(stderr, "sqlite3BtreeRollback %d %d\n", clnt->intrans,
      * clnt->ctrl_sqlengine );
@@ -8270,6 +8271,7 @@ BtCursor *sqlite3BtreeFakeValidCursor(void){
   return 0;
 }
 
+
 int sqlite3BtreeCursor(
     Vdbe *vdbe,               /* Vdbe running the show */
     Btree *pBt,               /* BTree containing table to open */
@@ -8404,6 +8406,18 @@ int sqlite3BtreeCursor(
     if (debug_switch_cursor_deadlock())
         return SQLITE_DEADLOCK;
 
+    return rc;
+}
+
+int sqlite3BtreeSystableCursor(BtCursor *cur, const char *tableName) {
+    struct sql_thread *thd = pthread_getspecific(query_info_key);
+    int rootpage = get_rootpage_for_table("comdb2_sysdummy", thd->rootpages, thd->rootpage_nentries);
+    if (rootpage == -1)
+        return -1;
+    int rc = sqlite3BtreeCursor((Vdbe*) thd->clnt->dbtran.pStmt, thd->bt, rootpage, 1, 1, NULL, cur);
+    // system table names are static - lifetime of this string shouldn't expire
+    if (rc == SQLITE_OK)
+        cur->systable_name = tableName;
     return rc;
 }
 

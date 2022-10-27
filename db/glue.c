@@ -3918,6 +3918,8 @@ int open_bdb_env(struct dbenv *dbenv)
                      (BDB_CALLBACK_FP)osql_checkboard_check_down_nodes);
     bdb_callback_set(dbenv->bdb_callback, BDB_CALLBACK_SERIALCHECK,
                      serial_check_callback);
+    bdb_callback_set(dbenv->bdb_callback, BDB_CALLBACK_SYSTABLEOP,
+                     apply_systable_op);
 /*
     bdb_callback_set(dbenv->bdb_callback, BDB_CALLBACK_UNDOSERIAL,
             osql_checkboard_foreach_serial);

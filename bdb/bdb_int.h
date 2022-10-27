@@ -692,6 +692,7 @@ struct bdb_callback_tag {
     UNDOSHADOWFP undoshadow_rtn;
     NODEDOWNFP nodedown_rtn;
     SERIALCHECK serialcheck_rtn;
+    SYSTABLEOP systableop_rtn;
 };
 
 struct waiting_for_lsn {

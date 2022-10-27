@@ -264,3 +264,11 @@ DBT lock2     DBT s
 POINTER prevllsn  DB_LSN * lu
 END
 
+/*
+ * Log an event for a "system table"
+ */
+BEGIN systable_op  10022
+ARG op        int d
+DBT tablename DBT s
+DBT payload   DBT s
+END

@@ -4027,7 +4027,7 @@ static int process_berkdb(bdb_state_type *bdb_state, char *host, DBT *control,
     /* give it to berkeley db */
     time1 = comdb2_time_epoch();
 
-#ifdef _LINUX_SOURCE
+#if _LINUX_SOURCE && !_DARWIN_C_SOURCE
     rm.tid = syscall(__NR_gettid);
 #else
     rm.tid = getpid();

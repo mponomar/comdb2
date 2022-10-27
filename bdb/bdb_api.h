@@ -95,6 +95,7 @@ enum {
     BDB_CALLBACK_NODE_IS_DOWN,
     BDB_CALLBACK_SERIALCHECK,
     BDB_CALLBACK_ADMIN_APPSOCK,
+    BDB_CALLBACK_SYSTABLEOP
 };
 
 enum { BDB_REPFAIL_NET, BDB_REPFAIL_TIMEOUT, BDB_REPFAIL_RMTBDB };
@@ -389,6 +390,8 @@ typedef int (*BDBSETFILELWMFP)(int *);
    tables to account for committed deletes and hide adds */
 struct bdb_osql_log;
 typedef void (*UNDOSHADOWFP)(struct bdb_osql_log *);
+
+typedef int (*SYSTABLEOP)(char *tbname, void *payload, uint32_t len, int op, int isundo);
 
 typedef int (*BDB_CALLBACK_FP)();
 bdb_callback_type *bdb_callback_create(void);

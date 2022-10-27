@@ -12,6 +12,8 @@
 #include "ezsystables.h"
 #include "types.h"
 #include "comdb2systbl.h"
+#include "sqliteInt.h"
+#include "sqlite_btree.h"
 
 /* This tries to make it easier to add system tables. There's usually lots of
  * boilerplate code. A common case though is that you have an array of
@@ -37,6 +39,7 @@ struct systable {
     int size;
     int (*init)(void **data, int *npoints);
     void (*release)(void *data, int npoints);
+    struct BtCursor *pCur;
 };
 
 struct ez_systable_vtab {
@@ -51,6 +54,7 @@ struct ez_systable_cursor {
     int64_t rowid;
     void *data;
     int npoints;
+    struct BtCursor *pCur;
 };
 typedef struct ez_systable_cursor ez_systable_cursor;
 
@@ -108,14 +112,30 @@ static int systbl_open(sqlite3_vtab *p, sqlite3_vtab_cursor **ppCursor){
     pCur->rowid = 0;
     pCur->t = t;
     rc = t->init(&pCur->data, &pCur->npoints);
+    if (rc)
+        return rc;
     *ppCursor = (sqlite3_vtab_cursor*) pCur;
-    return rc;
+    pCur->pCur = NULL;
+    t->pCur = NULL;
+    return sqlite3BtreeSystableCursor(pCur->pCur, t->name);
 }
 
 static int systbl_close(sqlite3_vtab_cursor *cur){
     struct ez_systable_cursor *pCur = (struct ez_systable_cursor*) cur;
     struct systable *t = pCur->t;
+    printf("close %s\n", t->name);
+    if (pCur->pCur) {
+        printf("close cursor from cursor %p\n", pCur->pCur);
+        sqlite3BtreeCloseCursor(pCur->pCur);
+        pCur->pCur = NULL;
+    }
+    if (pCur->t->pCur) {
+        printf("close cursor from table %p\n", pCur->t->pCur);
+        sqlite3BtreeCloseCursor(pCur->t->pCur);
+        pCur->t->pCur = NULL;
+    }
     t->release(pCur->data, pCur->npoints);
+    free(pCur->pCur);
     free(pCur);
     return SQLITE_OK;
 }
@@ -255,8 +275,6 @@ static int systbl_column(
             sqlite3_result_interval(ctx, &interval);
             break;
 		}
-
-
     }
 
     return rc;
@@ -375,4 +393,35 @@ int create_system_table(sqlite3 *db, char *name, sqlite3_module *module,
     va_end(args);
 
     return 0;
+}
+
+// A peculiar thing about the SQLite virtual table interface is that operations that write a virtual table
+// don't open a cursor on it - there's no VOpen done.  So we associate a cursor with the table itself because
+// our interface assumes all operations happen through a cursor.
+BtCursor *get_systable_cursor_from_table(sqlite3_vtab *vtab) {
+    struct ez_systable_vtab *eztab = (struct ez_systable_vtab*) vtab;
+    struct systable *sys = eztab->t;
+    if (!sys->pCur) {
+        sys->pCur = calloc(1, sqlite3BtreeCursorSize());
+        sqlite3BtreeSystableCursor(sys->pCur, sys->name);
+    }
+    return sys->pCur;
+}
+
+BtCursor *get_systable_cursor_from_cursor(sqlite3_vtab_cursor *cur) {
+    struct ez_systable_cursor *pCur = (struct ez_systable_cursor*) cur;
+    if (!pCur->pCur) {
+        pCur->pCur = calloc(1, sqlite3BtreeCursorSize());
+        sqlite3BtreeSystableCursor(pCur->pCur, pCur->t->name);
+    }
+    return pCur->pCur;
+}
+
+void put_systable_cursor_from_table(sqlite3_vtab *vtab) {
+    struct ez_systable_vtab *eztab = (struct ez_systable_vtab*) vtab;
+    struct systable *sys = eztab->t;
+    if (sys->pCur) {
+        sqlite3BtreeCloseCursor(sys->pCur);
+        sys->pCur = NULL;
+    }
 }

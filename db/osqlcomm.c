@@ -5849,6 +5849,7 @@ static void *osql_heartbeat_thread(void *arg)
 /* this function routes the packet in the case of local communication */
 static int net_local_route_packet(int usertype, void *data, int datalen)
 {
+    printf("%s\n", __func__);
     switch (usertype) {
     case NET_OSQL_BLOCK_RPL:
     case NET_OSQL_BLOCK_RPL_UUID:
@@ -6816,6 +6817,7 @@ int osql_process_packet(struct ireq *iq, unsigned long long rqid, uuid_t uuid,
     int type;
     unsigned long long id;
     char *msg = *pmsg;
+    printf("%s\n", __func__);
 
     if (rqid == OSQL_RQID_USE_UUID) {
         osql_uuid_rpl_t rpl;
@@ -7081,6 +7083,7 @@ int osql_process_packet(struct ireq *iq, unsigned long long rqid, uuid_t uuid,
     } break;
     case OSQL_INSREC:
     case OSQL_INSERT: {
+        printf("insert\n");
         osql_ins_t dt;
         unsigned char *pData = NULL;
         int rrn = 0;
@@ -7116,7 +7119,15 @@ int osql_process_packet(struct ireq *iq, unsigned long long rqid, uuid_t uuid,
             osql_set_delayed(iq);
         }
 
-        rc = add_record(iq, trans, tag_name_ondisk,
+        printf("hi!!!!: %s\n", iq->usedb->tablename);
+        if (strcmp(iq->usedb->tablename, "comdb2_sysdummy") == 0) {
+            // TODO: make this undoable? If had sysdummy, go over list of opcodes, and call to undo?
+            rc = do_systable_insert(trans, pData, dt.nData);
+            if (rc)
+                err->errcode = OP_FAILED_INTERNAL;
+        }
+        else
+            rc = add_record(iq, trans, tag_name_ondisk,
                         tag_name_ondisk + tag_name_ondisk_len, /*tag*/
                         pData, pData + dt.nData,               /*dta*/
                         NULL,            /*nulls, no need as no
@@ -7652,6 +7663,20 @@ int osql_process_packet(struct ireq *iq, unsigned long long rqid, uuid_t uuid,
 
     return 0;
 }
+
+int do_systable_insert(void *trans, void *data, int len) {
+    if (len < MAXTABLELEN) {
+        logmsg(LOGMSG_ERROR, "Unexpected systable message length: %d\n", len);
+        return -1;
+    }
+    char *tbl = (char*) data;
+    data = (char*) data + MAXTABLELEN;
+
+    // TODO: some clever registration system to apply?  some other clever system to log?
+    // HERE: call into apply_systable_op
+    return 0;
+}
+
 
 #define OSQL_BP_MAXLEN (32 * 1024)
 
