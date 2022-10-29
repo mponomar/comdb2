@@ -176,6 +176,7 @@ if (${CMAKE_C_COMPILER_ID} STREQUAL GNU OR ${CMAKE_C_COMPILER_ID} STREQUAL Clang
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-function")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-switch")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-deprecated-declarations")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-maybe-uninitialized")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-misleading-indentation")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wignored-qualifiers")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")

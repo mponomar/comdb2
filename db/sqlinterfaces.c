@@ -6760,12 +6760,7 @@ void wait_for_transactions(void) {
         logmsg(LOGMSG_INFO, "giving up and exiting with pending transactions\n");
 }
 
-int apply_systable_op(char *tblname, void *payload, uint32_t len, int op, int isundo) {
-    // TODO: yet another clever registration system? YAGNI?
-    if (strcmp(tblname, "comdb2_log_bloat") == 0) {
-        return process_bloat(payload, len);
-    } else {
-        return 0;
-    }
-    return 0;
+int apply_systable_op(char *tablename, void *payload, uint32_t payload_size, int op, int isundo) {
+    return do_systable_operation(NULL, tablename, op, payload, payload_size, isundo ? SQL_SYSTABLE_OP_UNDO : SQL_SYSTABLE_OP_APPLY);
+
 }

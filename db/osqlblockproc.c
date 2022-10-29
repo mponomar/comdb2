@@ -1835,3 +1835,14 @@ abort_sc:
     bdb_thread_event(thedb->bdb_env, BDBTHR_EVENT_DONE_RDWR);
     return NULL;
 }
+
+int do_systable_operation(void *trans, const char *tablename, uint16_t op, void *payload, uint32_t payload_size, sql_systable_recops recop) {
+    // TODO: yet another clever registration system? YAGNI?
+    printf("hi, in %s: table %s, op %hu payload_size %u recop %d\n", __func__, tablename, op, payload_size, (int) recop);
+    if (strcmp(tablename, "comdb2_log_bloat") == 0) {
+        return process_bloat(trans, payload, payload_size, recop);
+    } else {
+        return 0;
+    }
+    return 0;
+}

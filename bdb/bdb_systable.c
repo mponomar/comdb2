@@ -50,21 +50,35 @@ int handle_systable_op(DB_ENV *dbenv, u_int32_t rectype, llog_systable_op_args *
         break;
 
     case DB_TXN_PRINT:
-        // TODO: implement, register so cdb2_printlog also prints, the usual
+        printf("[%lu][%lu]scdone: rec: %lu txnid %lx prevlsn[%lu][%lu]\n",
+               (u_long)lsn->file, (u_long)lsn->offset, (u_long)rectype,
+               (u_long)args->txnid->txnid, (u_long)args->prev_lsn.file,
+               (u_long)args->prev_lsn.offset);
+            printf("\top: %d\n", args->op);
+            printf("\ttable: %.*s\n", (int) args->tablename.size, (char*) args->tablename.data);
+            printf("\tpayload_size: %u\n", args->payload.size);
+        printf("\n");
         break;
 
         default:
             return EINVAL;
     }
+
     if (isundo)
         *lsn = args->prev_lsn;
 
-    if (bdb_state->callback->systableop_rtn) {
+    if (op == DB_TXN_FORWARD_ROLL || op == DB_TXN_BACKWARD_ROLL) {
+        rc = 0;
+        goto done;
+    }
+
+    if (bdb_state && bdb_state->callback && bdb_state->callback->systableop_rtn) {
         rc = bdb_state->callback->systableop_rtn(tablename, args->payload.data, args->payload.size, args->op, isundo);
         if (rc)
             return EINVAL;
     }
 
+done:
     return rc;
 }
 

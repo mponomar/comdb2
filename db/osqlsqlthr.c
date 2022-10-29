@@ -82,6 +82,9 @@ static int osql_send_abort_logic(struct sqlclntstate *clnt, int nettype);
 static int check_osql_capacity(struct sql_thread *thd);
 static int access_control_check_sql_write(struct BtCursor *pCur,
                                           struct sql_thread *thd);
+static int osql_systable_op_send_logic(struct sql_thread *thd, uint16_t op, const char *tablename, const void *payload,
+                                uint32_t payload_size);
+
 
 #ifndef NDEBUG
 #define DEBUG_PRINT_NUMOPS()                                                   \
@@ -382,6 +385,76 @@ static int osql_send_ins_logic(struct BtCursor *pCur, struct sql_thread *thd,
             return rc;
         }
     }
+    osql->replicant_numops++;
+    DEBUG_PRINT_NUMOPS();
+    return SQLITE_OK;
+}
+
+
+/* TODO: I'm not saying protobuf for osql types, but maybe protobuf for osql types?
+ *       This assumes you're adding a new type that's a subtype of NET_OSQL_RPL.  If not, you
+ *       also want to add net handlers for it in osql_comm_init. If it's a subtype of NET_OSQL_RPL, the
+ *       type should start with a osql_uuid_rpl_t header, with the correct type and transaction uuid set, followed
+ *       by the type data.
+ *       * osqlcomm.c:
+ *       *   Define type
+ *       *   Hand-compute OSQLCOMM_${TYPE}_LEN for type
+ *       *   BB_COMPILE_TIME_ASSERT for type
+ *       *   Write buf_get, buf_put for type
+ *       *   Weite osql_send_${type} which sends
+ *       * osqlthr.c:
+ *       *   osql_${type} code which saves op and calls osql_send_${type}_logic it if sosql, along with retry loop
+ *       *   osql_send_${type}_logic to wrap the send
+ *       * osqlshadtbl.c:
+ *       *   Write osql_save_${type} which records it in a temptable for replays (maybe a generic temptable for "here send this blob")?
+ *       *   Make sure it's referenced in osql_shadtbl_process
+ *       * osqlcomm.c:
+ *       *   osql_process_packet - process the new type
+*/
+int osql_systable_op(struct sql_thread *thd, uint16_t op, const char *tablename,
+        const void *payload, uint32_t payload_size)
+{
+    int rc = 0;
+    int restarted = 0;
+    struct sqlclntstate *clnt = thd->clnt;
+
+    if ((rc = check_osql_capacity(thd)))
+        return rc;
+
+    if (clnt->dbtran.mode == TRANLEVEL_SOSQL) {
+        START_SOCKSQL;
+        do {
+            rc = osql_systable_op_send_logic(thd, op, tablename, payload, payload_size);
+            printf("osql_systable_op_send_logic send rc %d\n", rc);
+            RESTART_SOCKSQL;
+        } while (restarted);
+        if (rc) {
+            logmsg(LOGMSG_ERROR,
+                   "%s:%d %s - failed to send socksql systable_op rc=%d\n", __FILE__,
+                   __LINE__, __func__, rc);
+            return rc;
+        }
+    }
+
+    // TODO: save
+
+    return rc;
+}
+
+static int osql_systable_op_send_logic(struct sql_thread *thd, uint16_t op, const char *tablename, const void *payload,
+                                uint32_t payload_size) {
+    osqlstate_t *osql = &thd->clnt->osql;
+    int rc = 0;
+
+    rc = osql_send_systable_op(osql->host, osql->uuid, op, tablename, payload, payload_size);
+    printf("osql_send_systable_op rc %d\n", rc);
+    if (rc) {
+        logmsg(LOGMSG_ERROR,
+               "%s:%d %s - failed to send systable op op %hu table %s payload_size %"PRIu32" row rc=%d\n", __FILE__,
+               __LINE__, __func__, op, tablename, payload_size, rc);
+        return rc;
+    }
+
     osql->replicant_numops++;
     DEBUG_PRINT_NUMOPS();
     return SQLITE_OK;

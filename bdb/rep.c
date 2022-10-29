@@ -3677,7 +3677,7 @@ void send_filenum_to_all(bdb_state_type *bdb_state, int filenum, int nodelay)
 {
     int rc;
     int count;
-    int filenum_net;
+    int filenum_net = 0;
     const char *hostlist[REPMAX];
     int i;
     uint8_t *p_buf, *p_buf_end;

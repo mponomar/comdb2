@@ -99,8 +99,13 @@ void bdb_callback_set(bdb_callback_type *bdb_callback, int callback_type,
     case BDB_CALLBACK_NODE_IS_DOWN:
         bdb_callback->nodedown_rtn = (NODEDOWNFP)callback_rtn;
         break;
+
     case BDB_CALLBACK_SERIALCHECK:
         bdb_callback->serialcheck_rtn = (SERIALCHECK)callback_rtn;
+        break;
+
+    case BDB_CALLBACK_SYSTABLEOP:
+        bdb_callback->systableop_rtn = (SYSTABLEOP)callback_rtn;
         break;
     /*
         case BDB_CALLBACK_UNDOSHADOW:

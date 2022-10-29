@@ -6758,9 +6758,9 @@ int get_data(BtCursor *pCur, struct schema *sc, uint8_t *in, int fnum, Mem *m,
         rc = SERVER_BINT_to_CLIENT_INT(
             in, f->len, NULL /*convopts */, NULL /*blob */, &ival, sizeof(ival),
             &null, &outdtsz, &convopts, NULL /*blob */);
-        m->u.i = ival;
         if (rc == -1)
             goto done;
+        m->u.i = ival;
         if (null) {
             m->flags = MEM_Null;
         } else {
@@ -8406,18 +8406,6 @@ int sqlite3BtreeCursor(
     if (debug_switch_cursor_deadlock())
         return SQLITE_DEADLOCK;
 
-    return rc;
-}
-
-int sqlite3BtreeSystableCursor(BtCursor *cur, const char *tableName) {
-    struct sql_thread *thd = pthread_getspecific(query_info_key);
-    int rootpage = get_rootpage_for_table("comdb2_sysdummy", thd->rootpages, thd->rootpage_nentries);
-    if (rootpage == -1)
-        return -1;
-    int rc = sqlite3BtreeCursor((Vdbe*) thd->clnt->dbtran.pStmt, thd->bt, rootpage, 1, 1, NULL, cur);
-    // system table names are static - lifetime of this string shouldn't expire
-    if (rc == SQLITE_OK)
-        cur->systable_name = tableName;
     return rc;
 }
 
@@ -11902,10 +11890,10 @@ static int get_data_from_ondisk(struct schema *sc, uint8_t *in,
         rc = SERVER_UINT_to_CLIENT_INT(
             in, f->len, NULL /*convopts */, NULL /*blob */, &ival, sizeof(ival),
             &null, &outdtsz, NULL /*convopts */, NULL /*blob */);
-        ival = flibc_ntohll(ival);
-        m->u.i = ival;
         if (rc == -1)
             goto done;
+        ival = flibc_ntohll(ival);
+        m->u.i = ival;
         if (null)
             m->flags = MEM_Null;
         else
@@ -11916,10 +11904,10 @@ static int get_data_from_ondisk(struct schema *sc, uint8_t *in,
         rc = SERVER_BINT_to_CLIENT_INT(
             in, f->len, NULL /*convopts */, NULL /*blob */, &ival, sizeof(ival),
             &null, &outdtsz, NULL /*convopts */, NULL /*blob */);
+         if (rc == -1)
+            goto done;
         ival = flibc_ntohll(ival);
         m->u.i = ival;
-        if (rc == -1)
-            goto done;
         if (null) {
             m->flags = MEM_Null;
         } else {
@@ -11932,10 +11920,10 @@ static int get_data_from_ondisk(struct schema *sc, uint8_t *in,
         rc = SERVER_BREAL_to_CLIENT_REAL(
             in, f->len, NULL /*convopts */, NULL /*blob */, &dval, sizeof(dval),
             &null, &outdtsz, NULL /*convopts */, NULL /*blob */);
-        dval = flibc_ntohd(dval);
-        m->u.r = dval;
         if (rc == -1)
             goto done;
+        dval = flibc_ntohd(dval);
+        m->u.r = dval;
         if (null)
             m->flags = MEM_Null;
         else
@@ -12786,4 +12774,8 @@ int comdb2_is_field_indexable(const char *table_name, int fld_idx) {
         }
     }
     return 1;
+}
+
+struct sql_thread* sql_current_thread(void) {
+    return (struct sql_thread*) pthread_getspecific(query_info_key);
 }

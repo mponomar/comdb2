@@ -304,3 +304,11 @@ err:
 
     return rc;
 }
+
+int bdb_log_systable_op(bdb_state_type *bdb_state, void *trans, uint16_t op, const char *tablename, void *payload, uint32_t payload_size) {
+    tran_type *t = (tran_type*) trans;
+    DB_LSN lsn;
+    DBT dbt_tablename = { .data = (void*) tablename, .size = strlen(tablename)+1 };
+    DBT dbt_payload = { .data = (void*) payload, .size = payload_size };
+    return llog_systable_op_log(bdb_state->dbenv, t->tid, &lsn, 0, op, &dbt_tablename, &dbt_payload);
+}

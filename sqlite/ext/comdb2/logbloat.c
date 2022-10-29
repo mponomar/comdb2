@@ -21,6 +21,7 @@
 #define SQLITE_CORE 1
 #endif
 
+#include <unistd.h>
 #include "comdb2.h"
 #include "sqlite3.h"
 #include "comdb2systblInt.h"
@@ -49,11 +50,9 @@ static void no_op_free(void *data, int npoints) {
 }
 
 struct bloatrec {
-    char table[MAXTABLELEN];
     int64_t size;
     int64_t sleep;
 };
-
 
 int systblLogBloat(sqlite3 *db) {
     int rc = create_system_table(db, "comdb2_log_bloat", &systblLogBloatModule,
@@ -88,47 +87,68 @@ static int addSomeBloat(
         return SQLITE_CONSTRAINT;
     }
 
-    // TODO: a new cursor class?  No point for this table to actually exist
-    // This is a cursor to a dummy table.  The table itself must exist, and gets saved opcodes on the SQL side
-    // like any other table, but osql_process_packet treats writes to this table differently - it'll cause a
-    // custom log record to be written and a custom action (in this case writing a dummy log record of a given
-    // length, but really anything) to be carried out.  Then the same handler code is called on the replicant
-    // when the custom log record is processed.
-
-    // The get/put cursor logic is regrettable but necessary - SQLite doesn't call open on a virtual table
-    // for an insert, so we don't create a cursor, but need some way to have a temporary cursor on which to
-    // call write.
-    BtCursor *pCur = get_systable_cursor_from_table(pVTab);
-    struct sql_thread *sqlthd = pthread_getspecific(query_info_key);
-
     struct bloatrec rec = {
-            .table = "comdb2_log_bloat",
             .size = flibc_htonll(argv[2]->u.i),
             .sleep = flibc_htonll(argv[3]->u.i)
     };
 
-    blob_buffer_t blobs[MAXBLOBS] = {0};
-    int rc = osql_insrec(pCur, sqlthd, (char*) &rec, sizeof(struct bloatrec), blobs, MAXBLOBS, 0);
+    struct sql_thread *thd = sql_current_thread();
+    int rc = osql_systable_op(thd, 0, "comdb2_log_bloat", &rec, sizeof(rec));
     if (rc) {
-        pVTab->zErrMsg = sqlite3_mprintf("osql_save_insrec rc %d for table comdb2_log_bloat");
+        pVTab->zErrMsg = sqlite3_mprintf("osql_systable_op returned %d", rc);
+        return SQLITE_INTERNAL;
     }
-    put_systable_cursor_from_table(pVTab);
-
-    return rc;
+    return 0;
 }
 
-int process_bloat(void *payload, uint32_t len) {
+int process_bloat(void *trans, void *payload, uint32_t len, sql_systable_recops recop) {
     struct bloatrec rec;
     int sz = (int) (sizeof(struct bloatrec) - offsetof(struct bloatrec, size));
-    if (len != sizeof(struct bloatrec) - offsetof(struct bloatrec, size)) {
-        logmsg(LOGMSG_ERROR, "Unexpected bloat size? len %"PRIu32" expected %d", len, sz);
+    int rc;
+
+    if (recop != SQL_SYSTABLE_OP_DO && recop != SQL_SYSTABLE_OP_APPLY) {
+        logmsg(LOGMSG_ERROR, "%s: unexpected recop %d?", __func__, (int) recop);
         return -1;
     }
+    if (len != sizeof(struct bloatrec)) {
+        logmsg(LOGMSG_ERROR, "%s: unexpected bloat size? len %"PRIu32" expected %d", __func__, len, sz);
+        return -1;
+    }
+
     memcpy(&rec.size, payload, len);
     rec.size = flibc_htonll(rec.size);
     rec.sleep = flibc_htonll(rec.sleep);
-    printf("sz %d sleep %d\n", (int) rec.size, (int) rec.sleep);
-    return 0;
+    printf("%s as %s sz %d sleep %d\n", __func__, recop == SQL_SYSTABLE_OP_DO ? "master" : "replicant", (int) rec.size, (int) rec.sleep);
+
+    // Who are we?  If we're on the master, we need to log the event so the replicants see it.  If we're on a
+    // replicant we need to process it.  recop tells us which it is.
+    if (recop == SQL_SYSTABLE_OP_DO) {
+        // we're the master and need to log something for the replicant to do
+        uint32_t bytes_left = rec.size;
+        // bloat the log by writing (ignored) debug records
+        while (bytes_left > 0) {
+            static const int maxbloat_chunk = (1026*1024);
+            uint32_t bloatsize = bytes_left > maxbloat_chunk ? maxbloat_chunk : bytes_left;
+            rc = bdb_debug_log(thedb->bdb_env, trans, 1, bloatsize);
+            if (rc)
+                goto done;
+            bytes_left -= bloatsize;
+        }
+        rc = bdb_log_systable_op(thedb->bdb_env, trans, 0, "comdb2_log_bloat", payload, len);
+        if (rc)
+            goto done;
+    }
+    else {
+        // we're a replicant and are applying the thing logged by the master
+        if (rec.sleep) {
+            printf("sleeping for %d seconds\n", (int) rec.sleep);
+            sleep(rec.sleep);
+        }
+        rc = 0;
+    }
+
+done:
+    return rc;
 }
 
 #endif /* (!defined(SQLITE_CORE) || defined(SQLITE_BUILDING_FOR_COMDB2))       \

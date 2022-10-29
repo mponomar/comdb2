@@ -1369,8 +1369,21 @@ int sqlite3_unpacked_to_packed(Mem *mems, int nmems, char **ret_rec,
 
 int get_rootpage_for_table(const char *table, master_entry_t *ents, int nents);
 
-int apply_systable_op(char *tblname, void *payload, uint32_t len, int op, int isundo);
+int apply_systable_op(char *tablename, void *payload, uint32_t payload_size, int op, int isundo);
 
-int process_bloat(void *payload, uint32_t len);
+// This is analogous to db_recops in db.h - tells the calling code if we're applying or rolling back, and if
+// on replicant or master.
+typedef enum {
+    SQL_SYSTABLE_OP_DO     = 1,   /* On master, apply in a transaction */
+    SQL_SYSTABLE_OP_UNDO,         /* TODO: On master, transaction aborted, roll it back */
+    SQL_SYSTABLE_OP_APPLY         /* On replicant, committed on master, apply */
+    /* We don't have cases where we get called in forward/reverse recovery */
+} sql_systable_recops;
+int do_systable_operation(void *trans, const char *tablename, uint16_t op, void *payload,
+                          uint32_t payload_size, sql_systable_recops recop);
+
+int process_bloat(void *trans, void *payload, uint32_t len, sql_systable_recops recop);
+
+struct sql_thread* sql_current_thread(void);
 
 #endif /* _SQL_H_ */
