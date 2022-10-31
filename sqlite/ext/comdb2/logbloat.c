@@ -27,6 +27,8 @@
 #include "comdb2systblInt.h"
 #include "sql.h"
 #include "ezsystables.h"
+#include "bdb_api.h"
+#include "bdb_systable.h"
 
 static int addSomeBloat(
         sqlite3_vtab *pVTab,
@@ -64,8 +66,7 @@ int systblLogBloat(sqlite3 *db) {
 }
 
 // This is the xUpdate handler.  It gets called on the replicant side.  Its job is to generate an opcode
-// to the master to actually generate the bloat.  It probably should be a new opcode, but is instead
-// handled as a write to a special comdb2_sysdummy table.  This call isn't to be confused with process_bloat
+// to the master to actually generate the bloat.  This call isn't to be confused with process_bloat
 // which is what's called on the replicant when the bloat is logged and processed.
 static int addSomeBloat(
         sqlite3_vtab *pVTab,
@@ -141,7 +142,6 @@ int process_bloat(void *trans, void *payload, uint32_t len, sql_systable_recops 
     else {
         // we're a replicant and are applying the thing logged by the master
         if (rec.sleep) {
-            printf("sleeping for %d seconds\n", (int) rec.sleep);
             sleep(rec.sleep);
         }
         rc = 0;

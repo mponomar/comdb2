@@ -6339,7 +6339,7 @@ int net_init(netinfo_type *netinfo_ptr)
     host_node_type *host_node_ptr;
 
     /* block SIGPIPE */
-    sighold(SIGPIPE);
+    signal(SIGPIPE, SIG_IGN);
 
     /* do nothing if we have a fake netinfo */
     if (netinfo_ptr->fake)

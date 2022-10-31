@@ -5076,7 +5076,6 @@ int sqlite3BtreeRollback(Btree *pBt, int dummy, int writeOnlyDummy)
     struct sqlclntstate *clnt = thd->clnt;
     int rc = SQLITE_OK;
 
-    printf("rollback\n");
     /*
      * fprintf(stderr, "sqlite3BtreeRollback %d %d\n", clnt->intrans,
      * clnt->ctrl_sqlengine );
@@ -6758,9 +6757,9 @@ int get_data(BtCursor *pCur, struct schema *sc, uint8_t *in, int fnum, Mem *m,
         rc = SERVER_BINT_to_CLIENT_INT(
             in, f->len, NULL /*convopts */, NULL /*blob */, &ival, sizeof(ival),
             &null, &outdtsz, &convopts, NULL /*blob */);
+        m->u.i = ival;
         if (rc == -1)
             goto done;
-        m->u.i = ival;
         if (null) {
             m->flags = MEM_Null;
         } else {
@@ -8270,7 +8269,6 @@ BtCursor *sqlite3BtreeFakeValidCursor(void){
   /* TODO: Do something here. */
   return 0;
 }
-
 
 int sqlite3BtreeCursor(
     Vdbe *vdbe,               /* Vdbe running the show */
@@ -11890,10 +11888,10 @@ static int get_data_from_ondisk(struct schema *sc, uint8_t *in,
         rc = SERVER_UINT_to_CLIENT_INT(
             in, f->len, NULL /*convopts */, NULL /*blob */, &ival, sizeof(ival),
             &null, &outdtsz, NULL /*convopts */, NULL /*blob */);
-        if (rc == -1)
-            goto done;
         ival = flibc_ntohll(ival);
         m->u.i = ival;
+        if (rc == -1)
+            goto done;
         if (null)
             m->flags = MEM_Null;
         else
@@ -11904,10 +11902,10 @@ static int get_data_from_ondisk(struct schema *sc, uint8_t *in,
         rc = SERVER_BINT_to_CLIENT_INT(
             in, f->len, NULL /*convopts */, NULL /*blob */, &ival, sizeof(ival),
             &null, &outdtsz, NULL /*convopts */, NULL /*blob */);
-         if (rc == -1)
-            goto done;
         ival = flibc_ntohll(ival);
         m->u.i = ival;
+        if (rc == -1)
+            goto done;
         if (null) {
             m->flags = MEM_Null;
         } else {
@@ -11920,10 +11918,10 @@ static int get_data_from_ondisk(struct schema *sc, uint8_t *in,
         rc = SERVER_BREAL_to_CLIENT_REAL(
             in, f->len, NULL /*convopts */, NULL /*blob */, &dval, sizeof(dval),
             &null, &outdtsz, NULL /*convopts */, NULL /*blob */);
-        if (rc == -1)
-            goto done;
         dval = flibc_ntohd(dval);
         m->u.r = dval;
+        if (rc == -1)
+            goto done;
         if (null)
             m->flags = MEM_Null;
         else

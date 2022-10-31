@@ -12,8 +12,6 @@
 #include "ezsystables.h"
 #include "types.h"
 #include "comdb2systbl.h"
-#include "sqliteInt.h"
-#include "sqlite_btree.h"
 
 /* This tries to make it easier to add system tables. There's usually lots of
  * boilerplate code. A common case though is that you have an array of
@@ -36,10 +34,9 @@ struct systable {
     char *name;
     int nfields;
     struct sysfield *fields;
-    size_t size;
+    int size;
     int (*init)(void **data, int *npoints);
     void (*release)(void *data, int npoints);
-    struct BtCursor *pCur;
 };
 
 struct ez_systable_vtab {
@@ -54,7 +51,6 @@ struct ez_systable_cursor {
     int64_t rowid;
     void *data;
     int npoints;
-    struct BtCursor *pCur;
 };
 typedef struct ez_systable_cursor ez_systable_cursor;
 
@@ -89,7 +85,6 @@ static int systbl_connect(
     strbuf_append(sql, ");");
     int rc = sqlite3_declare_vtab(db, strbuf_buf(sql));
     strbuf_free(sql);
-    printf(">> %s rc %d\n", strbuf_buf(sql), rc);
     if (rc == SQLITE_OK) {
         ez_systable_vtab *vtab = calloc(1, sizeof(ez_systable_vtab));
         vtab->t = pAux;
@@ -102,7 +97,7 @@ static int systbl_best_index(
   sqlite3_vtab *tab,
   sqlite3_index_info *pIdxInfo
 ){
-    return SQLITE_OK;
+  return SQLITE_OK;
 }
 
 static int systbl_open(sqlite3_vtab *p, sqlite3_vtab_cursor **ppCursor){
@@ -113,27 +108,14 @@ static int systbl_open(sqlite3_vtab *p, sqlite3_vtab_cursor **ppCursor){
     pCur->rowid = 0;
     pCur->t = t;
     rc = t->init(&pCur->data, &pCur->npoints);
-    if (rc)
-        return rc;
     *ppCursor = (sqlite3_vtab_cursor*) pCur;
-    pCur->pCur = NULL;
-    t->pCur = NULL;
-    return 0;
+    return rc;
 }
 
 static int systbl_close(sqlite3_vtab_cursor *cur){
     struct ez_systable_cursor *pCur = (struct ez_systable_cursor*) cur;
     struct systable *t = pCur->t;
-    if (pCur->pCur) {
-        sqlite3BtreeCloseCursor(pCur->pCur);
-        pCur->pCur = NULL;
-    }
-    if (pCur->t->pCur) {
-        sqlite3BtreeCloseCursor(pCur->t->pCur);
-        pCur->t->pCur = NULL;
-    }
     t->release(pCur->data, pCur->npoints);
-    free(pCur->pCur);
     free(pCur);
     return SQLITE_OK;
 }
@@ -273,6 +255,8 @@ static int systbl_column(
             sqlite3_result_interval(ctx, &interval);
             break;
 		}
+
+
     }
 
     return rc;
@@ -356,7 +340,6 @@ int create_system_table(sqlite3 *db, char *name, sqlite3_module *module,
     sys->init = init_callback;
     sys->release = release_callback;
     sys->fields = NULL;
-    sys->pCur = NULL;
 
     va_list args;
     va_start(args, struct_size);

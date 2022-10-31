@@ -47,6 +47,7 @@
 #include "llog_ext.h"
 #include "llog_handlers.h"
 #include "dbinc/db_swap.h"
+#include "bdb_systable.h"
 #endif
 
 #include <ctrace.h>
@@ -61,7 +62,6 @@ int handle_repblob(DB_ENV *dbenv, u_int32_t rectype, llog_repblob_args *repblob,
                    DB_LSN *lsn, db_recops op);
 int bdb_blkseq_recover(DB_ENV *dbenv, u_int32_t rectype,
                        llog_blkseq_args *repblob, DB_LSN *lsn, db_recops op);
-
 
 int bdb_apprec(DB_ENV *dbenv, DBT *log_rec, DB_LSN *lsn, db_recops op)
 {
@@ -286,7 +286,7 @@ int bdb_apprec(DB_ENV *dbenv, DBT *log_rec, DB_LSN *lsn, db_recops op)
         if (rc)
             return rc;
         logp = systbl_op;
-        rc = handle_systable_op(dbenv, rectype, systbl_op, lsn, op);
+        rc = bdb_handle_systable_op(dbenv, rectype, systbl_op, lsn, op);
         break;
 
     default:
@@ -303,12 +303,4 @@ err:
         free(logp);
 
     return rc;
-}
-
-int bdb_log_systable_op(bdb_state_type *bdb_state, void *trans, uint16_t op, const char *tablename, void *payload, uint32_t payload_size) {
-    tran_type *t = (tran_type*) trans;
-    DB_LSN lsn;
-    DBT dbt_tablename = { .data = (void*) tablename, .size = strlen(tablename)+1 };
-    DBT dbt_payload = { .data = (void*) payload, .size = payload_size };
-    return llog_systable_op_log(bdb_state->dbenv, t->tid, &lsn, 0, op, &dbt_tablename, &dbt_payload);
 }

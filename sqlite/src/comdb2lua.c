@@ -379,9 +379,9 @@ void comdb2DropScalarFunc(Parse *parse, Token *proc)
 #endif
 
     if (comdb2AuthenticateUserOp(parse))
-        return;
+       return;
 
-	comdb2DropFunc(parse, proc, s, scalar);
+    comdb2DropFunc(parse, proc, s, scalar);
 }
 
 void comdb2DropAggFunc(Parse *parse, Token *proc)

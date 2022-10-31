@@ -11,6 +11,7 @@ add_library(bdb
   bdb_osqllog.c
   bdb_osqltrn.c
   bdb_schemachange.c
+  bdb_systable.c
   bdb_thd_io.c
   bdb_verify.c
   bdblock.c
@@ -56,7 +57,7 @@ add_library(bdb
   tranread.c
   upd.c
   util.c
-        bdb_systable.c bdb_systable.h)
+)
 
 set(module bdb)
 set(MODULE BDB)

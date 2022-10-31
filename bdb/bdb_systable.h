@@ -17,4 +17,11 @@
 #ifndef INCLUDED_BDB_SYSTABLE_H
 #define INCLUDED_BDB_SYSTABLE_H
 
+#include "db.h"
+#include "llog_auto.h"
+
+int bdb_handle_systable_op(DB_ENV *dbenv, u_int32_t rectype, llog_systable_op_args *args, DB_LSN *lsn, db_recops op);
+int bdb_log_systable_op(bdb_state_type *bdb_state, void *trans, uint16_t op, const char *tablename,
+                        void *payload, uint32_t payload_size);
+
 #endif

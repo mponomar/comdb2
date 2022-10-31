@@ -21,12 +21,11 @@
 #include "llog_auto.h"
 #include "llog_ext.h"
 #include "llog_handlers.h"
-#include "bdb_systable.h"
 
 // Handle a custom "systable" event.  This is a quick and easy way for us to get "writable" systables - where writing
 // has some side effect.  This is the bdb side of things - lots of the usual boilerplate, some bounds checks, and
 // the call to sql code that takes the payload and hopefully knows what to do with it.
-int handle_systable_op(DB_ENV *dbenv, u_int32_t rectype, llog_systable_op_args *args, DB_LSN *lsn, db_recops op) {
+int bdb_handle_systable_op(DB_ENV *dbenv, u_int32_t rectype, llog_systable_op_args *args, DB_LSN *lsn, db_recops op) {
     bdb_state_type *bdb_state;
     bdb_state = dbenv->app_private;
     int isundo = 0;
@@ -82,3 +81,10 @@ done:
     return rc;
 }
 
+int bdb_log_systable_op(bdb_state_type *bdb_state, void *trans, uint16_t op, const char *tablename, void *payload, uint32_t payload_size) {
+    tran_type *t = (tran_type*) trans;
+    DB_LSN lsn;
+    DBT dbt_tablename = { .data = (void*) tablename, .size = strlen(tablename)+1 };
+    DBT dbt_payload = { .data = (void*) payload, .size = payload_size };
+    return llog_systable_op_log(bdb_state->dbenv, t->tid, &lsn, 0, op, &dbt_tablename, &dbt_payload);
+}

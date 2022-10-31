@@ -3677,7 +3677,7 @@ void send_filenum_to_all(bdb_state_type *bdb_state, int filenum, int nodelay)
 {
     int rc;
     int count;
-    int filenum_net = 0;
+    int net_filenum = 0;
     const char *hostlist[REPMAX];
     int i;
     uint8_t *p_buf, *p_buf_end;
@@ -3688,7 +3688,7 @@ void send_filenum_to_all(bdb_state_type *bdb_state, int filenum, int nodelay)
     if (!bdb_state->caught_up)
         filenum = 0;
 
-    p_buf = (uint8_t *)&filenum_net;
+    p_buf = (uint8_t *)&net_filenum;
     p_buf_end = p_buf + sizeof(int);
 
     buf_put(&filenum, sizeof(int), p_buf, p_buf_end);
@@ -3696,7 +3696,7 @@ void send_filenum_to_all(bdb_state_type *bdb_state, int filenum, int nodelay)
     count = net_get_all_nodes_connected(bdb_state->repinfo->netinfo, hostlist);
     for (i = 0; i < count; i++) {
         rc = net_send(bdb_state->repinfo->netinfo, hostlist[i],
-                      USER_TYPE_BERKDB_FILENUM, &filenum_net, sizeof(int),
+                      USER_TYPE_BERKDB_FILENUM, &net_filenum, sizeof(int),
                       nodelay);
         if (rc)
             logmsg(LOGMSG_WARN, "%s:%d rc = %d\n", __FILE__, __LINE__, rc);

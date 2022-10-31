@@ -1817,6 +1817,7 @@ static int do_commitrollback(struct sqlthdstate *thd, struct sqlclntstate *clnt)
         }
 
         case TRANLEVEL_SOSQL:
+
             if (clnt->ctrl_sqlengine == SQLENG_FNSH_RBK_STATE) {
                 /* user cancelled the transaction */
                 clnt->osql.xerr.errval = SQLITE_INTERNAL;
@@ -6762,5 +6763,4 @@ void wait_for_transactions(void) {
 
 int apply_systable_op(char *tablename, void *payload, uint32_t payload_size, int op, int isundo) {
     return do_systable_operation(NULL, tablename, op, payload, payload_size, isundo ? SQL_SYSTABLE_OP_UNDO : SQL_SYSTABLE_OP_APPLY);
-
 }

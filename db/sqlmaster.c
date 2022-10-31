@@ -494,11 +494,3 @@ int get_rootpage_numbers(int nums)
     return tmp | 0x40000000; /* we allocate these nodes separately from local
                                 rootpages */
 }
-
-int get_rootpage_for_table(const char *table, master_entry_t *ents, int nents) {
-    for (int i = 0; i < nents; i++) {
-        if (ents[i].ixnum == -1 && strcasecmp(ents[i].tblname, table) == 0)
-            return ents[i].rootpage;
-    }
-    return -1;
-}

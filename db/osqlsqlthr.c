@@ -425,7 +425,6 @@ int osql_systable_op(struct sql_thread *thd, uint16_t op, const char *tablename,
         START_SOCKSQL;
         do {
             rc = osql_systable_op_send_logic(thd, op, tablename, payload, payload_size);
-            printf("osql_systable_op_send_logic send rc %d\n", rc);
             RESTART_SOCKSQL;
         } while (restarted);
         if (rc) {
@@ -447,7 +446,6 @@ static int osql_systable_op_send_logic(struct sql_thread *thd, uint16_t op, cons
     int rc = 0;
 
     rc = osql_send_systable_op(osql->host, osql->uuid, op, tablename, payload, payload_size);
-    printf("osql_send_systable_op rc %d\n", rc);
     if (rc) {
         logmsg(LOGMSG_ERROR,
                "%s:%d %s - failed to send systable op op %hu table %s payload_size %"PRIu32" row rc=%d\n", __FILE__,
@@ -1076,7 +1074,6 @@ int osql_sock_commit(struct sqlclntstate *clnt, int type)
     int rcout = 0;
     int retries = 0;
     int bdberr = 0;
-    printf("%s\n", __func__);
 
     if (gbl_is_physical_replicant) {
         logmsg(LOGMSG_ERROR, "%s attempted write against physical replicant\n", __func__);

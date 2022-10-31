@@ -1077,9 +1077,6 @@ struct BtCursor {
     void *query_preparer_data;
 
     int permissions; /* permissions for read/write access to table */
-
-    // If this is a systable cursor, the name of the systable it refers to
-    const char *systable_name;
 };
 
 struct sql_hist {
@@ -1366,8 +1363,6 @@ int check_sql_client_disconnect(struct sqlclntstate *clnt, char *file, int line)
 /* Convert a sequence of Mem * to a serialized sqlite row */
 int sqlite3_unpacked_to_packed(Mem *mems, int nmems, char **ret_rec,
                                int *ret_rec_len);
-
-int get_rootpage_for_table(const char *table, master_entry_t *ents, int nents);
 
 int apply_systable_op(char *tablename, void *payload, uint32_t payload_size, int op, int isundo);
 

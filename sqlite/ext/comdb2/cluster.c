@@ -11,9 +11,7 @@
 #include "bdb_api.h"
 
 static int get_cluster(void **data, int *num_points) {
-    int rc = bdb_fill_cluster_info(data, num_points);
-    printf("%s: %d npoints %d\n", __func__, rc, *num_points);
-    return rc;
+    return bdb_fill_cluster_info(data, num_points);
 }
 
 static void free_cluster(void *data, int num_points) {
