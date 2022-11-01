@@ -2756,67 +2756,6 @@ static const uint8_t *osqlcomm_recgenid_type_get(osql_recgenid_t *p_recgenid,
     return p_buf;
 }
 
-typedef struct osql_systable_op {
-    uint32_t payload_size;
-    uint16_t tablenamelen;
-    uint16_t op;
-    char tablename[1];
-    /* payload follows */
-} osql_systable_op_t;
-
-enum { OSQLCOMM_SYSTABLE_OP_TYPE_LEN = 8  };
-
-BB_COMPILE_TIME_ASSERT(osql_systable_op_type_len, offsetof(osql_systable_op_t, tablename) == OSQLCOMM_SYSTABLE_OP_TYPE_LEN);
-
-static const uint8_t *osqlcomm_systable_op_type_get(osql_systable_op_t *p_systable_op, const uint8_t *p_buf, const uint8_t *p_buf_end) {
-    if (p_buf_end < p_buf || (p_buf_end - p_buf) < OSQLCOMM_SYSTABLE_OP_TYPE_LEN)
-        return NULL;
-
-    p_buf = buf_get(&p_systable_op->payload_size, sizeof(p_systable_op->payload_size), p_buf, p_buf_end);
-    if (p_buf == NULL)
-        return NULL;
-
-    p_buf = buf_get(&p_systable_op->tablenamelen, sizeof(p_systable_op->tablenamelen), p_buf, p_buf_end);
-    if (p_buf == NULL)
-        return NULL;
-
-    p_buf = buf_get(&p_systable_op->op, sizeof(p_systable_op->op), p_buf, p_buf_end);
-    if (p_buf == NULL)
-        return NULL;
-
-    return p_buf;
-}
-
-static uint8_t* osqlcomm_systable_op_type_put(uint16_t op, const char *tablename, const void *payload, uint32_t payload_size,
-                                              uint8_t *p_buf, const uint8_t *p_buf_end) {
-    uint16_t tablename_len = strlen(tablename) + 1;
-
-    if ((p_buf_end - p_buf) < (OSQLCOMM_SYSTABLE_OP_TYPE_LEN + tablename_len + payload_size))
-        return NULL;
-
-    p_buf = buf_put(&payload_size, sizeof(payload_size), p_buf, p_buf_end);
-    if (p_buf == NULL)
-        return NULL;
-
-    p_buf = buf_put(&tablename_len, sizeof(tablename_len), p_buf, p_buf_end);
-    if (p_buf == NULL)
-        return NULL;
-
-    p_buf = buf_put(&op, sizeof(op), p_buf, p_buf_end);
-    if (p_buf == NULL)
-        return NULL;
-
-    p_buf = buf_no_net_put(tablename, tablename_len, p_buf, p_buf_end);
-    if (p_buf == NULL)
-        return NULL;
-
-    p_buf = buf_no_net_put(payload, payload_size, p_buf, p_buf_end);
-    if (p_buf == NULL)
-        return NULL;
-
-    return p_buf;
-}
-
 typedef struct osql_recgenid_rpl {
     osql_rpl_t hd;
     osql_recgenid_t dt;
@@ -6628,7 +6567,6 @@ static inline int is_write_request(int type)
     case OSQL_INSERT:
     case OSQL_UPDREC:
     case OSQL_UPDATE:
-    case OSQL_SYSTABLE_OP:
         return 1;
     default:
         return 0;
@@ -7703,45 +7641,6 @@ int osql_process_packet(struct ireq *iq, unsigned long long rqid, uuid_t uuid,
         return rc;
     } break;
 
-    case OSQL_SYSTABLE_OP: {
-        osql_systable_op_t dt = {0};
-        p_buf_end = p_buf + sizeof(dt);
-        p_buf = osqlcomm_systable_op_type_get(&dt, p_buf, p_buf_end);
-        uuidstr_t us;
-        comdb2uuidstr(uuid, us);
-        if (p_buf == NULL) {
-            logmsg(LOGMSG_ERROR, "%s [%llx %s] couldn't decode systable_op "
-                                 "failing the transaction\n",
-                   __func__, id, us);
-            return -1;
-        }
-        p_buf_end += dt.payload_size + dt.tablenamelen;
-        if ((p_buf_end - (uint8_t*) *pmsg) < msglen) {
-            logmsg(LOGMSG_ERROR, "%s [%llx %s] couldn't decode systable_op, suspicious size, (msglen %d diff %d)"
-                                 "failing the transaction\n",
-                   __func__, id, us, msglen, (int) (p_buf_end - (uint8_t*) *pmsg));
-        }
-        char *tablename = malloc(dt.tablenamelen);
-        void *payload = malloc(dt.payload_size);
-        p_buf = buf_no_net_get(tablename, dt.tablenamelen, p_buf, p_buf_end);
-        p_buf = buf_no_net_get(payload, dt.payload_size, p_buf, p_buf_end);
-        if (p_buf == NULL) {
-            logmsg(LOGMSG_ERROR, "%s [%llx %s] couldn't decode systable_op "
-                                 "failing the transaction\n",
-                   __func__, id, us);
-            free(tablename);
-            free(payload);
-            break;
-        }
-
-        // TODO: do we call it with DB_TXN_ABORT if this rolls back?
-        do_systable_operation(trans, tablename, dt.op, payload, dt.payload_size, SQL_SYSTABLE_OP_DO);
-
-        free(tablename);
-        free(payload);
-        break;
-    }
-
     default: {
         uuidstr_t us;
         logmsg(LOGMSG_ERROR, "%s [%llu %s] RECEIVED AN UNKNOWN OFF OPCODE %u, "
@@ -8507,35 +8406,6 @@ int osql_log_packet(struct ireq *iq, unsigned long long rqid, uuid_t uuid,
                     lclgenid, lclgenid);
 
     } break;
-
-    case OSQL_SYSTABLE_OP: {
-        osql_systable_op_t dt = {0};
-        p_buf_end = p_buf + sizeof(dt);
-        p_buf = (uint8_t*) osqlcomm_systable_op_type_get(&dt, p_buf, p_buf_end);
-        if (p_buf == NULL) {
-            logmsg(LOGMSG_ERROR, "%s [%llx %s] couldn't decode systable_op "
-                                 "failing the transaction\n",
-                   __func__, id, us);
-        }
-        p_buf_end += dt.payload_size + dt.tablenamelen;
-        char *tablename = malloc(dt.tablenamelen);
-        void *payload = malloc(dt.payload_size);
-        p_buf = (uint8_t*) buf_no_net_get(tablename, dt.tablenamelen, p_buf, p_buf_end);
-        p_buf = (uint8_t*) buf_no_net_get(payload, dt.payload_size, p_buf, p_buf_end);
-        if (p_buf == NULL) {
-            logmsg(LOGMSG_ERROR, "%s [%llx %s] couldn't decode systable_op "
-                                 "failing the transaction\n",
-                   __func__, id, us);
-            free(tablename);
-            free(payload);
-            break;
-        }
-        sbuf2printf(logsb, "[%llx %s] OSQL_SYSTABLE_OP op=%hd table=%s payload_len=%"PRIu32"\n", id, us,
-            dt.op, tablename, dt.payload_size);
-        free(tablename);
-        free(payload);
-        break;
-    }
 
     default:
 
@@ -9807,32 +9677,6 @@ freemem:
     if (p_buf)
         free(p_buf);
 
-    return rc;
-}
-
-
-int osql_send_systable_op(char *tohost, uuid_t uuid, uint16_t op, const char *tablename, const void *payload, uint32_t payload_size) {
-    size_t len = OSQLCOMM_UUID_RPL_TYPE_LEN + OSQLCOMM_SYSTABLE_OP_TYPE_LEN + strlen(tablename) + 1 + payload_size;
-    uint8_t *p_buf = malloc(len);
-    uint8_t *p_buf_end = p_buf + len;
-    uint8_t *p_buf_start = p_buf;
-    int rc = 0;
-
-    osql_uuid_rpl_t hd;
-    hd.type = OSQL_SYSTABLE_OP;
-    comdb2uuidcpy(hd.uuid, uuid);
-
-    p_buf = osqlcomm_uuid_rpl_type_put(&hd, p_buf, p_buf_end);
-    p_buf = osqlcomm_systable_op_type_put(op, tablename, payload, payload_size, p_buf, p_buf_end);
-    if (p_buf == NULL) {
-        logmsg(LOGMSG_ERROR, "%s:%s returns NULL\n", __func__,
-               "osqlcomm_systable_op_type_put");
-        rc = -1;
-        goto done;
-    }
-    rc = offload_net_send(tohost, NET_OSQL_SOCK_RPL_UUID, p_buf_start, p_buf_end - p_buf_start, 0);
-done:
-    free(p_buf_start);
     return rc;
 }
 

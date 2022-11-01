@@ -354,8 +354,7 @@ enum OSQL_RPL_TYPE {
     OSQL_INSIDX = 25, /* new osql type to support indexes on expressions */
     OSQL_STARTGEN = 27,
     OSQL_DONE_WITH_EFFECTS = 28,
-    OSQL_SYSTABLE_OP = 29,
-    MAX_OSQL_TYPES = 30,
+    MAX_OSQL_TYPES = 29,
 };
 
 enum DEBUGREQ { DEBUG_METADB_PUT = 1 };

@@ -199,9 +199,6 @@ int osql_send_commit_by_uuid(char *tohost, uuid_t uuid, int nops,
 int osql_send_startgen(char *tohost, unsigned long long rqid, uuid_t uuid,
                        uint32_t start_gen, int type, SBUF2 *logsb);
 
-int osql_send_systable_op(char *tohost, uuid_t uuid, uint16_t op, const char *tablename,
-                          const void *payload, uint32_t payload_size);
-
 /**
  * Send decomission for osql net
  *

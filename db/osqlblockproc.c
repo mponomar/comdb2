@@ -1836,8 +1836,7 @@ abort_sc:
     return NULL;
 }
 
-int do_systable_operation(void *trans, const char *tablename, uint16_t op, void *payload, uint32_t payload_size, sql_systable_recops recop) {
-    // TODO: yet another clever registration system? YAGNI?
+int do_systable_add(void *trans, const char *tablename, void *payload, uint32_t payload_size, sql_systable_recops recop) {
     if (strcmp(tablename, "comdb2_log_bloat") == 0) {
         return process_bloat(trans, payload, payload_size, recop);
     } else {

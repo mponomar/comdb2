@@ -6762,5 +6762,12 @@ void wait_for_transactions(void) {
 }
 
 int apply_systable_op(char *tablename, void *payload, uint32_t payload_size, int op, int isundo) {
-    return do_systable_operation(NULL, tablename, op, payload, payload_size, isundo ? SQL_SYSTABLE_OP_UNDO : SQL_SYSTABLE_OP_APPLY);
+    switch (op) {
+        case 0:
+            return do_systable_add(NULL, tablename, payload, payload_size, isundo ? SQL_SYSTABLE_OP_UNDO : SQL_SYSTABLE_OP_APPLY);
+            break;
+        default:
+            logmsg(LOGMSG_ERROR, "unknown systable op? %s op %d\n", tablename, op);
+            return -1;
+    }
 }

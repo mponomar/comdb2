@@ -94,7 +94,7 @@ static int addSomeBloat(
     };
 
     struct sql_thread *thd = sql_current_thread();
-    int rc = osql_systable_op(thd, 0, "comdb2_log_bloat", &rec, sizeof(rec));
+    int rc = osql_systable_add(thd, "comdb2_log_bloat", &rec, sizeof(rec));
     if (rc) {
         pVTab->zErrMsg = sqlite3_mprintf("osql_systable_op returned %d", rc);
         return SQLITE_INTERNAL;

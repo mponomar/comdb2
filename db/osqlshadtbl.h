@@ -192,4 +192,7 @@ int osql_shadtbl_empty(struct sqlclntstate *clnt);
  */
 int osql_shadtbl_usedb_only(struct sqlclntstate *clnt);
 
+
+int osql_save_systable_add(struct sql_thread *thd, const char *tablename, const void *payload, uint32_t payload_size);
+
 #endif

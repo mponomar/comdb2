@@ -1374,7 +1374,8 @@ typedef enum {
     SQL_SYSTABLE_OP_APPLY         /* On replicant, committed on master, apply */
     /* We don't have cases where we get called in forward/reverse recovery */
 } sql_systable_recops;
-int do_systable_operation(void *trans, const char *tablename, uint16_t op, void *payload,
+
+int do_systable_add(void *trans, const char *tablename, void *payload,
                           uint32_t payload_size, sql_systable_recops recop);
 
 int process_bloat(void *trans, void *payload, uint32_t len, sql_systable_recops recop);

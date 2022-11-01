@@ -212,9 +212,9 @@ int osql_dbq_consume_logic(struct sqlclntstate *, const char *spname, genid_t);
 int osql_dbq_consume(struct sqlclntstate *, const char *spname, genid_t);
 
 /**
- * Save/send a systable operation
+ * Save/send a systable operation add
  */
-int osql_systable_op(struct sql_thread *thd, uint16_t op, const char *tablename,
+int osql_systable_add(struct sql_thread *thd,  const char *tablename,
         const void *payload, uint32_t payload_size);
 
 #endif

@@ -34,6 +34,7 @@ static int exec_rowlocks_enable(void *tran, bpfunc_t *func,
 static int exec_genid48_enable(void *tran, bpfunc_t *func, struct errstat *err);
 static int exec_set_skipscan(void *tran, bpfunc_t *func, struct errstat *err);
 static int exec_delete_from_sc_history(void *tran, bpfunc_t *func, struct errstat *err);
+static int exec_systable_add(void *tran, bpfunc_t *func, struct errstat *err);
 /********************      UTILITIES     ***********************/
 
 static int empty(void *tran, bpfunc_t *func, struct errstat *err)
@@ -120,6 +121,9 @@ static int prepare_methods(bpfunc_t *func, bpfunc_info *info)
         func->exec = exec_delete_from_sc_history;
         break;
 
+    case BPFUNC_SYSTABLE_ADD:
+        func->exec = exec_systable_add;
+        break;
 
     default:
         logmsg(LOGMSG_ERROR, "Unknown function_id in bplog function\n");
@@ -579,4 +583,12 @@ static int exec_delete_from_sc_history(void *tran, bpfunc_t *func,
     if (rc)
         errstat_set_rcstrf(err, rc, "%s failed delete", __func__);
     return rc;
+}
+
+static int exec_systable_add(void *tran, bpfunc_t *func, struct errstat *err)
+{
+    // TODO: do we call it with DB_TXN_ABORT if this rolls back?
+    return do_systable_add(tran, func->arg->systable_add->tablename,
+                          func->arg->systable_add->payload.data,
+                          func->arg->systable_add->payload.len, SQL_SYSTABLE_OP_DO);
 }
