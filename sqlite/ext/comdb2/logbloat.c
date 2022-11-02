@@ -107,10 +107,9 @@ int process_bloat(void *trans, void *payload, uint32_t len, sql_systable_recops 
     int sz = (int) (sizeof(struct bloatrec) - offsetof(struct bloatrec, size));
     int rc;
 
-    if (recop != SQL_SYSTABLE_OP_DO && recop != SQL_SYSTABLE_OP_APPLY) {
-        logmsg(LOGMSG_ERROR, "%s: unexpected recop %d?", __func__, (int) recop);
-        return -1;
-    }
+    if (recop == SQL_SYSTABLE_OP_UNDO)
+        return 0;
+
     if (len != sizeof(struct bloatrec)) {
         logmsg(LOGMSG_ERROR, "%s: unexpected bloat size? len %"PRIu32" expected %d", __func__, len, sz);
         return -1;
@@ -119,7 +118,6 @@ int process_bloat(void *trans, void *payload, uint32_t len, sql_systable_recops 
     memcpy(&rec.size, payload, len);
     rec.size = flibc_htonll(rec.size);
     rec.sleep = flibc_htonll(rec.sleep);
-    printf("%s as %s sz %d sleep %d\n", __func__, recop == SQL_SYSTABLE_OP_DO ? "master" : "replicant", (int) rec.size, (int) rec.sleep);
 
     // Who are we?  If we're on the master, we need to log the event so the replicants see it.  If we're on a
     // replicant we need to process it.  recop tells us which it is.
