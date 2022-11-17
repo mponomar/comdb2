@@ -799,6 +799,8 @@ int install_static_plugins(void);
 int run_init_plugins(int phase);
 extern void clear_sqlhist();
 
+int gbl_queue_walk_limit = 10000;
+
 int gbl_hostname_refresh_time = 60;
 
 int close_all_dbs_tran(tran_type *tran);
@@ -1252,7 +1254,7 @@ static void *purge_old_blkseq_thread(void *arg)
         /* queue consumer thread admin */
         thrman_where(thr_self, "dbqueue_admin");
         rdlock_schema_lk();
-        dbqueuedb_admin(dbenv);
+        dbqueuedb_admin(dbenv, NULL);
         unlock_schema_lk();
         thrman_where(thr_self, NULL);
 

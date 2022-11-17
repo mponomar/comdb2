@@ -2281,4 +2281,9 @@ REGISTER_TUNABLE("pgcomp_dbg_ctrace", "Enable debugging ctrace for page compacti
 REGISTER_TUNABLE("dump_history_on_too_many_verify_errors",
                  "Dump osql history and client info on too many verify errors (Default: off)", TUNABLE_BOOLEAN,
                  &gbl_dump_history_on_too_many_verify_errors, 0, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("queue_walk_limit",
+                 "When walking queues for metrics, stop after this many elements.  "
+                 "(Default: 10000)",
+                 TUNABLE_INTEGER, &gbl_queue_walk_limit, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+
 #endif /* _DB_TUNABLES_H */
