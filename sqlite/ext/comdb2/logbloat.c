@@ -140,7 +140,7 @@ int process_bloat(void *trans, void *payload, uint32_t len, sql_systable_recops 
     else {
         // we're a replicant and are applying the thing logged by the master
         if (rec.sleep) {
-            sleep(rec.sleep);
+            usleep(rec.sleep/1000);
         }
         rc = 0;
     }
