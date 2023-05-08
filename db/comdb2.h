@@ -1473,8 +1473,8 @@ struct ireq {
 
     int sc_running;
     int comdbg_flags;
-
     int64_t timestamp;
+    void (*ipc_sndbak)(struct ireq *, int rc, int len);
     /* REVIEW COMMENTS AT BEGINING OF STRUCT BEFORE ADDING NEW VARIABLES */
 };
 
@@ -1953,7 +1953,8 @@ enum comdb2_queue_types {
     REQ_SOCKET,
     REQ_OFFLOAD,
     REQ_SOCKREQUEST,
-    REQ_PQREQUEST
+    REQ_PQREQUEST,
+    REQ_SQLLEGACY
 };
 
 int handle_buf_main(
@@ -1962,7 +1963,15 @@ int handle_buf_main(
     char *fromtask, osql_sess_t *sorese, int qtype,
     void *data_hndl, // handle to data that can be used according to request
                      // type
-    int luxref, unsigned long long rqid);
+    int luxref, unsigned long long rqid, void (*iq_setup_func)(struct ireq*));
+
+int handle_buf_main2(struct dbenv *dbenv, SBUF2 *sb, const uint8_t *p_buf,
+                     const uint8_t *p_buf_end, int debug, char *frommach,
+                     int frompid, char *fromtask, osql_sess_t *sorese,
+                     int qtype, void *data_hndl, int luxref,
+                     unsigned long long rqid, void *p_sinfo, intptr_t curswap,
+                     int comdbg_flags, void (*iq_setup_func)(struct ireq*));
+
 int handle_buf(struct dbenv *dbenv, uint8_t *p_buf, const uint8_t *p_buf_end,
                int debug, char *frommach); /* 040307dh: 64bits */
 int handle_socket_long_transaction(struct dbenv *dbenv, SBUF2 *sb,

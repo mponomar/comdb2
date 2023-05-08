@@ -787,7 +787,10 @@ static int reterr(intptr_t curswap, struct thd *thd, struct ireq *iq, int rc)
         }
         UNLOCK(&lock);
     }
-    if (comdb2_ipc_sndbak && curswap) {
+    if (iq && iq->ipc_sndbak) {
+        iq->ipc_sndbak(iq, rc, iq->p_buf_out_end - iq->p_buf_out_start);
+    }
+    else if (comdb2_ipc_sndbak && curswap) {
         /* curswap is just a pointer to the buffer */
         int *ibuf = (int *)curswap;
         ibuf += 2;
@@ -845,7 +848,7 @@ int handle_buf_block_offload(struct dbenv *dbenv, uint8_t *p_buf,
     memcpy(p_bigbuf, p_buf, length);
     int rc = handle_buf_main(dbenv, NULL, p_bigbuf, p_bigbuf + length, debug,
                              frommach, 0, NULL, NULL, REQ_SOCKREQUEST, NULL, 0,
-                             rqid);
+                             rqid, NULL);
 
     return rc;
 }
@@ -856,7 +859,7 @@ int handle_socket_long_transaction(struct dbenv *dbenv, SBUF2 *sb,
                                    char *fromtask)
 {
     return handle_buf_main(dbenv, sb, p_buf, p_buf_end, debug, frommach,
-                           frompid, fromtask, NULL, REQ_SOCKET, NULL, 0, 0);
+                           frompid, fromtask, NULL, REQ_SOCKET, NULL, 0, 0, NULL);
 }
 
 void cleanup_lock_buffer(struct buf_lock_t *lock_buffer)
@@ -883,7 +886,7 @@ int handle_buf(struct dbenv *dbenv, uint8_t *p_buf, const uint8_t *p_buf_end,
                int debug, char *frommach) /* 040307dh: 64bits */
 {
     return handle_buf_main(dbenv, NULL, p_buf, p_buf_end, debug, frommach, 0,
-                           NULL, NULL, REQ_WAITFT, NULL, 0, 0);
+                           NULL, NULL, REQ_WAITFT, NULL, 0, 0, NULL);
 }
 
 int handled_queue;
@@ -934,7 +937,7 @@ static int init_ireq_legacy(struct dbenv *dbenv, struct ireq *iq, SBUF2 *sb,
 
     /* HERE: unpack and get the proper lux - req_hdr_get_and_fixup_lux */
     if (!(iq->p_buf_in = req_hdr_get(&hdr, iq->p_buf_in, iq->p_buf_in_end, iq->comdbg_flags))) {
-        logmsg(LOGMSG_ERROR, "handle_buf:failed to unpack req header\n");
+        logmsg(LOGMSG_ERROR, "%s:failed to unpack req header\n", __func__);
         return ERR_BADREQ;
     }
 
@@ -954,7 +957,7 @@ static int init_ireq_legacy(struct dbenv *dbenv, struct ireq *iq, SBUF2 *sb,
         iq->sb = NULL;
     }
 
-    if (iq->is_socketrequest) {
+    if (iq->is_socketrequest || qtype == REQ_SQLLEGACY) {
         iq->request_data = data_hndl;
     }
 
@@ -995,7 +998,7 @@ static int init_ireq_legacy(struct dbenv *dbenv, struct ireq *iq, SBUF2 *sb,
     }
 
     if (dbenv->num_dbs > 0 && (luxref < 0 || luxref >= dbenv->num_dbs)) {
-        logmsg(LOGMSG_ERROR, "handle_buf:luxref out of range %d max %d\n",
+        logmsg(LOGMSG_ERROR, "%s:luxref out of range %d max %d\n", __func__,
                luxref, dbenv->num_dbs);
         return ERR_REJECTED;
     }
@@ -1018,7 +1021,7 @@ int handle_buf_main2(struct dbenv *dbenv, SBUF2 *sb, const uint8_t *p_buf,
                      int frompid, char *fromtask, osql_sess_t *sorese,
                      int qtype, void *data_hndl, int luxref,
                      unsigned long long rqid, void *p_sinfo, intptr_t curswap,
-                     int comdbg_flags)
+                     int comdbg_flags, void (*iq_setup_func)(struct ireq*))
 {
     struct ireq *iq = NULL;
     int rc, num, ndispatch, iamwriter = 0;
@@ -1068,6 +1071,8 @@ int handle_buf_main2(struct dbenv *dbenv, SBUF2 *sb, const uint8_t *p_buf,
             return reterr(curswap, /*thd*/ 0, iq, rc);
         }
         iq->sorese = sorese;
+        if (iq_setup_func)
+            iq_setup_func(iq);
 
         if (iq->comdbg_flags == -1)
             iq->comdbg_flags = 0;
@@ -1293,11 +1298,12 @@ int handle_buf_main2(struct dbenv *dbenv, SBUF2 *sb, const uint8_t *p_buf,
 int handle_buf_main(struct dbenv *dbenv, SBUF2 *sb, const uint8_t *p_buf,
                     const uint8_t *p_buf_end, int debug, char *frommach,
                     int frompid, char *fromtask, osql_sess_t *sorese, int qtype,
-                    void *data_hndl, int luxref, unsigned long long rqid)
+                    void *data_hndl, int luxref, unsigned long long rqid, 
+                    void (*iq_setup_func)(struct ireq *))
 {
     return handle_buf_main2(dbenv, sb, p_buf, p_buf_end, debug, frommach,
                             frompid, fromtask, sorese, qtype, data_hndl, luxref,
-                            rqid, 0, 0, 0);
+                            rqid, 0, 0, 0, iq_setup_func);
 }
 
 void destroy_ireq(struct dbenv *dbenv, struct ireq *iq)
