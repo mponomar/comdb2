@@ -2947,6 +2947,50 @@ static void comdb2LastCostFunc(
   cost = comdb2_last_stmt_cost();
   sqlite3_result_int64(context, cost);
 }
+
+extern int do_comdb2_legacy(const char *appsock, void *payload, int payloadlen, int luxref, int flags, int *outlen);
+static void comdb2LegacyFunc(
+  sqlite3_context *context,
+  int NotUsed,
+  sqlite3_value **argv
+){
+  UNUSED_PARAMETER(NotUsed);
+   if( sqlite3_value_type(argv[0])!=SQLITE_TEXT ) {
+       sqlite3_result_error(context, "Expected request info as first argument", -1);
+       return;
+   }
+   if( sqlite3_value_type(argv[1])!=SQLITE_BLOB ) {
+       sqlite3_result_error(context, "Expected request payload blob info as second argument", -1);
+       return;
+   }
+   if( sqlite3_value_type(argv[2])!=SQLITE_INTEGER ) {
+       sqlite3_result_error(context, "Expected luxref as third argument", -1);
+       return;
+   }
+   if( sqlite3_value_type(argv[3])!=SQLITE_INTEGER ) {
+       sqlite3_result_error(context, "Expected flags as fourth argument", -1);
+       return;
+   }
+   uint8_t buf[65536];
+   const char *what = (const char*) sqlite3_value_text(argv[0]);
+   const void *payload = sqlite3_value_blob(argv[1]);
+   int payloadlen = sqlite3_value_bytes(argv[1]);
+   int luxref = sqlite3_value_int(argv[2]);
+   int flags = sqlite3_value_int(argv[3]);
+   // TBD - return errors - how? sql error, or pack in buffer?
+   if (payloadlen > sizeof(buf)) {
+       return;
+   }
+   memcpy(buf, payload, payloadlen);
+   int outlen = 0;
+   int rc = do_comdb2_legacy(what, buf, sizeof(buf)-1/* max bigrcv requests size*/, luxref, flags, &outlen);
+   if (rc) {
+       sqlite3_result_error(context, "errur", -1);
+       return;
+   }
+   sqlite3_result_blob(context, buf, outlen, NULL);
+}
+
 #endif
 
 /*
@@ -3091,6 +3135,7 @@ void sqlite3RegisterBuiltinFunctions(void){
     FUNCTION(comdb2_starttime,      0, 0, 0, comdb2StartTimeFunc),
     FUNCTION(comdb2_user,           0, 0, 0, comdb2UserFunc),
     FUNCTION(comdb2_last_cost,      0, 0, 0, comdb2LastCostFunc),
+    FUNCTION(comdb2_legacy,         4, 0, 0, comdb2LegacyFunc),
     FUNCTION(checksum_md5,          1, 0, 0, md5Func),
     FUNCTION(compress,              1, 0, 0, compressFunc),
     FUNCTION(uncompress,            1, 0, 0, uncompressFunc),
