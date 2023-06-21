@@ -1125,129 +1125,21 @@ static int newsql_fixed_columns(struct sqlclntstate *c, void *a) {
     return rc;
 }
 
-static int newsql_fixed_row(struct sqlclntstate *c, void *a) {
-    // TODO: newsql_row, newsql_row_lua and this are awfully similar.  The core is identical,
-    // except the part that fetches values.  Would be nice to combine them one day.
-    void *val;
-    int len;
-    struct fixed_row_source *rows = (struct fixed_row_source*) a;
-    // int (*fixed_values_callback)(struct sqlclntstate *, void *data, int rownum, int colnum, void **value, int *len);
-    int ncols = rows->ncolumns;
-    struct newsql_appdata *appdata = c->appdata;
-    int flip = 0;
-#if BYTE_ORDER == BIG_ENDIAN
-    if (appdata->sqlquery->little_endian)
-#elif BYTE_ORDER == LITTLE_ENDIAN
-    if (!appdata->sqlquery->little_endian)
-#endif
-         flip = 1;
+struct legacy_response {
+    int rc;
+    int outlen;
+    uint8_t buf[64*1024];
+};
 
-    /* nested column values */
-    CDB2SQLRESPONSE__Column cols[ncols];
-    CDB2SQLRESPONSE__Column *value[ncols];
-
-    /* flat column values */
-    ProtobufCBinaryData bd[ncols];
-    protobuf_c_boolean isnulls[ncols];
-
-    memset(&bd, 0, sizeof(ProtobufCBinaryData) * ncols);
-    memset(&isnulls, 0, sizeof(protobuf_c_boolean) * ncols);
-
-    for (int i = 0; i < ncols; ++i) {
-        int rc = rows->fixed_values_callback(c, rows, rows->rownum, i, &val, &len);
-        if (rc) {
-            printf("%s:%d rc %d\n", __func__, __LINE__, rc);
-            return rc;
-        }
-
-        if (!c->flat_col_vals)
-            value[i] = &cols[i];
-        cdb2__sqlresponse__column__init(&cols[i]);
-        if (val == NULL) {
-            newsql_null(cols, i);
-            if (c->flat_col_vals)
-                isnulls[i] = cols[i].has_isnull ? cols[i].isnull : 0;
-            continue;
-        }
-        int type = rows->types[i];
-        switch (type) {
-            case CDB2_INTEGER: {
-                int64_t i64 = *(int64_t*) val;
-                newsql_integer(cols, i, i64, flip);
-                break;
-            }
-            case CDB2_REAL: {
-                double d = *(double*) val;
-                newsql_double(cols, i, d, flip);
-                break;
-            }
-            case CDB2_CSTRING:
-            case CDB2_BLOB: {
-                cols[i].value.len = len;
-                cols[i].value.data = val;
-                break;
-            }
-            case CDB2_DATETIME:
-            case CDB2_DATETIMEUS: {
-                cdb2_client_datetime_t *c = alloca(sizeof(cdb2_client_datetime_t));
-                *c = *(cdb2_client_datetime_t*) val;
-                if (flip) {
-                    c->msec = flibc_intflip(c->msec);
-                    c->tm.tm_sec = flibc_intflip(c->tm.tm_sec);
-                    c->tm.tm_min = flibc_intflip(c->tm.tm_min);
-                    c->tm.tm_hour = flibc_intflip(c->tm.tm_hour);
-                    c->tm.tm_mday = flibc_intflip(c->tm.tm_mday);
-                    c->tm.tm_mon = flibc_intflip(c->tm.tm_mon);
-                    c->tm.tm_year = flibc_intflip(c->tm.tm_year);
-                    c->tm.tm_wday = flibc_intflip(c->tm.tm_wday);
-                    c->tm.tm_yday = flibc_intflip(c->tm.tm_yday);
-                    c->tm.tm_isdst = flibc_intflip(c->tm.tm_isdst);
-                }
-                cols[i].value.len = sizeof(*c);
-                cols[i].value.data = (uint8_t *)c;
-                break;
-            }
-            case CDB2_INTERVALYM: {
-                cdb2_client_intv_ym_t *c = alloca(sizeof(cdb2_client_intv_ym_t));
-                *c = *(cdb2_client_intv_ym_t*) val;
-                if (flip) {
-                    c->sign = flibc_intflip(c->sign);
-                    c->years = flibc_intflip(c->years);
-                    c->months = flibc_intflip(c->months);
-                } else {
-                    c->sign = c->sign;
-                    c->years = c->years;
-                    c->months = c->months;
-                }
-                cols[i].value.len = sizeof(*c);
-                cols[i].value.data = (uint8_t *)c;
-                break;
-            }
-            default:
-                printf("Unexpected type %d\n", type);
-                return -1;
-        }
-        if (c->flat_col_vals)
-            bd[i] = cols[i].value;
-    }
-
-    CDB2SQLRESPONSE r = CDB2__SQLRESPONSE__INIT;
-    r.response_type = RESPONSE_TYPE__COLUMN_VALUES;
-    if (c->flat_col_vals) {
-        r.has_flat_col_vals = 1;
-        r.flat_col_vals = 1;
-        r.n_values = r.n_isnulls = ncols;
-        r.values = bd;
-        r.isnulls = isnulls;
-    } else {
-        r.n_value = ncols;
-        r.value = value;
-    }
-
-    int rc = newsql_response(c, &r, !c->rowbuffer);
-    return rc;
+static int newsql_raw_payload(struct sqlclntstate *c, void *a) {
+    CDB2SQLRESPONSE r;
+    struct legacy_response *rsp = (struct legacy_response*)a;
+    r.response_type = RESPONSE_TYPE__RAW_DATA;
+    r.sqlite_row.data = rsp->buf;
+    r.sqlite_row.len = rsp->outlen;
+    r.error_code = rsp->rc;
+    return newsql_response_int(c, &r, RESPONSE_HEADER__SQL_RESPONSE_RAW, 0);
 }
-
 
 static int newsql_write_response(struct sqlclntstate *c, int t, void *a, int i)
 {
@@ -1284,6 +1176,7 @@ static int newsql_write_response(struct sqlclntstate *c, int t, void *a, int i)
     case RESPONSE_ROW_REMTRAN: return newsql_row_remtran(c, a, i);
     case RESPONSE_COLUMNS_FIXED: return newsql_fixed_columns(c, a);
     case RESPONSE_ROW_FIXED: return newsql_fixed_row(c, a);
+    case RESPONSE_RAW_PAYLOAD: return newsql_raw_payload(c, a);
     default:
         abort();
     }

@@ -1021,7 +1021,7 @@ int handle_buf_main2(struct dbenv *dbenv, SBUF2 *sb, const uint8_t *p_buf,
                      int frompid, char *fromtask, osql_sess_t *sorese,
                      int qtype, void *data_hndl, int luxref,
                      unsigned long long rqid, void *p_sinfo, intptr_t curswap,
-                     int comdbg_flags, void (*iq_setup_func)(struct ireq*))
+                     int comdbg_flags, void (*iq_setup_func)(struct ireq*), int doinline)
 {
     struct ireq *iq = NULL;
     int rc, num, ndispatch, iamwriter = 0;
@@ -1079,6 +1079,11 @@ int handle_buf_main2(struct dbenv *dbenv, SBUF2 *sb, const uint8_t *p_buf,
 
         if (p_buf && p_buf[7] == OP_FWD_BLOCK_LE)
             iq->comdbg_flags |= COMDBG_FLAG_FROM_LE;
+
+        if (doinline) {
+            handle_ireq(iq);
+            return 0;
+        }
 
 
         Pthread_mutex_lock(&lock);
@@ -1303,7 +1308,7 @@ int handle_buf_main(struct dbenv *dbenv, SBUF2 *sb, const uint8_t *p_buf,
 {
     return handle_buf_main2(dbenv, sb, p_buf, p_buf_end, debug, frommach,
                             frompid, fromtask, sorese, qtype, data_hndl, luxref,
-                            rqid, 0, 0, 0, iq_setup_func);
+                            rqid, 0, 0, 0, iq_setup_func, 0);
 }
 
 void destroy_ireq(struct dbenv *dbenv, struct ireq *iq)

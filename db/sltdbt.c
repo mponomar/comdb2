@@ -538,7 +538,7 @@ int handle_ireq(struct ireq *iq)
             iq->p_buf_out_end = iq->p_buf_out_start = iq->p_buf_out = NULL;
             iq->p_buf_in_end = iq->p_buf_in = NULL;
         } else if (iq->ipc_sndbak) {
-            iq->ipc_sndbak(iq, rc, iq->p_buf_out_end - iq->p_buf_out_start);
+            iq->ipc_sndbak(iq, rc, iq->p_buf_out - iq->p_buf_out_start);
         }
         else if (comdb2_ipc_sndbak_len_sinfo) {
             comdb2_ipc_sndbak_len_sinfo(iq, rc);
@@ -574,7 +574,7 @@ int handle_ireq(struct ireq *iq)
 
     /* Make sure we do not leak locks */
 
-    bdb_checklock(thedb->bdb_env);
+    // bdb_checklock(thedb->bdb_env);
 
     return rc;
 }

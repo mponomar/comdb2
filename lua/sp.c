@@ -7191,36 +7191,17 @@ static int exec_comdb2_legacy(struct sqlthdstate *thd, struct sqlclntstate *clnt
     blob_t b = arg[1].u.b;
     double luxref = arg[2].u.i;
     double flags = arg[3].u.i;
-    int outlen = 0;
 
-    char buf[64*1024] = {0};
+    struct legacy_response {
+        int rc;
+        int outlen;
+        char buf[64*1024];
+    } rsp;
+
     // TODO: check size
-    memcpy(buf, b.data, b.length);
-    rc = do_comdb2_legacy(what, buf, b.length, luxref, flags, &outlen);
-    b.data = buf;
-    b.length = outlen;
-
-    int types[2] = {
-        CDB2_BLOB,
-        CDB2_INTEGER
-    };
-    char *names[2] = {
-        "data",
-        "result"
-    };
-    struct legacy_response rsp;
-    struct fixed_row_source rows = {
-        .ncolumns = 2,
-        .types = types,
-        .names = names,
-        .data = &rsp,
-        .fixed_values_callback = legacy_request_values,
-    };
-    rsp.rc = rc;
-    rsp.result = b;
-    write_response(clnt, RESPONSE_COLUMNS_FIXED, &rows, 0);
-    write_response(clnt, RESPONSE_ROW_FIXED, &rows, 0);
-    write_response(clnt, RESPONSE_ROW_LAST, NULL, 0);
+    memcpy(rsp.buf, b.data, b.length);
+    rc = do_comdb2_legacy(what, rsp.buf, b.length, luxref, flags, &rsp.outlen);
+    write_response(clnt, RESPONSE_RAW_PAYLOAD, &rsp, 0);
 
     return 0;
 

@@ -13369,9 +13369,6 @@ void legacy_sndbak(struct ireq *iq, int rc, int len) {
     s = (struct stuff*) iq->request_data;
     s->len = len;
     s->rc = rc;
-    Pthread_mutex_lock(&s->lk);
-    Pthread_cond_signal(&s->wait);
-    Pthread_mutex_unlock(&s->lk);
 }
 
 static void legacy_iq_setup(struct ireq *iq) {
@@ -13381,14 +13378,8 @@ static void legacy_iq_setup(struct ireq *iq) {
 int do_comdb2_legacy(char *appsock, void *payload, int payloadlen, int luxref, int flags, int *outlen) {
     int rc;
     struct stuff userdata = {0};
-    Pthread_cond_init(&userdata.wait, NULL);
-    Pthread_mutex_init(&userdata.lk, NULL);
-    rc = handle_buf_main2(thedb, NULL, payload, payload + (1024*64), 0, "hi", 0, "hello", NULL, REQ_SQLLEGACY, &userdata, luxref, 0, NULL, 0, 0, legacy_iq_setup);
-    Pthread_mutex_lock(&userdata.lk);
-    Pthread_cond_wait(&userdata.wait, &userdata.lk);
-    Pthread_mutex_unlock(&userdata.lk);
-    Pthread_cond_destroy(&userdata.wait);
-    Pthread_mutex_destroy(&userdata.lk);
+
+    rc = handle_buf_main2(thedb, NULL, payload, payload + (1024*64), 0, "hi", 0, "hello", NULL, REQ_SQLLEGACY, &userdata, luxref, 0, NULL, 0, 0, legacy_iq_setup, 1);
     *outlen = userdata.len;
     return rc;
 }
