@@ -2255,8 +2255,7 @@ inline int bdb_temp_table_move(bdb_state_type *bdb_state, struct temp_cursor *cu
     return -1;
 }
 
-void bdb_temp_table_debug_dump(bdb_state_type *bdb_state, tmpcursor_t *cur,
-                               int level)
+void bdb_temp_table_debug_dump(bdb_state_type *bdb_state, tmpcursor_t *cur)
 {
     int rc = 0;
     int bdberr = 0;
@@ -2266,7 +2265,7 @@ void bdb_temp_table_debug_dump(bdb_state_type *bdb_state, tmpcursor_t *cur,
     int dtasize_sd;
     char *dta_sd;
 
-    logmsg(level, "TMPTABLE:\n");
+    logmsg(LOGMSG_DEBUG, "TMPTABLE:\n");
     rc = bdb_temp_table_first(bdb_state, cur, &bdberr);
     while (!rc) {
 
@@ -2282,11 +2281,11 @@ void bdb_temp_table_debug_dump(bdb_state_type *bdb_state, tmpcursor_t *cur,
             dtasize_sd = bdb_temp_table_datasize(cur);
         }
 
-        logmsg(level, " ROW %d:\n\tkeylen=%d\n\tkey=\"", rowid, keysize_sd);
-        hexdump(level, key_sd, keysize_sd);
-        logmsg(level, "\"\n\tdatalen=%d\n\tdata=\"", dtasize_sd);
-        hexdump(level, dta_sd, dtasize_sd);
-        logmsg(level, "\"\n");
+        logmsg(LOGMSG_DEBUG, " ROW %d:\n\tkeylen=%d\n\tkey=\"", rowid, keysize_sd);
+        hexdump(LOGMSG_DEBUG, key_sd, keysize_sd);
+        logmsg(LOGMSG_DEBUG, "\"\n\tdatalen=%d\n\tdata=\"", dtasize_sd);
+        hexdump(LOGMSG_DEBUG, dta_sd, dtasize_sd);
+        logmsg(LOGMSG_DEBUG, "\"\n");
 
         rowid++;
 

@@ -6484,11 +6484,9 @@ int osql_process_packet(struct ireq *iq, unsigned long long rqid, uuid_t uuid,
             hash_add(iq->vfy_genid_hash, g);
         }
 
-        int locflags = RECFLAGS_DONT_LOCK_TBL;
-
         rc = is_tablename_queue(iq->usedb->tablename)
             ? dbq_consume_genid(iq, trans, 0, dt.genid)
-            : del_record(iq, trans, NULL, 0, dt.genid, dt.dk, &err->errcode, &err->ixnum, BLOCK2_DELKL, locflags);
+            : del_record(iq, trans, NULL, 0, dt.genid, dt.dk, &err->errcode, &err->ixnum, BLOCK2_DELKL, RECFLAGS_DONT_LOCK_TBL);
 
         if (iq->idxInsert || iq->idxDelete) {
             free_cached_idx(iq->idxInsert);
@@ -6721,24 +6719,14 @@ int osql_process_packet(struct ireq *iq, unsigned long long rqid, uuid_t uuid,
         }
 #endif
 
-        int locflags =
-            RECFLAGS_DYNSCHEMA_NULLS_ONLY | RECFLAGS_DONT_LOCK_TBL |
-            RECFLAGS_DONT_SKIP_BLOBS; /* because we only receive info about
-                                        blobs that should exist in the new
-                                        record, override the update
-                                        function's default behaviour and
-                                        have it erase any blobs that havent been
-                                        collected. */
-
         rc = upd_record(iq, trans, NULL, rrn, genid, tag_name_ondisk,
                         tag_name_ondisk + tag_name_ondisk_len, /*tag*/
                         pData, pData + dt.nData,               /* rec */
                         NULL, NULL,                            /* vrec */
                         NULL, /*nulls, no need as no
                                 ctag2stag is called */
-                        *updCols, blobs, MAXBLOBS, &genid, dt.ins_keys,
-                        dt.del_keys, &err->errcode, &err->ixnum, BLOCK2_UPDKL,
-                        step, locflags);
+                        *updCols, blobs, MAXBLOBS, &genid, dt.ins_keys, dt.del_keys, 
+                        &err->errcode, &err->ixnum, BLOCK2_UPDKL, step, RECFLAGS_DONT_SKIP_BLOBS);
 
         free_blob_buffers(blobs, MAXBLOBS);
         if (iq->idxInsert || iq->idxDelete) {

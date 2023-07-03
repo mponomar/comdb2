@@ -2797,16 +2797,6 @@ int updbykey_record(struct ireq *iq, void *trans, const uint8_t *p_buf_tag_name,
                     unsigned long long *genid, int opcode, int blkpos,
                     int flags);
 
-/*
-int add_key(struct ireq *iq, void *trans,
-        int ixnum, void *key,
-        int rrn, unsigned long long genid,
-        void *od_dta, size_t od_len,
-        const uint8_t *p_buf_req_start, const uint8_t *p_buf_req_end,
-        int opcode, int blkpos,
-        int *opfailcode,
-        int flags);
-*/
 
 int del_new_record(struct ireq *iq, void *trans, unsigned long long genid,
                    unsigned long long del_keys, const void *old_dta,

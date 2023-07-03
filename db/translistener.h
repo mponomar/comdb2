@@ -194,21 +194,24 @@ int javasp_exists(const char *name);
 
 /* Get info for qdb, suitable for comdb2_triggers */
 #include <list.h>
-typedef struct trigger_col_info trigger_col_info;
 struct trigger_col_info {
-    LINKC_T(trigger_col_info) lnk;
+    LINKC_T(struct trigger_col_info) lnk;
     char *name;
     int type;
 };
-typedef struct trigger_tbl_info trigger_tbl_info;
 struct trigger_tbl_info {
-    LINKC_T(trigger_tbl_info) lnk;
+    LINKC_T(struct trigger_tbl_info) lnk;
     char *name;
-    LISTC_T(trigger_col_info) cols;
+    LISTC_T(struct trigger_col_info) cols;
 };
+
 typedef struct {
-    LISTC_T(trigger_tbl_info) tbls;
+    LISTC_T(struct trigger_tbl_info) tbls;
 } trigger_info;
+
+typedef struct trigger_col_info trigger_col_info;
+typedef struct trigger_tbl_info trigger_tbl_info;
+
 void get_trigger_info(const char *, trigger_info *);
 void get_trigger_info_lk(const char *, trigger_info *);
 

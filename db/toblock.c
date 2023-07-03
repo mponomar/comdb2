@@ -4764,26 +4764,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle,
     ixout = -1;
     errout = 0;
 
-    if (delayed || gbl_goslow || osql_is_index_reorder_on(iq->osql_flags)) {
-
-        if (osql_is_index_reorder_on(iq->osql_flags)) {
-            if (iq->debug)
-                reqpushprefixf(iq, "%p process_defered_table: ", trans);
-            rc = process_defered_table(iq, trans, &blkpos, &ixout, &errout);
-            if (iq->debug)
-                reqpopprefixes(iq, 1);
-
-            if (rc != 0) {
-                opnum = blkpos; /* so we report the failed blockop accurately */
-                err.blockop_num = blkpos;
-                err.errcode = errout;
-                err.ixnum = ixout;
-                numerrs = 1;
-                reqlog_set_error(iq->reqlogger, "Process Defered Table", rc);
-                GOTOBACKOUT;
-            }
-        }
-
+    if (delayed || gbl_goslow) {
         if (iq->debug)
             reqpushprefixf(iq, "%p delayed_key_adds: ", trans);
 

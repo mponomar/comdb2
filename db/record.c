@@ -522,51 +522,38 @@ int add_record(struct ireq *iq, void *trans, const uint8_t *p_buf_tag_name,
         }
     }
 
-    if (iq->usedb->nix > 0 || (iq->usedb->sc_to && iq->usedb->sc_to->nix > 0)) {
-        int reorder =
-            osql_is_index_reorder_on(iq->osql_flags) && !is_event_from_sc(flags) &&
-            rec_flags == 0 && iq->usedb->sc_from != iq->usedb &&
-            strcasecmp(iq->usedb->tablename, "comdb2_oplog") != 0 &&
-            strcasecmp(iq->usedb->tablename, "comdb2_commit_log") != 0 &&
-            strncasecmp(iq->usedb->tablename, "sqlite_stat", 11) != 0;
-
-        if (reorder)
-            rec_flags |= OSQL_ITEM_REORDERED;
-
-        /* Form and add all the keys.
-         * If there are constraints, do the add to indices deferred.
-         *
-         * For records from INSERT ... ON CONFLICT DO NOTHING, we need
-         * to update the indices inplace to avoid inserting duplicate
-         * data. The keys, however, are also added to the deferred
-         * temporary table to enable cascading updates, if needed.
-         */
-
-        if (has_constraint(flags)) {
-            if (!is_event_from_sc(flags)) {
-                /* enqueue the add of the key for constraint checking purpose */
-                rc = insert_add_op(iq, opcode, *rrn, -1, *genid, ins_keys,
-                                   blkpos, rec_flags);
-                if (rc != 0) {
-                    if (iq->debug)
-                        reqprintf(iq, "FAILED TO PUSH KEYOP");
-                    *opfailcode = OP_FAILED_INTERNAL;
-                    retrc = ERR_INTERNAL;
-                    ERR;
-                }
-            } else {
-                /* if rec adding to NEW SCHEMA and this has constraints,
-                 * handle idx in live_sc_*
-                 */
+    /*
+     * Form and add all the keys.
+     * If there are constraints, do the add to indices deferred.
+     *
+     * For records from INSERT ... ON CONFLICT DO NOTHING, we need
+     * to update the indices inplace to avoid inserting duplicate
+     * data. The keys, however, are also added to the deferred
+     * temporary table to enable cascading updates, if needed.
+     */
+    if (has_constraint(flags)) /* if NOT no constraints */
+    {
+        if (!is_event_from_sc(flags)) {
+            /* enqueue the add of the key for constaint checking purposes */
+            rc = insert_add_op(iq, opcode, *rrn, -1, *genid, ins_keys, blkpos,
+                    rec_flags);
+            if (rc != 0) {
+                if (iq->debug)
+                    reqprintf(iq, "FAILED TO PUSH KEYOP");
+                *opfailcode = OP_FAILED_INTERNAL;
+                retrc = ERR_INTERNAL;
+                ERR;
             }
         }
 
-        if (!has_constraint(flags) || (rec_flags & OSQL_IGNORE_FAILURE) ||
-            reorder) {
-            retrc = add_record_indices(iq, trans, blobs, maxblobs, opfailcode, ixfailnum, rrn, genid, vgenid, ins_keys,
-                                       opcode, blkpos, od_dta, od_len, flags, reorder);
+        if (!has_constraint(flags) || (rec_flags & OSQL_IGNORE_FAILURE)) {
+            retrc =
+                add_record_indices(iq, trans, blobs, maxblobs, opfailcode,
+                        ixfailnum, rrn, genid, vgenid, ins_keys, opcode,
+                        blkpos, od_dta, od_len);
             if (retrc)
                 ERR;
+
         }
     }
 
@@ -1869,7 +1856,8 @@ int del_record(struct ireq *iq, void *trans, void *primkey, int rrn,
     }
 
     /* Form and delete all keys. */
-    retrc = del_record_indices(iq, trans, opfailcode, ixfailnum, rrn, genid, od_dta, del_keys, flags, del_idx_blobs);
+    retrc = del_record_indices(iq, trans, opfailcode, ixfailnum, rrn, genid, 
+                               od_dta, del_keys, del_idx_blobs);
     if (retrc)
         ERR;
 

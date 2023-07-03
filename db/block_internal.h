@@ -761,8 +761,6 @@ int insert_add_op(struct ireq *iq, int optype, int rrn, int ixnum,
                   unsigned long long genid, unsigned long long ins_keys,
                   int blkpos, int flags);
 
-int process_defered_table(struct ireq *iq, void *trans, int *blkpos, int *ixout,
-                          int *errout);
 int delayed_key_adds(struct ireq *iq, void *trans, int *blkpos, int *ixout,
                      int *errout);
 void *create_constraint_table();
@@ -770,14 +768,7 @@ void *create_constraint_index_table();
 int delete_constraint_table(void *table);
 int clear_constraints_tables(void);
 int truncate_constraint_table(void *table);
-void *get_constraint_table_cursor(void *table);
-int close_constraint_table_cursor(void *cursor);
 
-void delete_defered_index_tbl();
-void truncate_defered_index_tbl();
-
-int verify_add_constraints(struct ireq *iq, void *trans, int *errout);
-int verify_del_constraints(struct ireq *iq, void *trans, int *errout);
 int check_delete_constraints(struct ireq *iq, void *trans,
                              block_state_t *blkstate, int op, void *rec_dta,
                              unsigned long long del_keys, int *errout);
@@ -790,6 +781,10 @@ int update_constraint_genid(struct ireq *iq, int opcode, int blkpos, int flags,
                             unsigned long long new_genid,
                             unsigned long long old_genid);
 int delete_constraint_genid(unsigned long long genid);
+
+int verify_add_constraints(struct ireq *iq, void *trans, int *errout);
+
+int verify_del_constraints(struct ireq *iq, void *trans, int *errout);
 
 void dump_all_constraints(struct dbenv *env);
 void dump_constraints(struct dbtable *table);

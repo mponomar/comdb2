@@ -1806,10 +1806,6 @@ REGISTER_TUNABLE("reorder_socksql_no_deadlock", "Reorder sock sql to have no dea
                  TUNABLE_BOOLEAN, &gbl_reorder_socksql_no_deadlock, EXPERIMENTAL,
                  NULL, NULL, NULL, NULL);
 
-REGISTER_TUNABLE("reorder_idx_writes", "reorder_idx_writes",
-                 TUNABLE_BOOLEAN, &gbl_reorder_idx_writes, EXPERIMENTAL,
-                 NULL, NULL, NULL, NULL);
-
 REGISTER_TUNABLE("disable_tpsc_tblvers",
                  "Disable table version checks for time partition schema "
                  "changes",

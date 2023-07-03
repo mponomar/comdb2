@@ -500,12 +500,10 @@ static void setup_reorder_key(blocksql_tran_t *tran, int type,
     case OSQL_UPDREC:
     case OSQL_DELREC:
         tran->last_is_ins = 0;
-        sess->tran_rows++;
         break;
     case OSQL_INSERT:
     case OSQL_INSREC:
         tran->last_is_ins = 1;
-        sess->tran_rows++;
         break;
     default:
         tran->last_is_ins = 0;
@@ -922,10 +920,10 @@ static int process_this_session(
     // if needed to check content of socksql temp table, dump with:
     void bdb_temp_table_debug_dump(bdb_state_type * bdb_state,
                                    tmpcursor_t * cur, int);
-    bdb_temp_table_debug_dump(thedb->bdb_env, dbc, LOGMSG_DEBUG);
+    bdb_temp_table_debug_dump(thedb->bdb_env, dbc);
     if (dbc_ins) {
         logmsg(LOGMSG_DEBUG, "INS ");
-        bdb_temp_table_debug_dump(thedb->bdb_env, dbc_ins, LOGMSG_DEBUG);
+        bdb_temp_table_debug_dump(thedb->bdb_env, dbc_ins);
     }
 #endif
 
@@ -952,14 +950,6 @@ static int process_this_session(
     rc = init_ins_tbl(iq->reqlogger, dbc_ins, &opkey_ins, &add_stripe, bdberr);
     if (rc)
         return rc;
-
-    /* only reorder indices if more than one row add/upd/dels
-     * NB: the idea is that single row transactions can not deadlock but
-     * update can have a del/ins index component and can deadlock -- in future 
-     * consider reordering for single upd stmts (only if performance 
-     * improves so this requires a solid test). */
-    if (sess->tran_rows > 1 && gbl_reorder_idx_writes)
-        iq->osql_flags |= OSQL_FLAGS_REORDER_IDX_ON;
 
     while (!rc && !rc_out) {
         char *data = NULL;

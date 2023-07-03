@@ -29,9 +29,12 @@
 #include <assert.h>
 #include "logmsg.h"
 #include "views.h"
-#include "indices.h"
 #include "osqlsqlthr.h"
 #include "sqloffload.h"
+
+static void *get_constraint_table_cursor(void *table);
+
+static int close_constraint_table_cursor(void *cursor);
 
 
 static char *get_temp_ct_dbname(long long *);
@@ -278,7 +281,7 @@ typedef struct cttbl_entry {
 
 int insert_add_op(struct ireq *iq, int optype, int rrn, int ixnum,
                   unsigned long long genid, unsigned long long ins_keys,
-                  int blkpos, int rec_flags)
+                  int blkpos, int flags)
 {
     block_state_t *blkstate = iq->blkstate;
     int type = CTE_ADD;
@@ -318,7 +321,7 @@ int insert_add_op(struct ireq *iq, int optype, int rrn, int ixnum,
     fwdct->ixnum = ixnum;
     fwdct->rrn = rrn;
     fwdct->optype = optype;
-    fwdct->flags = rec_flags;
+    fwdct->flags = flags;
 
     rc = bdb_temp_table_insert(thedb->bdb_env, cur, key,
                                sizeof(int) + sizeof(long long), &cte_record,
@@ -963,7 +966,7 @@ int verify_del_constraints(struct ireq *iq, void *trans, int *errout)
                                 &idx,
                                 BLOCK2_UPDKL,
                                 0, /*blkpos*/
-                                RECFLAGS_UPD_CASCADE | RECFLAGS_DONT_LOCK_TBL | RECFLAGS_IN_CASCADE);
+                                RECFLAGS_IN_CASCADE | RECFLAGS_DONT_LOCK_TBL);
             } else {
                 rc = ERR_NO_SUCH_TABLE;
             }
@@ -1226,6 +1229,16 @@ int delayed_key_adds(struct ireq *iq, void *trans, int *blkpos, int *ixout,
         }
         struct forward_ct *curop = &ctrq->ctop.fwdct;
         int flags = curop->flags;
+        /* Keys for records from INSERT .. ON CONFLICT DO NOTHING have
+         * already been added to the indexes in add_record() to ensure
+         * we don't add duplicates in the data files. We still push them
+         * to ct_add_table to be able to perform cascade updates to the
+         * child tables.
+         */
+        if (flags & OSQL_IGNORE_FAILURE) {
+            goto next_record;
+        }
+
         /* only do once per genid *after* processing all idxs from tmptbl 
          * (which are in sequence for the same genid): 
          * If a key is a dup violation then we don't want SC to fail,
@@ -1314,7 +1327,7 @@ int delayed_key_adds(struct ireq *iq, void *trans, int *blkpos, int *ixout,
          * (or NULL if there isn't any) for the last live_sc_delayed_key_adds() call, and hence would have
          * wrong data in the new index.
          */
-        if (flags & OSQL_IGNORE_FAILURE || flags & OSQL_ITEM_REORDERED) {
+        if (flags & OSQL_IGNORE_FAILURE) {
             goto next_record;
         }
 
@@ -1893,7 +1906,6 @@ int clear_constraints_tables(void)
     if (thdinfo->ct_add_table_genid_pool) {
         pool_clear(thdinfo->ct_add_table_genid_pool);
     }
-    truncate_defered_index_tbl();
 
     return 0;
 }
@@ -1995,20 +2007,16 @@ void *create_constraint_index_table()
     return newtbl;
 }
 
-inline void *get_constraint_table_cursor(void *table)
+static inline void *get_constraint_table_cursor(void *table)
 {
-    if (table == NULL)
-        abort();
+    struct temp_cursor *cur = NULL;
     int err = 0;
-    struct temp_cursor *cur =
-        bdb_temp_table_cursor(thedb->bdb_env, table, NULL, &err);
-    if (!cur) {
-        logmsg(LOGMSG_ERROR, "Can't create cursor err=%d\n", err);
-    }
+    cur = (struct temp_cursor *)bdb_temp_table_cursor(thedb->bdb_env, table,
+                                                      NULL, &err);
     return cur;
 }
 
-inline int close_constraint_table_cursor(void *cursor)
+static inline int close_constraint_table_cursor(void *cursor)
 {
     int err = 0, rc = 0;
     rc = bdb_temp_table_close_cursor(thedb->bdb_env, cursor, &err);
