@@ -88,6 +88,11 @@ struct thd {
     pthread_cond_t wakeup;
     struct ireq *iq;
     LINKC_T(struct thd) lnk;
+
+    // extensions to allow calling thd_req inline
+    int do_inline;
+    int inited;
+    struct thr_handle *thr_self;
 };
 
 static pool_t *p_thds;
@@ -227,9 +232,7 @@ int thd_init(void)
     listc_init(&idle, offsetof(struct thd, lnk));
     listc_init(&busy, offsetof(struct thd, lnk));
     bdb_set_io_control(thd_io_start, thd_io_complete);
-    Pthread_key_create(&thd_info_key, free);
     Pthread_attr_setstacksize(&attr, 4096 * 1024);
-    logmsg(LOGMSG_INFO, "thd_init: thread subsystem initialized\n");
     return 0;
 }
 
@@ -462,6 +465,8 @@ void free_thd_info(thd_info *data, int npoints) {
 uint8_t *get_bigbuf()
 {
     uint8_t *p_buf = NULL;
+    printf("hi!!!!");
+    cheap_stack_trace();
     LOCK(&buf_lock) { p_buf = pool_getablk(p_bufs); }
     UNLOCK(&buf_lock);
     return p_buf;
@@ -493,7 +498,7 @@ int signal_buflock(struct buf_lock_t *p_slock)
 }
 
 /* request handler */
-static void *thd_req(void *vthd)
+void *thd_req(void *vthd)
 {
     comdb2_name_thread(__func__);
     struct thd *thd = (struct thd *)vthd;
@@ -506,61 +511,77 @@ static void *thd_req(void *vthd)
     struct reqlogger *logger;
     int numwriterthreads;
 
-    thread_started("request");
-    ENABLE_PER_THREAD_MALLOC(__func__);
+    if (!thd->inited) {
+        printf("init\n");
 
-    thr_self = thrman_register(THRTYPE_REQ);
+        if (!thd->do_inline)
+            thread_started("request");
+
+        ENABLE_PER_THREAD_MALLOC(__func__);
+
+        thd->thr_self = thr_self = thrman_register(THRTYPE_REQ);
+        dbenv = thd->iq->dbenv;
+
+        // This was already called in the thread that's calling this code if we're called
+        // inline.  If we're called as a start routine of a new thread, we need to call it
+        // ourselves.
+        if (!thd->do_inline)
+            backend_thread_event(dbenv, COMDB2_THR_EVENT_START_RDWR);
+
+        /* thdinfo is assigned to thread specific variable thd_info_key which
+         * will automatically free it when the thread exits. */
+        thdinfo = malloc(sizeof(struct thread_info));
+        if (thdinfo == NULL) {
+            logmsg(LOGMSG_FATAL, "**aborting due malloc failure thd %p\n", (void *)pthread_self());
+            abort();
+        }
+        thdinfo->uniquetag = 0;
+        thdinfo->ct_id_key = 0LL;
+
+        thdinfo->ct_add_table = create_constraint_table();
+        if (thdinfo->ct_add_table == NULL) {
+            logmsg(LOGMSG_FATAL,
+                    "**aborting: cannot allocate constraint add table thd "
+                    "%p\n",
+                    (void *)pthread_self());
+            abort();
+        }
+        thdinfo->ct_del_table = create_constraint_table();
+        if (thdinfo->ct_del_table == NULL) {
+            logmsg(LOGMSG_FATAL,
+                    "**aborting: cannot allocate constraint delete table "
+                    "thd %p\n",
+                    (void *)pthread_self());
+            abort();
+        }
+        thdinfo->ct_add_index = create_constraint_index_table();
+        if (thdinfo->ct_add_index == NULL) {
+            logmsg(LOGMSG_FATAL,
+                    "**aborting: cannot allocate constraint add index table "
+                    "thd %p\n",
+                    (void *)pthread_self());
+            abort();
+        }
+        thdinfo->ct_add_table_genid_hash = hash_init(sizeof(unsigned long long));
+        thdinfo->ct_add_table_genid_pool =
+            pool_setalloc_init(sizeof(unsigned long long), 0, malloc, free);
+
+        /* Initialize the sql statement cache */
+        thdinfo->stmt_cache = stmt_cache_new(NULL);
+        if (thdinfo->stmt_cache == NULL) {
+            logmsg(LOGMSG_ERROR, "%s:%d failed to create sql statement cache\n",
+                    __func__, __LINE__);
+        }
+
+        Pthread_setspecific(thd_info_key, thdinfo);
+        thd->inited = 1;
+        if (thd->do_inline)
+            return NULL;
+    }
+    else
+        thr_self = thd->thr_self;
+
     logger = thrman_get_reqlogger(thr_self);
-
-    dbenv = thd->iq->dbenv;
-    backend_thread_event(dbenv, COMDB2_THR_EVENT_START_RDWR);
-
-    /* thdinfo is assigned to thread specific variable thd_info_key which
-     * will automatically free it when the thread exits. */
-    thdinfo = malloc(sizeof(struct thread_info));
-    if (thdinfo == NULL) {
-        logmsg(LOGMSG_FATAL, "**aborting due malloc failure thd %p\n", (void *)pthread_self());
-        abort();
-    }
-    thdinfo->uniquetag = 0;
-    thdinfo->ct_id_key = 0LL;
-
-    thdinfo->ct_add_table = create_constraint_table();
-    if (thdinfo->ct_add_table == NULL) {
-        logmsg(LOGMSG_FATAL,
-               "**aborting: cannot allocate constraint add table thd "
-               "%p\n",
-               (void *)pthread_self());
-        abort();
-    }
-    thdinfo->ct_del_table = create_constraint_table();
-    if (thdinfo->ct_del_table == NULL) {
-        logmsg(LOGMSG_FATAL,
-               "**aborting: cannot allocate constraint delete table "
-               "thd %p\n",
-               (void *)pthread_self());
-        abort();
-    }
-    thdinfo->ct_add_index = create_constraint_index_table();
-    if (thdinfo->ct_add_index == NULL) {
-        logmsg(LOGMSG_FATAL,
-               "**aborting: cannot allocate constraint add index table "
-               "thd %p\n",
-               (void *)pthread_self());
-        abort();
-    }
-    thdinfo->ct_add_table_genid_hash = hash_init(sizeof(unsigned long long));
-    thdinfo->ct_add_table_genid_pool =
-        pool_setalloc_init(sizeof(unsigned long long), 0, malloc, free);
-
-    /* Initialize the sql statement cache */
-    thdinfo->stmt_cache = stmt_cache_new(NULL);
-    if (thdinfo->stmt_cache == NULL) {
-        logmsg(LOGMSG_ERROR, "%s:%d failed to create sql statement cache\n",
-               __func__, __LINE__);
-    }
-
-    Pthread_setspecific(thd_info_key, thdinfo);
 
     /*printf("started handler %ld thd %p thd->id %p\n", pthread_self(), thd,
      * thd->tid);*/
@@ -598,6 +619,9 @@ static void *thd_req(void *vthd)
 
         // before acquiring next request, yield
         comdb2bma_yield_all();
+
+        if (thd->do_inline)
+            return NULL;
 
         /*NEXT REQUEST*/
         LOCK(&lock)
@@ -751,6 +775,37 @@ static void *thd_req(void *vthd)
         truncate_defered_index_tbl();
     } while (1);
 }
+
+static __thread struct thd *inlinerq;
+void thd_req_inline(struct ireq *iq) {
+    if (!inlinerq) {
+        // TODO: cleanup
+        inlinerq = calloc(1, sizeof(struct thd));
+        inlinerq->do_inline = 1;
+        inlinerq->inited = 0;
+    }
+    inlinerq->tid = pthread_self();
+    inlinerq->iq = iq;
+    thd_req(inlinerq);
+}
+
+void thd_req_cleanup(void) {
+    struct thread_info *thdinfo;
+    if (inlinerq)
+        free(inlinerq);
+    inlinerq = NULL;
+    thdinfo = pthread_getspecific(thd_info_key);
+    delete_constraint_table(thdinfo->ct_add_table);
+    delete_constraint_table(thdinfo->ct_del_table);
+    delete_constraint_table(thdinfo->ct_add_index);
+    hash_free(thdinfo->ct_add_table_genid_hash);
+    if (thdinfo->ct_add_table_genid_pool) {
+        pool_free(thdinfo->ct_add_table_genid_pool);
+    }
+    delete_defered_index_tbl();
+    backend_thread_event(thedb, COMDB2_THR_EVENT_DONE_RDWR);
+}
+
 
 /* sndbak error code &  return resources.*/
 static int reterr(intptr_t curswap, struct thd *thd, struct ireq *iq, int rc)
@@ -1030,6 +1085,8 @@ int handle_buf_main2(struct dbenv *dbenv, SBUF2 *sb, const uint8_t *p_buf,
     int numwriterthreads;
     struct dbq_entry_t *newent = NULL;
 
+    printf("%s doinline %d\n", __func__, doinline);
+
     if (db_is_exiting()) {
         return reterr(curswap, 0, NULL, ERR_REJECTED);
     }
@@ -1081,7 +1138,7 @@ int handle_buf_main2(struct dbenv *dbenv, SBUF2 *sb, const uint8_t *p_buf,
             iq->comdbg_flags |= COMDBG_FLAG_FROM_LE;
 
         if (doinline) {
-            handle_ireq(iq);
+            thd_req_inline(iq);
             return 0;
         }
 
@@ -1179,6 +1236,7 @@ int handle_buf_main2(struct dbenv *dbenv, SBUF2 *sb, const uint8_t *p_buf,
                 printf("%s:%d: thdpool FOUND THD=%p -> newTHD=%d iq=%p\n", __func__, __LINE__, pthread_self(), thd->tid, iq);
 #endif
                 thd->iq = iq;
+                thd->inited = 0;
                 iq->where = "dispatched";
                 num = busy.count;
                 listc_abl(&busy, thd);
