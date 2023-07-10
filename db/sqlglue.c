@@ -13359,8 +13359,6 @@ int comdb2_is_field_indexable(const char *table_name, int fld_idx) {
 struct stuff {
     int len;
     int rc;
-    pthread_cond_t wait;
-    pthread_mutex_t lk;
 };
 
 // do nothing!
@@ -13375,11 +13373,12 @@ static void legacy_iq_setup(struct ireq *iq) {
     iq->ipc_sndbak = legacy_sndbak;
 }
 
-int do_comdb2_legacy(char *appsock, void *payload, int payloadlen, int luxref, int flags, int *outlen) {
+int do_comdb2_legacy(char *appsock, void *payload, int payloadlen, int luxref, int flags, int *outlen, int *rcode) {
     int rc;
     struct stuff userdata = {0};
 
     rc = handle_buf_main2(thedb, NULL, payload, payload + (1024*64), 0, "hi", 0, "hello", NULL, REQ_SQLLEGACY, &userdata, luxref, 0, NULL, 0, 0, legacy_iq_setup, 1);
     *outlen = userdata.len;
+    *rcode = userdata.rc;
     return rc;
 }

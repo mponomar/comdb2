@@ -2948,7 +2948,8 @@ static void comdb2LastCostFunc(
   sqlite3_result_int64(context, cost);
 }
 
-extern int do_comdb2_legacy(const char *appsock, void *payload, int payloadlen, int luxref, int flags, int *outlen);
+#if 0
+extern int do_comdb2_legacy(const char *appsock, void *payload, int payloadlen, int luxref, int flags, int *outlen, int *rcode);
 static void comdb2LegacyFunc(
   sqlite3_context *context,
   int NotUsed,
@@ -2990,6 +2991,7 @@ static void comdb2LegacyFunc(
    }
    sqlite3_result_blob(context, buf, outlen, NULL);
 }
+#endif
 
 #endif
 
@@ -3135,7 +3137,9 @@ void sqlite3RegisterBuiltinFunctions(void){
     FUNCTION(comdb2_starttime,      0, 0, 0, comdb2StartTimeFunc),
     FUNCTION(comdb2_user,           0, 0, 0, comdb2UserFunc),
     FUNCTION(comdb2_last_cost,      0, 0, 0, comdb2LastCostFunc),
+#if 0
     FUNCTION(comdb2_legacy,         4, 0, 0, comdb2LegacyFunc),
+#endif
     FUNCTION(checksum_md5,          1, 0, 0, md5Func),
     FUNCTION(compress,              1, 0, 0, compressFunc),
     FUNCTION(uncompress,            1, 0, 0, uncompressFunc),
