@@ -6732,6 +6732,7 @@ static int push_trigger_args_int(Lua L, dbconsumer_t *q, struct qfound *f, char 
         lua_setfield(L, -2, "type");
     }
 
+    fsnapf(stdout, payload, end - payload);
     while (payload && payload < end) {
         payload = consume_field(L, payload);
     }
@@ -7140,7 +7141,7 @@ int legacy_request_values(struct sqlclntstate *clnt, struct fixed_row_source *sr
 }
 
 
-extern int do_comdb2_legacy(char *appsock, void *payload, int payloadlen, int luxref, int flags, int *outlen);
+extern int do_comdb2_legacy(char *appsock, void *payload, int payloadlen, int luxref, int flags, int *outlen, int *rcode);
 static int exec_comdb2_legacy(struct sqlthdstate *thd, struct sqlclntstate *clnt, char **err, const char *args) {
     sparg_t arg[4];
     int rc;
@@ -7200,7 +7201,8 @@ static int exec_comdb2_legacy(struct sqlthdstate *thd, struct sqlclntstate *clnt
 
     // TODO: check size
     memcpy(rsp.buf, b.data, b.length);
-    rc = do_comdb2_legacy(what, rsp.buf, b.length, luxref, flags, &rsp.outlen);
+    rc = do_comdb2_legacy(what, rsp.buf, b.length, luxref, flags, &rsp.outlen, &rsp.rc);
+    printf("do_comdb2_legacy rc %d rsp.rc %d\n", rc, rsp.rc);
     write_response(clnt, RESPONSE_RAW_PAYLOAD, &rsp, 0);
 
     return 0;
