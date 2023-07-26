@@ -2067,7 +2067,7 @@ static int print_catchup_message(bdb_state_type *bdb_state, int phase,
 
                 rc = net_send(bdb_state->repinfo->netinfo,
                               bdb_state->repinfo->master_host,
-                              USER_TYPE_COMMITDELAYMORE, NULL, 0, 1);
+                              USER_TYPE_COMMITDELAYMORE, NULL, 0, 1, __FILE__, __LINE__);
 
                 if (rc != 0) {
                     logmsg(LOGMSG_WARN, "failed to send COMMITDELAYMORE to %s rc: %d\n",
@@ -2127,7 +2127,7 @@ static int print_catchup_message(bdb_state_type *bdb_state, int phase,
 
     rc = net_send_message(bdb_state->repinfo->netinfo,
                           bdb_state->repinfo->master_host, USER_TYPE_LSNCMP,
-                          p_lsn_cmp, sizeof(lsn_cmp_type), 1, 60 * 1000);
+                          p_lsn_cmp, sizeof(lsn_cmp_type), 1, 60 * 1000, __FILE__, __LINE__);
 
     *prev_gap = *gap;
     *prev_state = state;
@@ -3211,7 +3211,7 @@ done2:
 
             rc = net_send_message(bdb_state->repinfo->netinfo, master_host,
                                   USER_TYPE_LSNCMP, p_lsn_cmp,
-                                  sizeof(lsn_cmp_type), 1, 60 * 1000);
+                                  sizeof(lsn_cmp_type), 1, 60 * 1000, __FILE__, __LINE__);
 
             if (rc == 0)
                 goto done3;
@@ -3270,7 +3270,7 @@ again:
            thus making sure we are actually LIVE */
         rc = net_send_message(
             bdb_state->repinfo->netinfo, bdb_state->repinfo->master_host,
-            USER_TYPE_ADD_DUMMY, &tmpnode, sizeof(int), 1, 60 * 1000);
+            USER_TYPE_ADD_DUMMY, &tmpnode, sizeof(int), 1, 60 * 1000, __FILE__, __LINE__);
 
         /* If the master is starting, it might not have set llmeta_bdb_state
          * yet. */
@@ -3304,7 +3304,7 @@ again:
     if (bdb_state->repinfo->master_host != myhost) {
         rc = net_send(bdb_state->repinfo->netinfo,
                       bdb_state->repinfo->master_host,
-                      USER_TYPE_COMMITDELAYNONE, NULL, 0, 1);
+                      USER_TYPE_COMMITDELAYNONE, NULL, 0, 1, __FILE__, __LINE__);
         if (gbl_commit_delay_trace) {
             logmsg(LOGMSG_USER, "%s line %d sending COMMITDELAYNONE\n",
                    __func__, __LINE__);

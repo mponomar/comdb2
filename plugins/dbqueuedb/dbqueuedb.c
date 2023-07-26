@@ -484,7 +484,7 @@ static void admin(struct dbenv *dbenv, int type)
                             } else {
                                 void *net = thedb->handle_sibling;
                                 net_send_message(net, host, NET_TRIGGER_START,
-                                                 name, strlen(name) + 1, 0, 0);
+                                                 name, strlen(name) + 1, 0, 0, __FILE__, __LINE__);
                             }
                         }
                         break;

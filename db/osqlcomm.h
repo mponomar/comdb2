@@ -392,7 +392,7 @@ int osql_process_message_decom(char *host);
  *   - upgrade records
  *  And wait for reply inline.
  */
-int offload_comm_send_blockreq(char *host, void *rqid, void *buf, int buflen);
+int offload_comm_send_blockreq(char *host, void *rqid, void *buf, int buflen, const char *file, int line);
 
 /* Reply to offload block request. */
 int offload_comm_send_blockreply(char *host, unsigned long long rqid, void *buf,
@@ -400,7 +400,7 @@ int offload_comm_send_blockreply(char *host, unsigned long long rqid, void *buf,
 
 /* Send a message over net to "host" */
 int offload_net_send(const char *host, int usertype, void *data, int datalen,
-                     int nodelay, void *tail, int tailen);
+                     int nodelay, void *tail, int tailen, const char *file, int line);
 
 /**
  * Copy and pack the host-ordered client_query_stats type into big-endian

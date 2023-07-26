@@ -50,7 +50,7 @@
 
 extern int gbl_ready;
 
-static void send_to_all(struct dbenv *dbenv, void *dta, int dtalen, int flush)
+static void send_to_all(struct dbenv *dbenv, void *dta, int dtalen, int flush, const char *file, int line)
 {
     int rc;
     int count;
@@ -61,7 +61,7 @@ static void send_to_all(struct dbenv *dbenv, void *dta, int dtalen, int flush)
 
     for (i = 0; i < count; i++) {
         rc = net_send(dbenv->handle_sibling, hostlist[i], NET_PREFAULT2_OPS,
-                      dta, dtalen, flush);
+                      dta, dtalen, flush, file, line);
         if (rc)
             logmsg(LOGMSG_ERROR, "%s:%d rc=%d\n", __func__, __LINE__, rc);
     }
@@ -416,7 +416,7 @@ int broadcast_prefault(struct dbenv *dbenv, pfrq_t *qdata)
 
     if (!err) {
         int dtalen = (p_buf - dta);
-        send_to_all(dbenv, dta, dtalen, qdata->flush);
+        send_to_all(dbenv, dta, dtalen, qdata->flush, __FILE__, __LINE__);
     }
 
     switch (qdata->type) {

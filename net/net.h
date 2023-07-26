@@ -120,23 +120,23 @@ enum {
 int net_send_message(netinfo_type *netinfo,
                      const char *to_host, /* send to this node number */
                      int usertype, void *dta, int dtalen, int waitforack,
-                     int waitms);
+                     int waitms, const char *file, int line);
 
 /* Returns an ack payload */
 int net_send_message_payload_ack(netinfo_type *netinfo_ptr, const char *to_host,
                      int usertype, void *data, int datalen, uint8_t **payloadptr, 
-                     int *payloadlen, int waitforack, int waitms);
+                     int *payloadlen, int waitforack, int waitms, const char *file, int line);
 
 int net_send_flags(netinfo_type *netinfo,
                    const char *to_host, /* send to this node number */
-                   int usertype, void *dta, int dtalen, uint32_t flags);
+                   int usertype, void *dta, int dtalen, uint32_t flags, const char *file, int line);
 
 int net_send(netinfo_type *netinfo,
              const char *to_host, /* send to this node number */
-             int usertype, void *dta, int dtalen, int nodelay);
+             int usertype, void *dta, int dtalen, int nodelay, const char *file, int line);
 
 int net_send_nodrop(netinfo_type *netinfo, const char *to_host, int usertype,
-                    void *dta, int dtalen, int nodelay);
+                    void *dta, int dtalen, int nodelay, const char *file, int line);
 
 /* register your callback routine that will be called when
    user messages of type "usertype" are recieved */
@@ -298,11 +298,11 @@ void print_netinfo(netinfo_type *netinfo_ptr);
 int net_send_tail(netinfo_type *netinfo,
                   const char *host, /* send to this node */
                   int usertype, void *dta, int dtalen, int nodelay, void *tail,
-                  int tailen);
+                  int tailen, const char *file, int line);
 
 int net_send_tails(netinfo_type *netinfo_ptr, const char *host, int usertype,
                    void *data, int datalen, int nodelay, int numtails,
-                   void **tails, int *taillens);
+                   void **tails, int *taillens, const char *file, int line);
 
 /* pick a sibling for sql offloading */
 char *net_get_osql_node(netinfo_type *netinfo_ptr);
@@ -407,7 +407,7 @@ int64_t net_get_num_current_non_appsock_accepts(netinfo_type *netinfo_ptr);
 int64_t net_get_num_accept_timeouts(netinfo_type *netinfo_ptr);
 void net_set_conntime_dump_period(netinfo_type *netinfo_ptr, int value);
 int net_get_conntime_dump_period(netinfo_type *netinfo_ptr);
-int net_send_all(netinfo_type *, int, void **, int *, int *, int *);
+int net_send_all(netinfo_type *, int, void **, int *, int *, int *, const char *file, int line);
 void update_host_net_queue_stats(host_node_type *, size_t, size_t);
 int db_is_stopped(void);
 int db_is_exiting(void);
