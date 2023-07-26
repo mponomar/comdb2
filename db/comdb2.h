@@ -1231,7 +1231,7 @@ struct osql_target {
     const char *host;
     SBUF2 *sb;
     int (*send)(struct osql_target *target, int usertype, void *data,
-                int datalen, int nodelay, void *tail, int tailen);
+                int datalen, int nodelay, void *tail, int tailen, const char *file, int line);
 };
 typedef struct osql_target osql_target_t;
 

@@ -914,7 +914,7 @@ static void test_send(bdb_state_type *bdb_state)
         buf_put(&i, sizeof(int), p_buf, p_buf_end);
 
         rc = net_send_message(bdb_state->repinfo->netinfo, hostlist[i],
-                              USER_TYPE_TEST, &tmp, sizeof(int), 1, 60 * 1000);
+                              USER_TYPE_TEST, &tmp, sizeof(int), 1, 60 * 1000, __FILE__, __LINE__);
         if (rc != 0)
             logmsg(LOGMSG_ERROR, "got bad rc %d in test_send\n", rc);
     }
@@ -923,7 +923,7 @@ static void test_send(bdb_state_type *bdb_state)
 static int write_hostname(netinfo_type *net, const char *to, char *host, int type)
 {
     int len = strlen(host) + 1;
-    return net_send_message(net, to, type, host, len, 1, 5 * 1000);
+    return net_send_message(net, to, type, host, len, 1, 5 * 1000, __FILE__, __LINE__);
 }
 
 static int write_add_hostname(netinfo_type *netinfo, const char *to, char *host)
@@ -1000,7 +1000,7 @@ static void process_reptrca(bdb_state_type *bdb_state, int on_off)
         buf_put(&on_off, sizeof(int), p_buf, p_buf_end);
 
         rc = net_send_message(bdb_state->repinfo->netinfo, hostlist[i],
-                              USER_TYPE_REPTRC, &tmp, sizeof(int), 1, 5 * 1000);
+                              USER_TYPE_REPTRC, &tmp, sizeof(int), 1, 5 * 1000, __FILE__, __LINE__);
         if (rc != 0) {
             logmsg(LOGMSG_ERROR, "trouble sending to node %s\n", hostlist[i]);
         }
@@ -2142,7 +2142,7 @@ void bdb_send_analysed_table_to_master(bdb_state_type *bdb_state, char *table)
         return;
 
     net_send(bdb_state->repinfo->netinfo, bdb_state->repinfo->master_host,
-             USER_TYPE_ANALYZED_TBL, table, strlen(table), 0);
+             USER_TYPE_ANALYZED_TBL, table, strlen(table), 0, __FILE__, __LINE__);
 }
 
 repl_wait_and_net_use_t *bdb_get_repl_wait_and_net_stats(

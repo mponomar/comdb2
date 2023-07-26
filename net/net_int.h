@@ -342,7 +342,7 @@ int get_dedicated_conhost(host_node_type *, struct in_addr *);
 host_node_type *get_host_node_by_name_ll(netinfo_type *, const char *);
 host_node_type *add_to_netinfo_ll(netinfo_type *, const char hostname[], int portnum);
 int net_flush_evbuffer(host_node_type *);
-int net_send_all_evbuffer(netinfo_type *, int, void **, int *, int *, int *);
+int net_send_all_evbuffer(netinfo_type *, int, void **, int *, int *, int *, const char *file, int line);
 int write_connect_message(netinfo_type *, host_node_type *, SBUF2 *);
 int write_connect_message_evbuffer(host_node_type *, const struct iovec *, int);
 int write_decom(netinfo_type *, host_node_type *, const char *, int, const char *);
@@ -350,7 +350,7 @@ int write_heartbeat(netinfo_type *, host_node_type *);
 int write_hello(netinfo_type *, host_node_type *);
 int write_hello_reply(netinfo_type *, host_node_type *);
 int write_list_evbuffer(host_node_type *, int, const struct iovec *, int, int);
-int net_send_evbuffer(netinfo_type *, const char *, int, void *, int, int, void **, int *, int);
+int net_send_evbuffer(netinfo_type *, const char *, int, void *, int, int, void **, int *, int, const char *file, int line);
 
 int get_hosts_evbuffer(int n, host_node_type **);
 
