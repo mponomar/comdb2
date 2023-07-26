@@ -1630,6 +1630,7 @@ static void begin_clean_exit(void)
  */
 void clean_exit(void)
 {
+    llmeta_dump_mapping(thedb);
     report_fastseed_users(LOGMSG_ERROR);
 
     if(gbl_perform_full_clean_exit) {

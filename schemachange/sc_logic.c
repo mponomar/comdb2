@@ -502,6 +502,10 @@ static int do_ddl(ddl_t pre, ddl_t post, struct ireq *iq,
         if (s->done_type == fastinit && gbl_replicate_local)
             local_replicant_write_clear(iq, tran, s->db);
         broadcast_sc_end(s->tablename, iq->sc_seed);
+        // I don't think this is a complete solution - not all schema changes pass through here AFAIK?
+        // But it plugs a hole where a table is created/altered/rebuilt and the master doesn't update
+        // its mapfile.
+        llmeta_dump_mapping_tran(tran, thedb);
     } else {
         rc = SC_COMMIT_PENDING;
     }
