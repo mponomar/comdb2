@@ -500,7 +500,7 @@ int handle_ireq(struct ireq *iq)
                 logmsg(LOGMSG_ERROR,
                        "\n Unexpected error %d in block operation", rc);
             }
-        } else if (iq->is_fromsocket) {
+        } else if (iq->is_fromsocket && !iq->ipc_sndbak) {
             net_delay(iq->frommach);
             /* process socket end request */
             if (iq->is_socketrequest) {

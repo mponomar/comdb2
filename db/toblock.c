@@ -491,7 +491,7 @@ static int forward_longblock_to_master(struct ireq *iq,
             return ERR_INCOHERENT;
         } else {
             rc = offload_comm_send_blockreq(mstr, iq->request_data,
-                                            iq->p_buf_out_start, req_len);
+                                            iq->p_buf_out_start, req_len, __FILE__, __LINE__);
             free_bigbuf_nosignal(iq->p_buf_out_start);
         }
     } else if (comdb2_ipc_swapnpasdb_sinfo) {
@@ -555,18 +555,19 @@ static int forward_block_to_master(struct ireq *iq, block_state_t *p_blkstate,
 
     req_len = p_blkstate->p_buf_req_end - iq->p_buf_out_start;
 
-    if (iq->debug)
-        reqprintf(iq, "forwarded req from %s to master node %s db %d rqlen "
-                      "%zu\n",
-                  getorigin(iq), mstr, iq->origdb->dbnum, req_len);
+    printf("forwarded req from %s to master node %s db %d rqlen "
+            "%zu is_socketrequest %d sb %p ipc_sndbak %p\n",
+            getorigin(iq), mstr, iq->origdb->dbnum, req_len, iq->is_socketrequest, iq->sb, iq->ipc_sndbak);
 
     if (iq->is_socketrequest || iq->ipc_sndbak) {
         if (iq->is_socketrequest && iq->sb == NULL) {
+            printf("%s %d (incoherent)\n", __func__, __LINE__);
             return ERR_INCOHERENT;
         } else {
             rc = offload_comm_send_blockreq(mstr, iq->request_data,
-                                            iq->p_buf_out_start, req_len);
+                                            iq->p_buf_out_start, req_len, __FILE__, __LINE__);
             free_bigbuf_nosignal(iq->p_buf_out_start);
+            printf(">>>>>>>>>>>>>>>>>>>>>>>>>> %s %d rc %d\n", __func__, __LINE__, rc);
         }
     } else if (comdb2_ipc_swapnpasdb_sinfo) {
         if (comdb2_ipc_setrmtdbmc) {
@@ -578,6 +579,10 @@ static int forward_block_to_master(struct ireq *iq, block_state_t *p_blkstate,
                                       iq->p_buf_out_start);
         }
         rc = comdb2_ipc_swapnpasdb_sinfo(iq);
+        printf("%s %d rc %d\n", __func__, __LINE__, rc);
+    }
+    else {
+        printf("huh?\n");
     }
 
     if (rc != 0) {
