@@ -3475,6 +3475,7 @@ opendb_out:
     register_lua_afuncs(db, thd);
   }
   register_date_functions(db);
+  register_bcon_functions(db);
   pthread_mutex_unlock(&mutex);
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 #if defined(SQLITE_HAS_CODEC)

@@ -4660,6 +4660,7 @@ int sqlite3OpenTempDatabase(Parse *);
 
 #if defined(SQLITE_BUILDING_FOR_COMDB2)
 void register_date_functions(sqlite3 * db);
+void register_bcon_functions(sqlite3 *db);
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */
 
 void sqlite3StrAccumInit(StrAccum*, sqlite3*, char*, int, int);
