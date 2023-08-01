@@ -1,3 +1,20 @@
+/*
+   Copyright 2023, Bloomberg Finance L.P.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+ */
+
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -6,6 +23,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <stdarg.h>
+#include <inttypes.h>
 
 #include "sqliteInt.h"
 
@@ -25,8 +43,9 @@ enum json_type {
 
     JSON_TYPE_STRING  = 1,
     JSON_TYPE_ARRAY   = 2,
-    JSON_TYPE_NUMBER  = 3,
-    JSON_TYPE_OBJECT  = 4
+    JSON_TYPE_INTEGER  = 3,
+    JSON_TYPE_OBJECT  = 4,
+    JSON_TYPE_NUMBER  = 5
 };
 typedef enum json_type json_type;
 typedef uint32_t json_off;
@@ -49,7 +68,7 @@ struct json_parser {
 };
 typedef struct json_parser json_parser;
 
-static json_type parse(json_parser *p);
+static json_type parse_json_next(json_parser *p);
 
 static void resize(buf *b, size_t sz) {
     if (b->len + sz <= b->cap)
@@ -68,7 +87,7 @@ static uint32_t bufadd(buf *b, const void* data, size_t sz) {
     return ret;
 }
 
-static uint32_t bufaddint(buf *b, uint64_t val) {
+static uint32_t bufaddint(buf *b, u64 val) {
     // worst case fits in 9 bytes
     resize(b, 9);
     int sz = putVarint(b->data+b->len, val);
@@ -82,14 +101,12 @@ static void bufreset(buf *b) {
     b->len = b->cap = 0;
 }
 
-static uint32_t bufgetint(buf *b, uint32_t off, uint64_t *val) {
+static uint32_t bufgetint(buf *b, uint32_t off, u64 *val) {
     int sz = getVarint(b->data + off, val);
     return sz;
 }
 
 static int frombuf(buf *b, uint32_t off, void *data, size_t sz) {
-    if (off + sz > b->len)
-        return -1;
     memcpy(data, b->data + off, sz);
     return 0;
 }
@@ -99,12 +116,12 @@ static void dict_init(buf *dict) {
     bufadd(dict, &sz, sizeof(uint32_t));
 }
 
-static uint32_t add_to_dict(buf *dict, const char *key, uint64_t klen) {
+static uint32_t add_to_dict(buf *dict, const char *key, u64 klen) {
     uint32_t dictsize;
     frombuf(dict, 0, &dictsize, sizeof(uint32_t));
     uint32_t off = (uint32_t) sizeof(uint32_t);
     while(off < dictsize) {
-        uint64_t sz;
+        u64 sz;
         uint32_t szsz;
         szsz = bufgetint(dict, off, &sz);
         if (sz == klen && memcmp(dict->data + off + szsz, key, klen) == 0) {
@@ -121,7 +138,7 @@ static uint32_t add_to_dict(buf *dict, const char *key, uint64_t klen) {
     return off;
 }
 
-static char *get_from_dict(buf *dict, uint32_t off, uint64_t *klen) {
+static char *get_from_dict(buf *dict, uint32_t off, u64 *klen) {
     uint32_t dictsize;
     if (frombuf(dict, 0, &dictsize, sizeof(uint32_t)))
         return 0;
@@ -133,26 +150,49 @@ static char *get_from_dict(buf *dict, uint32_t off, uint64_t *klen) {
     return (char*) (dict->data + off + keyszsz);
 }
 
-static json_off parse_num(json_parser *p) {
+static json_type parse_num(json_parser *p) {
     int len = 0;
     const char *start;
+    uint8_t type = JSON_TYPE_INTEGER;
 
     start = p->pos;
     while (isdigit(*p->pos)) {
         len++;
         p->pos++;
     }
+    // TODO: obviously not complete code for a reading doubles, just for a quick prototype
+    if (*p->pos == '.') {
+        len++;
+        type = JSON_TYPE_NUMBER;
+        p->pos++;
+        if (!isdigit(*p->pos)) {
+            return JSON_TYPE_INVALID;
+        }
+        while (isdigit(*p->pos)) {
+            len++;
+            p->pos++;
+        }
+    }
 
-    char *n = malloc(len+1);
+    if (len > 1100) {  /* TODO: figure out from float.h */
+        return JSON_TYPE_INVALID;
+    }
+
+    char *n = alloca(len+1);
     memcpy(n, start, len);
     n[len] = 0;
 
-    uint8_t type = JSON_TYPE_NUMBER;
     bufadd(&p->value, &type, sizeof(uint8_t));
-    bufaddint(&p->value, strtol(n, NULL, 10));
-    free(n);
+    if (type == JSON_TYPE_INTEGER) {
+        bufaddint(&p->value, strtoll(n, NULL, 10));
+    }
+    else if (type == JSON_TYPE_NUMBER) {
+        // TODO: error check
+        double d = strtod(n, NULL);
+        bufadd(&p->value, &d, sizeof(double));
+    }
 
-    return JSON_TYPE_NUMBER;
+    return JSON_TYPE_INTEGER;
 }
 
 static json_off parse_string(json_parser *p) {
@@ -194,7 +234,7 @@ static json_type parse_array(json_parser *p) {
             p->pos++;
             break;
         }
-        next = parse(p);
+        next = parse_json_next(p);
         if (next == JSON_TYPE_INVALID) {
             printf("huh? %d\n", __LINE__);
             return JSON_TYPE_INVALID;
@@ -231,7 +271,7 @@ static json_off parse_object(json_parser *p) {
         p->pos++;
     if (*p->pos == '}')
         return JSON_TYPE_OBJECT;
-    json_type next = parse(p);
+    json_type next = parse_json_next(p);
     while (next != JSON_TYPE_INVALID) {
         nent++;
         if (next != JSON_TYPE_STRING) {
@@ -247,9 +287,10 @@ static json_off parse_object(json_parser *p) {
         p->pos++;
         while (isspace(*p->pos))
             p->pos++;
-        next = parse(p);
+        const char *last = p->pos;
+        next = parse_json_next(p);
         if (next == JSON_TYPE_INVALID) {
-            printf("huh? %d\n", __LINE__);
+            printf("huh? %d at %s\n", __LINE__, last);
             return JSON_TYPE_INVALID;
         }
         while (isspace(*p->pos))
@@ -263,7 +304,7 @@ static json_off parse_object(json_parser *p) {
             return JSON_TYPE_INVALID;
         }
         p->pos++;
-        next = parse(p);
+        next = parse_json_next(p);
     }
     totalsize = p->value.len - start;
     memcpy(p->value.data + totalsize_off , &totalsize, sizeof(uint32_t));
@@ -272,7 +313,7 @@ static json_off parse_object(json_parser *p) {
     return JSON_TYPE_OBJECT;
 }
 
-static json_type parse(json_parser *p) {
+static json_type parse_json_next(json_parser *p) {
     json_type type = JSON_TYPE_INVALID;
     while (*p->pos && isspace(*p->pos))
         p->pos++;
@@ -363,7 +404,7 @@ static json_type parse_json(const char *text, buf *out) {
             .pos = text
     };
     dict_init(&p.dict);
-    json_type type = parse(&p);
+    json_type type = parse_json_next(&p);
     if (type == JSON_TYPE_INVALID) {
         bufreset(&p.dict);
         bufreset(&p.value);
@@ -383,8 +424,8 @@ static uint32_t dump_node_from_buf(buf *in, uint32_t off, buf *out, int unwrap) 
     off += sizeof(uint8_t);
     switch (type) {
         case JSON_TYPE_STRING: {
-            uint64_t key;
-            uint64_t klen;
+            u64 key;
+            u64 klen;
             off += bufgetint(in, off, &key);
             char *s = get_from_dict(in, key, &klen);
             if (unwrap)
@@ -406,10 +447,10 @@ static uint32_t dump_node_from_buf(buf *in, uint32_t off, buf *out, int unwrap) 
                 frombuf(in, off, &keytype, sizeof(uint8_t));
                 assert(keytype == JSON_TYPE_STRING);
                 off += sizeof(uint8_t);
-                uint64_t dictoff;
+                u64 dictoff;
                 off += bufgetint(in, off, &dictoff);
                 char *key;
-                uint64_t keylen;
+                u64 keylen;
                 key = get_from_dict(in, dictoff, &keylen);
                 if (key == NULL)
                     return 0;
@@ -445,9 +486,17 @@ static uint32_t dump_node_from_buf(buf *in, uint32_t off, buf *out, int unwrap) 
         }
 
         case JSON_TYPE_NUMBER: {
-            uint64_t n;
+            double d;
+            frombuf(in, off, &d, sizeof(double));
+            off += sizeof(double);
+            sprintf_to_buf(out, "%f", d);
+            break;
+        }
+
+        case JSON_TYPE_INTEGER: {
+            u64 n;
             off += bufgetint(in, off, &n);
-            sprintf_to_buf(out, "%d", (int) n);
+            sprintf_to_buf(out, "%"PRId64, n);
             break;
         }
         default:
@@ -468,7 +517,7 @@ static json_off find_property(buf *bin, json_off objoff, const char *key, size_t
     uint32_t totalsz;
     uint32_t nent;
     char *nextkey;
-    uint64_t nextklen;
+    u64 nextklen;
     uint8_t type;
     frombuf(bin, objoff, &type, sizeof(uint8_t));
     if (type != JSON_TYPE_OBJECT)
@@ -479,7 +528,7 @@ static json_off find_property(buf *bin, json_off objoff, const char *key, size_t
     frombuf(bin, off, &nent, sizeof(uint32_t));
     off += sizeof(uint32_t);
     for (uint32_t i = 0; i < nent; i++) {
-        uint64_t keyoff;
+        u64 keyoff;
         frombuf(bin, off, &type, sizeof(uint8_t));
         off += sizeof(uint8_t);
         if (type != JSON_TYPE_STRING)
@@ -495,8 +544,15 @@ static json_off find_property(buf *bin, json_off objoff, const char *key, size_t
         frombuf(bin, off, &type, sizeof(uint8_t));
         off += sizeof(uint8_t);
         switch (type) {
+            case JSON_TYPE_NUMBER: {
+                double d; 
+                frombuf(bin, off, &d, sizeof(double));
+                off += sizeof(double);
+                break;
+            }
+
             case JSON_TYPE_STRING:
-            case JSON_TYPE_NUMBER:
+            case JSON_TYPE_INTEGER:
                 off += bufgetint(bin, off, &keyoff);
                 break;
             case JSON_TYPE_OBJECT:
@@ -566,6 +622,8 @@ static const char *typename(uint8_t type) {
             return "JSON_TYPE_ARRAY";
         case JSON_TYPE_NUMBER:
             return "JSON_TYPE_NUMBER";
+        case JSON_TYPE_INTEGER:
+            return "JSON_TYPE_INTEGER";
         case JSON_TYPE_STRING:
             return "JSON_TYPE_STRING";
         default:
@@ -582,15 +640,24 @@ static json_off explainbuf_at_off(buf *b, json_off off, buf *out) {
     off += sizeof(uint8_t);
     sprintf_to_buf(out, "%03d ", (int) off);
     switch (type) {
-        case JSON_TYPE_NUMBER:
+        case JSON_TYPE_NUMBER: {
+            double d;
+            frombuf(b, off, &d, sizeof(double));
+            hexdumpbytes(out, (uint8_t*) &d, sizeof(double));
+            sprintf_to_buf(out, " %f double\n", d);
+            off += sizeof(double);
+            break;
+        };
+
+        case JSON_TYPE_INTEGER:
         case JSON_TYPE_STRING: {
             size_t sz;
-            uint64_t val;
-            uint64_t klen;
+            u64 val;
+            u64 klen;
             sz = bufgetint(b, off, &val);
-            if (type == JSON_TYPE_NUMBER) {
+            if (type == JSON_TYPE_INTEGER) {
                 hexdumpbytes(out, b->data + off, sz);
-                sprintf_to_buf(out, " %d varint\n", (int) val);
+                sprintf_to_buf(out, " %"PRId64 " varint\n", val);
             }
             else {
                 hexdumpbytes(out, b->data + off, sz);
@@ -606,7 +673,7 @@ static json_off explainbuf_at_off(buf *b, json_off off, buf *out) {
             uint32_t nent;
             frombuf(b, off, &totalsize, sizeof(uint32_t));
             hexdumpbytes(out, b->data + off, sizeof(uint32_t));
-            sprintf_to_buf(out, " %d total size\n", (int) totalsize);
+            sprintf_to_buf(out, " %d total size (ends at %d)\n", (int) totalsize, off + totalsize - 1);
             off += sizeof(uint32_t);
             frombuf(b, off, &nent, sizeof(uint32_t));
             sprintf_to_buf(out, "%03d ", (int) off);
@@ -633,15 +700,15 @@ static void explainbuf(buf *b, buf *out) {
     sprintf_to_buf(out, " dictionary size %d\n", (int) dictsize);
     off += sizeof(uint32_t);
     while (off < dictsize) {
-        uint64_t val;
+        u64 val;
         size_t sz = bufgetint(b, off, &val);
         sprintf_to_buf(out, "%03d ", (int) off);
         hexdumpbytes(out, b->data + off, sz);
-        sprintf_to_buf(out, " %d key len, varint\n", (int) val);
+        sprintf_to_buf(out, " %"PRId64" key len, varint\n", val);
         off += sz;
         sprintf_to_buf(out, "%03d ", (int) off);
         hexdumpbytes(out, b->data + off, val);
-        sprintf_to_buf(out, " key\n");
+        sprintf_to_buf(out, " \"%.*s\" key\n", val, b->data + off);
         off += val;
     }
     while (off < b->len) {
@@ -804,8 +871,8 @@ void loadnext(struct json_each_cursor *pCur) {
         uint8_t type;
         frombuf(&pCur->data, pCur->off, &type, sizeof(uint8_t));
         pCur->off += sizeof(uint8_t);
-        assert(type = JSON_TYPE_STRING);
-        uint64_t val;
+        assert(type == JSON_TYPE_STRING);
+        u64 val;
         pCur->off += bufgetint(&pCur->data, pCur->off, &val);
         pCur->dataoff = pCur->off;
     }
@@ -814,10 +881,15 @@ void loadnext(struct json_each_cursor *pCur) {
     uint8_t type;
     frombuf(&pCur->data, pCur->off, &type, sizeof(uint8_t));
     pCur->off += sizeof(uint8_t);
-    uint64_t val;
+    u64 val;
     switch (type) {
+        case JSON_TYPE_NUMBER: {
+            pCur->off += sizeof(double);
+            break;
+        }
+
         case JSON_TYPE_STRING:
-        case JSON_TYPE_NUMBER:
+        case JSON_TYPE_INTEGER:
             pCur->off += bufgetint(&pCur->data, pCur->off, &val);
             break;
         default: {
@@ -896,10 +968,10 @@ static int bcon_best_index(
         sqlite3_index_info *pIdxInfo) {
     int usable = 0;
     for (int i = 0; i < pIdxInfo->nConstraint; i++) {
-        if (pIdxInfo->aConstraint[i].iColumn == BCON_COLUMN_BCON & pIdxInfo->aConstraint[i].op == SQLITE_INDEX_CONSTRAINT_EQ && pIdxInfo->aConstraint[i].usable) {
+        if (pIdxInfo->aConstraint[i].iColumn == BCON_COLUMN_BCON && pIdxInfo->aConstraint[i].op == SQLITE_INDEX_CONSTRAINT_EQ && pIdxInfo->aConstraint[i].usable) {
             pIdxInfo->aConstraintUsage[i].argvIndex = 1;
             usable++;
-        } else if (pIdxInfo->aConstraint[i].iColumn == BCON_COLUMN_PATH & pIdxInfo->aConstraint[i].op == SQLITE_INDEX_CONSTRAINT_EQ && pIdxInfo->aConstraint[i].usable) {
+        } else if (pIdxInfo->aConstraint[i].iColumn == BCON_COLUMN_PATH && pIdxInfo->aConstraint[i].op == SQLITE_INDEX_CONSTRAINT_EQ && pIdxInfo->aConstraint[i].usable) {
             pIdxInfo->aConstraintUsage[i].argvIndex = 2;
             usable++;
         }
