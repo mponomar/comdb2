@@ -365,7 +365,7 @@ int trigger_register_req(trigger_reg_t *reg)
     if (thedb->handle_sibling == NULL || master == NULL) {
         return NET_SEND_FAIL_INTERNAL; // fake internal retry
     }
-    return net_send_message(thedb->handle_sibling, master, NET_TRIGGER_REGISTER, t, sz, 1, 1000, __FILE__, __LINE__);
+    return net_send_message(thedb->handle_sibling, master, NET_TRIGGER_REGISTER, t, sz, 1, 1000);
 }
 
 int trigger_unregister_req(trigger_reg_t *reg)

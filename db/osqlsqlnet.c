@@ -28,7 +28,7 @@
 #include "osqlcomm.h"
 
 static int _send(osql_target_t *target, int usertype, void *data, int datalen,
-                 int nodelay, void *tail, int tailen, const char *file, int line);
+                 int nodelay, void *tail, int tailen);
 
 /**
  * Init bplog over net master side
@@ -88,8 +88,8 @@ int osql_end_net(struct sqlclntstate *clnt)
 }
 
 static int _send(osql_target_t *target, int usertype, void *data, int datalen,
-                 int nodelay, void *tail, int tailen, const char *file, int line)
+                 int nodelay, void *tail, int tailen)
 {
     return offload_net_send(target->host, usertype, data, datalen, nodelay,
-                            tail, tailen, file, line);
+                            tail, tailen);
 }
