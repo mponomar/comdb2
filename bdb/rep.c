@@ -648,7 +648,7 @@ static void send_context_to_all(bdb_state_type *bdb_state)
     int sz[] = {sizeof(gblcontext)};
     int type[] = {USER_TYPE_GBLCONTEXT};
     int flag[] = {0};
-    net_send_all(bdb_state->repinfo->netinfo, 1, data, sz, type, flag, __FILE__, __LINE__);
+    net_send_all(bdb_state->repinfo->netinfo, 1, data, sz, type, flag);
 }
 
 static inline int is_incoherent_complete(bdb_state_type *bdb_state,
@@ -974,7 +974,7 @@ int berkdb_send_rtn(DB_ENV *dbenv, const DBT *control, const DBT *rec,
                     (nodelay ? NET_SEND_NODELAY : 0) |
                     (flags & DB_REP_TRACE ? NET_SEND_TRACE : 0);
         ++num;
-        rc = net_send_all(bdb_state->repinfo->netinfo, num, data, sz, type, flag, __FILE__, __LINE__);
+        rc = net_send_all(bdb_state->repinfo->netinfo, num, data, sz, type, flag);
     } else {
         int tmpseq;
         uint8_t *p_seq_num = (uint8_t *)seqnum;
@@ -1016,7 +1016,7 @@ int berkdb_send_rtn(DB_ENV *dbenv, const DBT *control, const DBT *rec,
         }
 
         rc = net_send_flags(bdb_state->repinfo->netinfo, host,
-                            USER_TYPE_BERKDB_REP, buf, bufsz, sendflags, __FILE__, __LINE__);
+                            USER_TYPE_BERKDB_REP, buf, bufsz, sendflags);
     }
 
     if (rc != 0) {
@@ -3569,7 +3569,7 @@ void send_filenum_to_all(bdb_state_type *bdb_state, int filenum, int nodelay)
     int sz[] = {sizeof(filenum)};
     int type[] = {USER_TYPE_BERKDB_FILENUM};
     int flag[] = {nodelay};
-    int rc = net_send_all(bdb_state->repinfo->netinfo, 1, data, sz, type, flag, __FILE__, __LINE__);
+    int rc = net_send_all(bdb_state->repinfo->netinfo, 1, data, sz, type, flag);
     if (rc)
         logmsg(LOGMSG_WARN, "%s:net_send returned rc=%d\n", __func__, rc);
 }
@@ -3642,7 +3642,7 @@ int request_copydelay(void *bdb_state_in)
     bdb_state_type *bdb_state = (bdb_state_type *)bdb_state_in;
     rc = net_send_flags(bdb_state->repinfo->netinfo,
                         bdb_state->repinfo->master_host, USER_TYPE_COMMITDELAYTIMED, NULL,
-                        0, NET_SEND_NODROP, __FILE__, __LINE__);
+                        0, NET_SEND_NODROP);
     return rc;
 }
 
@@ -3655,7 +3655,7 @@ int send_myseqnum_to_master(bdb_state_type *bdb_state, int nodelay)
         rc = net_send_nodrop(bdb_state->repinfo->netinfo,
                              bdb_state->repinfo->master_host,
                              USER_TYPE_BERKDB_NEWSEQ, &p_net_seqnum,
-                             sizeof(seqnum_type), nodelay, __FILE__, __LINE__);
+                             sizeof(seqnum_type), nodelay);
     } else {
         static time_t lastpr = 0;
         time_t now;
@@ -3681,7 +3681,7 @@ void send_myseqnum_to_all(bdb_state_type *bdb_state, int nodelay)
     int sz[] = {BDB_SEQNUM_TYPE_LEN};
     int type[] = {USER_TYPE_BERKDB_NEWSEQ};
     int flag[] = {nodelay | NET_SEND_NODROP};
-    int rc = net_send_all(bdb_state->repinfo->netinfo, 1, data, sz, type, flag, __FILE__, __LINE__);
+    int rc = net_send_all(bdb_state->repinfo->netinfo, 1, data, sz, type, flag);
     if (rc) {
         logmsg(LOGMSG_ERROR, "0x%p %s:%d net_send rc=%d\n", (void *)pthread_self(), __func__, __LINE__, rc);
     }
@@ -5330,7 +5330,7 @@ void send_downgrade_and_lose(bdb_state_type *bdb_state)
 
     rc = net_send_message(
         bdb_state->repinfo->netinfo, bdb_state->repinfo->master_host,
-        USER_TYPE_DOWNGRADEANDLOSE, &rc, sizeof(int), 1, 10 * 1000, __FILE__, __LINE__);
+        USER_TYPE_DOWNGRADEANDLOSE, &rc, sizeof(int), 1, 10 * 1000);
     if (rc != 0) {
         logmsg(LOGMSG_ERROR, "send_downgrade_and_lose rc %d\n", rc);
     }
@@ -5350,7 +5350,7 @@ int request_delaymore(void *bdb_state_in)
     bdb_state_type *bdb_state = (bdb_state_type *)bdb_state_in;
     rc = net_send_flags(bdb_state->repinfo->netinfo,
                         bdb_state->repinfo->master_host,
-                        USER_TYPE_COMMITDELAYMORE, NULL, 0, NET_SEND_NODROP | NET_SEND_NODELAY, __FILE__, __LINE__);
+                        USER_TYPE_COMMITDELAYMORE, NULL, 0, NET_SEND_NODROP | NET_SEND_NODELAY);
     return rc;
 }
 
@@ -6033,7 +6033,7 @@ int request_durable_lsn_from_master(bdb_state_type *bdb_state,
     if ((rc = net_send_message_payload_ack(
              bdb_state->repinfo->netinfo, bdb_state->repinfo->master_host,
              USER_TYPE_REQ_START_LSN, (void *)&data, sizeof(data),
-             (uint8_t **)&buf, &buflen, 1, waitms, __FILE__, __LINE__)) != 0) {
+             (uint8_t **)&buf, &buflen, 1, waitms)) != 0) {
         end_time = gettimeofday_ms();
         if (rc == NET_SEND_FAIL_TIMEOUT) {
             logmsg(LOGMSG_WARN,

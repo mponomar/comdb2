@@ -188,7 +188,7 @@ int do_ack(bdb_state_type *bdb_state, DB_LSN permlsn, uint32_t generation)
         rc = 0;
     } else {
         rc = net_send(bdb_state->repinfo->netinfo, master,
-                      USER_TYPE_BERKDB_NEWSEQ, p_buf, sizeof(seqnum), 1, __FILE__, __LINE__);
+                      USER_TYPE_BERKDB_NEWSEQ, p_buf, sizeof(seqnum), 1);
     }
     return rc;
 }
@@ -255,7 +255,7 @@ static int send_timestamp(bdb_state_type *bdb_state, const char *to, int type)
     case USER_TYPE_TCP_TIMESTAMP:
         size = ack_info_size(info);
         ack_info_from_cpu(info);
-        return net_send(bdb_state->repinfo->netinfo, to, type, info, size, 1, __FILE__, __LINE__);
+        return net_send(bdb_state->repinfo->netinfo, to, type, info, size, 1);
     default:
         logmsg(LOGMSG_ERROR, "unknown timestamp type: %d\n", type);
         return 1;
@@ -721,7 +721,7 @@ void handle_tcp_timestamp(bdb_state_type *bdb_state, ack_info *info,
     info->from = info->to = 0;
     ack_info_from_cpu(info);
 
-    net_send(bdb_state->repinfo->netinfo, tohost, type, info, size, 1, __FILE__, __LINE__);
+    net_send(bdb_state->repinfo->netinfo, tohost, type, info, size, 1);
 }
 
 void handle_tcp_timestamp_ack(bdb_state_type *bdb_state, ack_info *info)
@@ -867,7 +867,7 @@ void send_coherency_leases(bdb_state_type *bdb_state, int lease_time,
             } else {
                 net_send_message(bdb_state->repinfo->netinfo, hostlist[i]->str,
                                  USER_TYPE_COHERENCY_LEASE, buf,
-                                 COLEASE_TYPE_LEN, 0, 0, __FILE__, __LINE__);
+                                 COLEASE_TYPE_LEN, 0, 0);
             }
         } else {
             static time_t lastpr = 0;
@@ -957,7 +957,7 @@ int send_pg_compact_req(bdb_state_type *bdb_state, int32_t fileid,
         else {
             p_buf = ack_info_data(info);
             rc = net_send(repinfo->netinfo, master, USER_TYPE_PAGE_COMPACT,
-                          p_buf, BDB_PGCOMP_SND_TYPE_LEN + size, 1, __FILE__, __LINE__);
+                          p_buf, BDB_PGCOMP_SND_TYPE_LEN + size, 1);
         }
     }
 #ifdef PGCOMP_DBG
@@ -997,7 +997,7 @@ int send_truncate_to_master(bdb_state_type *bdb_state, unsigned file, unsigned o
 
     rc = net_send_message(
         bdb_state->repinfo->netinfo, bdb_state->repinfo->master_host,
-        USER_TYPE_TRUNCATE_LOG, p_buf, sizeof(DB_LSN), 1, timeout, __FILE__, __LINE__);
+        USER_TYPE_TRUNCATE_LOG, p_buf, sizeof(DB_LSN), 1, timeout);
 
     return rc;
 }

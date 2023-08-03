@@ -3466,7 +3466,7 @@ int send_to_all_nodes(void *dta, int len, int type, int waittime)
     nnodes = net_get_all_nodes(thedb->handle_sibling, machs);
     for (node = 0; node < nnodes; node++) {
         rc = net_send_message(thedb->handle_sibling, machs[node], type, dta,
-                              len, waitforack, delay, __FILE__, __LINE__);
+                              len, waitforack, delay);
         if (rc)
             failed++;
     }
@@ -3483,7 +3483,7 @@ int send_forgetmenot(void)
     char *master = thedb->master;
     if (master > 0)
         return net_send_message(thedb->handle_sibling, master, NET_FORGETMENOT,
-                                NULL, 0, 0, 0, __FILE__, __LINE__);
+                                NULL, 0, 0, 0);
     else
         return -1;
 }

@@ -50,6 +50,6 @@ int osql_end_net(struct sqlclntstate *clnt);
  *
  */
 int offload_net_send(const char *host, int usertype, void *data, int datalen,
-                     int nodelay, void *tail, int tailen, const char *file, int line);
+                     int nodelay, void *tail, int tailen);
 
 #endif /* !INCLUDED_OSQLSQLNET_H */

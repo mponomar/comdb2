@@ -491,7 +491,7 @@ static int forward_longblock_to_master(struct ireq *iq,
             return ERR_INCOHERENT;
         } else {
             rc = offload_comm_send_blockreq(mstr, iq->request_data,
-                                            iq->p_buf_out_start, req_len, __FILE__, __LINE__);
+                                            iq->p_buf_out_start, req_len);
             free_bigbuf_nosignal(iq->p_buf_out_start);
         }
     } else if (comdb2_ipc_swapnpasdb_sinfo) {
@@ -565,7 +565,7 @@ static int forward_block_to_master(struct ireq *iq, block_state_t *p_blkstate,
             return ERR_INCOHERENT;
         } else {
             rc = offload_comm_send_blockreq(mstr, iq->request_data,
-                                            iq->p_buf_out_start, req_len, __FILE__, __LINE__);
+                                            iq->p_buf_out_start, req_len);
             free_bigbuf_nosignal(iq->p_buf_out_start);
             printf(">>>>>>>>>>>>>>>>>>>>>>>>>> %s %d rc %d\n", __func__, __LINE__, rc);
         }
