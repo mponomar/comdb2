@@ -46,7 +46,7 @@ int gbl_sockbplog_timeout = 60000;
 int gbl_sockbplog_sockpool = 0;
 
 static int _socket_send(osql_target_t *target, int usertype, void *data,
-                        int datalen, int nodelay, void *tail, int tailen, const char *file, int line);
+                        int datalen, int nodelay, void *tail, int tailen);
 static int osql_begin_socket(struct sqlclntstate *clnt, int type,
                              int keep_rqid);
 static int osql_end_socket(struct sqlclntstate *clnt);
@@ -136,7 +136,7 @@ static int osql_end_socket(struct sqlclntstate *clnt)
 }
 
 static int _socket_send(osql_target_t *target, int usertype, void *data,
-                        int datalen, int nodelay, void *tail, int tailen, const char *file, int line)
+                        int datalen, int nodelay, void *tail, int tailen)
 {
     SBUF2 *sb = target->sb;
     int totallen = datalen + tailen;
