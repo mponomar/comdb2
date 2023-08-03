@@ -44,7 +44,7 @@ static struct uprec_tag {
 
 /* Offload the internal block request.
    And wait on a fake for reply inline. */
-static int offload_comm_send_sync_blockreq(char *node, void *buf, int buflen, const char *file, int line);
+static int offload_comm_send_sync_blockreq(char *node, void *buf, int buflen);
 
 static const uint8_t *construct_uptbl_buffer(const struct dbtable *db,
                                              unsigned long long genid,
@@ -176,7 +176,7 @@ static void *uprec_cron_event(struct cron_event *_, struct errstat *err)
         p_slock = &uprec->slock;
         rc = offload_comm_send_blockreq(
             thedb->master == gbl_myhostname ? 0 : thedb->master, p_slock,
-            uprec->buffer, (buf_end - uprec->buffer), __FILE__, __LINE__);
+            uprec->buffer, (buf_end - uprec->buffer));
         if (rc != 0)
             goto done;
 
@@ -248,7 +248,7 @@ int offload_comm_send_upgrade_record(const char *tbl, unsigned long long genid)
         // send block request and free buffer
         rc = offload_comm_send_sync_blockreq(
             thedb->master == gbl_myhostname ? 0 : thedb->master, buffer,
-            buffer_end - buffer, __FILE__, __LINE__);
+            buffer_end - buffer);
 
     return rc;
 }
@@ -368,7 +368,7 @@ void upgrade_records_stats(void)
     logmsg(LOGMSG_USER, "%-26s %zu s\n", "cron event interval", uprec->intv);
 }
 
-static int offload_comm_send_sync_blockreq(char *node, void *buf, int buflen, const char *file, int line)
+static int offload_comm_send_sync_blockreq(char *node, void *buf, int buflen)
 {
     int rc;
     int nwakeups;
@@ -391,7 +391,7 @@ static int offload_comm_send_sync_blockreq(char *node, void *buf, int buflen, co
 
     {
         Pthread_mutex_lock(&(p_slock->req_lock));
-        rc = offload_comm_send_blockreq(node, p_slock, buf, buflen, file, line);
+        rc = offload_comm_send_blockreq(node, p_slock, buf, buflen);
         if (rc == 0) {
             nwakeups = 0;
             while (p_slock->reply_state != REPLY_STATE_DONE) {

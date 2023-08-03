@@ -1550,7 +1550,7 @@ int net_get_queue_size(netinfo_type *netinfo_ptr, const char *hostname,
 int net_send_message_payload_ack(netinfo_type *netinfo_ptr, const char *to_host,
                                  int usertype, void *data, int datalen,
                                  uint8_t **payloadptr, int *payloadlen,
-                                 int waitforack, int waitms, const char *file, int line)
+                                 int waitforack, int waitms)
 {
     net_send_message_header tmphd, msghd;
     uint8_t *p_buf, *p_buf_end;
@@ -1718,11 +1718,11 @@ end:
 
 int net_send_message(netinfo_type *netinfo_ptr, const char *to_host,
                      int usertype, void *data, int datalen, int waitforack,
-                     int waitms, const char *file, int line)
+                     int waitms)
 {
     return net_send_message_payload_ack(netinfo_ptr, to_host, usertype, data,
                                         datalen, NULL, NULL, waitforack,
-                                        waitms, file, line);
+                                        waitms);
 }
 
 static unsigned long long num_flushes = 0;
@@ -1824,13 +1824,13 @@ static void dump_queue(netinfo_type *netinfo_ptr, host_node_type *host_node_ptr)
 static int net_send_int(netinfo_type *netinfo_ptr, const char *host,
                         int usertype, void *data, int datalen, int nodelay,
                         int numtails, void **tails, int *taillens, int nodrop,
-                        int inorder, int trace, const char *file, int line)
+                        int inorder, int trace)
 {
     if (gbl_libevent) {
         int f = 0;
         if (nodelay) f |= NET_SEND_NODELAY;
         if (nodrop) f |= NET_SEND_NODROP;
-        return net_send_evbuffer(netinfo_ptr, host, usertype, data, datalen, numtails, tails, taillens, f, file, line);
+        return net_send_evbuffer(netinfo_ptr, host, usertype, data, datalen, numtails, tails, taillens, f);
     }
     host_node_type *host_node_ptr;
     net_send_message_header tmphd, msghd;
@@ -2005,7 +2005,7 @@ int net_send_authcheck_all(netinfo_type *netinfo_ptr)
 
     for (i = 0; i < count; i++) {
         rc = net_send_message(netinfo_ptr, nodes[i], NET_AUTHENTICATION_CHECK,
-                              NULL, 0, 0, 5000, __FILE__, __LINE__);
+                              NULL, 0, 0, 5000);
         if (rc < 0) {
             logmsg(LOGMSG_ERROR,
                    "Sending Auth Check failed for node %s rc=%d\n", nodes[i],
@@ -2019,56 +2019,55 @@ int net_send_authcheck_all(netinfo_type *netinfo_ptr)
 
 /* Re-order this on the queue */
 int net_send_inorder(netinfo_type *netinfo_ptr, const char *host, int usertype,
-                     void *data, int datalen, int nodelay, const char *file, int line)
+                     void *data, int datalen, int nodelay)
 {
     return net_send_int(netinfo_ptr, host, usertype, data, datalen, nodelay, 0,
-                        NULL, 0, 0, 1, 0, file, line);
+                        NULL, 0, 0, 1, 0);
 }
 
 int net_send_inorder_nodrop(netinfo_type *netinfo_ptr, const char *host,
-                            int usertype, void *data, int datalen, int nodelay, const char *file, int line)
+                            int usertype, void *data, int datalen, int nodelay)
 {
     return net_send_int(netinfo_ptr, host, usertype, data, datalen, nodelay, 0,
-                        NULL, 0, 1, 1, 0, file, line);
+                        NULL, 0, 1, 1, 0);
 }
 
 int net_send_flags(netinfo_type *netinfo_ptr, const char *host, int usertype,
-                   void *data, int datalen, uint32_t flags, const char *file, int line)
+                   void *data, int datalen, uint32_t flags)
 {
     return net_send_int(netinfo_ptr, host, usertype, data, datalen,
                         (flags & NET_SEND_NODELAY), 0, NULL, 0,
                         (flags & NET_SEND_NODROP), (flags & NET_SEND_INORDER),
-                        (flags & NET_SEND_TRACE), file, line);
+                        (flags & NET_SEND_TRACE));
 }
 
 int net_send(netinfo_type *netinfo_ptr, const char *host, int usertype,
-             void *data, int datalen, int nodelay, const char *file, int line)
+             void *data, int datalen, int nodelay)
 {
 
     return net_send_int(netinfo_ptr, host, usertype, data, datalen, nodelay, 0,
-                        NULL, 0, 0, 0, 0, file, line);
+                        NULL, 0, 0, 0, 0);
 }
 
 int net_send_nodrop(netinfo_type *netinfo_ptr, const char *host, int usertype,
-                    void *data, int datalen, int nodelay, const char *file, int line)
+                    void *data, int datalen, int nodelay)
 {
 
     return net_send_int(netinfo_ptr, host, usertype, data, datalen, nodelay, 0,
-                        NULL, 0, 1, 0, 0, file, line);
+                        NULL, 0, 1, 0, 0);
 }
 
 int net_send_tails(netinfo_type *netinfo_ptr, const char *host, int usertype,
                    void *data, int datalen, int nodelay, int numtails,
-                   void **tails, int *taillens, const char *file, int line)
+                   void **tails, int *taillens)
 {
 
     return net_send_int(netinfo_ptr, host, usertype, data, datalen, nodelay,
-                        numtails, tails, taillens, 0, 0, 0, file, line);
+                        numtails, tails, taillens, 0, 0, 0);
 }
 
 int net_send_tail(netinfo_type *netinfo_ptr, const char *host, int usertype,
-                  void *data, int datalen, int nodelay, void *tail, int tailen, 
-                  const char *file, int line)
+                  void *data, int datalen, int nodelay, void *tail, int tailen) 
 {
 
 #ifdef _BLOCKSQL_DBG
@@ -2084,7 +2083,7 @@ int net_send_tail(netinfo_type *netinfo_ptr, const char *host, int usertype,
     printf("\n");
 #endif
     return net_send_int(netinfo_ptr, host, usertype, data, datalen, nodelay, 1,
-                        &tail, &tailen, 0, 0, 0, file, line);
+                        &tail, &tailen, 0, 0, 0);
 }
 
 /* returns all nodes MINUS you */
@@ -6860,10 +6859,10 @@ int net_get_host_stats(netinfo_type *netinfo_ptr, const char *host, struct net_h
 }
 
 int net_send_all(netinfo_type *netinfo_ptr, int num, void **data, int *sz,
-                 int *type, int *flag, const char *file, int line)
+                 int *type, int *flag)
 {
     if (gbl_libevent) {
-        return net_send_all_evbuffer(netinfo_ptr, num, data, sz, type, flag, file, line);
+        return net_send_all_evbuffer(netinfo_ptr, num, data, sz, type, flag);
     }
     int rc = 0;
     struct interned_string *hostlist[REPMAX];
