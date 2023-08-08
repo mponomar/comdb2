@@ -159,6 +159,8 @@ static json_type parse_num(json_parser *p) {
     const char *start;
     uint8_t type = JSON_TYPE_INTEGER;
 
+    printf("%s %s\n", __func__, p->pos);
+
     start = p->pos;
     if (*p->pos == '-')
         p->pos++;
@@ -213,6 +215,9 @@ static json_type parse_num(json_parser *p) {
 static json_off parse_string(json_parser *p) {
     const char *start = p->pos;
     int len = 0;
+
+    printf("%s %s\n", __func__, p->pos);
+
     while (*p->pos != '"') {
         len++;
         if (*p->pos == 0) {
@@ -240,6 +245,7 @@ static json_type parse_array(json_parser *p) {
     json_off nent_off = p->value.len;
     bufadd(&p->value, &nent, sizeof(uint32_t));
     json_off next;
+    printf("%s %s\n", __func__, p->pos);
 
     for (;;) {
         while (isspace(*p->pos))
@@ -282,6 +288,9 @@ static json_off parse_object(json_parser *p) {
     json_off totalsize_off = bufadd(&p->value, &totalsize, sizeof(uint32_t));
     uint32_t nent = 0;
     json_off nent_off = bufadd(&p->value, &nent, sizeof(uint32_t));
+
+    printf("%s %s\n", __func__, p->pos);
+
     while (isspace(*p->pos))
         p->pos++;
     if (*p->pos == '}')
@@ -330,6 +339,7 @@ static json_off parse_object(json_parser *p) {
 
 static json_type parse_constant(json_parser *p) {
     uint8_t type = JSON_TYPE_INVALID;
+    printf("%s %s\n", __func__, p->pos);
     if (strncmp(p->pos, "NaN", 3) == 0 && !isalnum(p->pos[3])) {
         type = JSON_TYPE_NUMBER;
         bufadd(&p->value, &type, sizeof(uint8_t));
@@ -378,6 +388,10 @@ static json_type parse_json_next(json_parser *p) {
     else if (*p->pos == '"') {
         p->pos++;
         type = parse_string(p);
+    }
+    else {
+        printf("huh? %d\n", __LINE__);
+        return JSON_TYPE_INVALID;
     }
 
     return type;
@@ -875,10 +889,12 @@ static void bcon_get_path(sqlite3_context* context, int argc, sqlite3_value **ar
     // buf *out = &bufout;
     buf *out = hi;
 
+
     out->len = 0;
     json_off off = sqlite3_value_int(argv[1]);
     char *path = (char*) sqlite3_value_text(argv[2]);
     extract(&b, off, path, out);
+    // printf("buf %d off %d path %s\n", (int) b.len, (int) off, path);
     // todo: numbers as numbers, not strings
     sqlite3_result_text(context, (char*) out->data, (int) out->len, NULL);
 }
@@ -912,7 +928,7 @@ static int bcon_each_connect(
         char **pzErr
 ) {
     sqlite3_vtab *vt = malloc(sizeof(sqlite3_vtab));
-    int ret = sqlite3_declare_vtab(db, "CREATE TABLE x(key text, value text, bcon blob HIDDEN, path text HIDDEN)");
+    int ret = sqlite3_declare_vtab(db, "CREATE TABLE bcon_each(key , value , bcon blob HIDDEN, path text HIDDEN)");
     *ppVtab = vt;
     return ret;
 }
@@ -940,6 +956,8 @@ static int bcon_each_close(sqlite3_vtab_cursor *cur) {
 
 void loadnext(struct json_each_cursor *pCur) {
     json_off start = pCur->off;
+
+
     // save key/data offsets for the current value
     if (pCur->type == JSON_TYPE_ARRAY) {
         pCur->keyoff = 0;
@@ -980,12 +998,11 @@ void loadnext(struct json_each_cursor *pCur) {
             pCur->off = start + off;
         }
     }
-    fflush(NULL);
+    // fflush(NULL);
 }
 
 static int bcon_each_next(sqlite3_vtab_cursor *cur) {
     struct json_each_cursor *pCur = (struct json_each_cursor*) cur;
-    // printf("next\n");
     pCur->i++;
     loadnext(pCur);
     return SQLITE_OK;
@@ -1012,7 +1029,7 @@ static int bcon_each_column(
     switch (i) {
         case BCON_COLUMN_KEY:
             if (pCur->type == JSON_TYPE_ARRAY) {
-                sqlite3_result_null(ctx);
+                sqlite3_result_int(ctx, 0);
                 return SQLITE_OK;
             }
             else {
@@ -1030,7 +1047,7 @@ static int bcon_each_column(
             break;
 
         case BCON_COLUMN_PATH:
-            sqlite3_result_text(ctx, "$", 1, NULL);
+            sqlite3_result_text(ctx, "$.values", -1, NULL);
             break;
 
         default:
@@ -1089,6 +1106,7 @@ static int bcon_filter(
             loadnext(pCur);
             break;
         default:
+            printf("typeerror?\n");
             pCur->typeError = 1;
     }
     return SQLITE_OK;

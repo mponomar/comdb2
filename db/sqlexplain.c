@@ -1219,13 +1219,15 @@ void get_one_explain_line(sqlite3 *hndl, strbuf *out, Vdbe *v, int indent,
         strbuf_appendf(out, "Next String of R%d into R%d", op->p1, op->p2);
         break;
 
+    case OP_VColumn:
+        strbuf_appendf(out, "R%d = virtual column %d in cursor [%d]", op->p3, op->p2, op->p1);
+        break;
 
     case OP_TableLock:
     case OP_VBegin:
     case OP_VCreate:
     case OP_VDestroy:
     case OP_VOpen:
-    case OP_VColumn:
     case OP_VNext:
     case OP_VFilter:
     case OP_VRename:
