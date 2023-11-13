@@ -2822,7 +2822,7 @@ static int db_finalize_and_sanity_checks(struct dbenv *dbenv)
             }
 
         /* verify constraint names and add reverse constraints here */
-        if (populate_reverse_constraints(db))
+        if (populate_reverse_constraints(NULL, db))
             have_bad_schema = 1;
     }
 

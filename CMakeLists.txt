@@ -204,6 +204,8 @@ elseif(${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
   add_definitions(
     -D_DARWIN_C_SOURCE
     -D_XOPEN_SOURCE=600
+    -Wno-deprecated-non-prototype
+    -Wno-unused-but-set-variable
   )
 endif()
 
