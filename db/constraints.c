@@ -2144,7 +2144,8 @@ static inline int key_has_expressions_members(struct schema *key)
 /* Verify that the tables and keys referred to by this table's constraints all
  * exist & have the correct column count.  If they don't it's a bit of a show
  * stopper. */
-int verify_constraints_exist(struct dbtable *from_db, struct dbtable *to_db,
+int verify_constraints_exist(struct ireq *iq,
+                             struct dbtable *from_db, struct dbtable *to_db,
                              struct dbtable *new_db,
                              struct schema_change_type *s)
 {
@@ -2156,8 +2157,7 @@ int verify_constraints_exist(struct dbtable *from_db, struct dbtable *to_db,
     if (!from_db) {
         for (ii = 0; ii < thedb->num_dbs; ii++) {
             from_db = get_newer_db(thedb->dbs[ii], new_db);
-            n_errors += verify_constraints_exist(
-                from_db, from_db == to_db ? NULL : to_db, new_db, s);
+            n_errors += verify_constraints_exist(iq, from_db, from_db == to_db ? NULL : to_db, new_db, s);
         }
         return n_errors;
     }
@@ -2193,6 +2193,17 @@ int verify_constraints_exist(struct dbtable *from_db, struct dbtable *to_db,
                 rdb = get_newer_db(rdb, new_db);
             else if (strcasecmp(ct->table[jj], from_db->tablename) == 0)
                 rdb = from_db;
+            if (rdb == NULL && iq && iq->sc) {
+                // see if we're about to add this table
+                struct schema_change_type *sc = iq->sc;
+                while (sc) {
+                    if (strcasecmp(sc->tablename, ct->table[jj]) == 0) {
+                        rdb = sc->db;
+                        break;
+                    }
+                    sc = sc->sc_next;
+                }
+            }
             if (!rdb) {
                 /* Referencing a non-existent table */
                 constraint_err(s, from_db, ct, jj, "parent table not found");
@@ -2237,7 +2248,7 @@ int verify_constraints_exist(struct dbtable *from_db, struct dbtable *to_db,
  * duplicate is not added
  * this func also does a lot of verifications
  * returns the number of erorrs encountered */
-int populate_reverse_constraints(struct dbtable *db)
+int populate_reverse_constraints(struct ireq *iq, struct dbtable *db)
 {
     int ii, n_errors = 0;
 
@@ -2264,10 +2275,21 @@ int populate_reverse_constraints(struct dbtable *db)
                 cttbl = db;
 
             if (cttbl == NULL) {
-                ++n_errors;
-                logmsg(LOGMSG_ERROR, "constraint error for key %s: table %s is not found\n",
-                       cnstrt->lclkeyname, cnstrt->table[jj]);
-                continue;
+                if (iq && iq->tranddl) {
+                    struct schema_change_type *s = iq->sc;
+                    while (s) {
+                        if (strcasecmp(s->tablename, cnstrt->table[jj]) == 0) {
+                            cttbl = s->db;
+                            break;
+                        }
+                        s = s->sc_next;
+                    }
+                }
+                if (cttbl == NULL) {
+                    ++n_errors;
+                    logmsg(LOGMSG_ERROR, "constraint error for key %s: table %s is not found\n",
+                           cnstrt->lclkeyname, cnstrt->table[jj]);
+                }
             }
 
             if (cttbl == db)

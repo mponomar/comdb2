@@ -110,15 +110,14 @@ int add_table_to_environment(char *table, const char *csc2,
     newdb->iq = iq;
     newdb->timepartition_name = timepartition_name;
 
-    if ((iq == NULL || iq->tranddl <= 1) &&
-        verify_constraints_exist(newdb, NULL, NULL, s) != 0) {
+    if ((iq == NULL || iq->tranddl <= 1) && s && verify_constraints_exist(iq, newdb, NULL, NULL, s) != 0) {
         logmsg(LOGMSG_ERROR, "%s: failed to verify constraints\n", __func__);
         rc = -1;
         goto err;
     }
 
     if ((iq == NULL || iq->tranddl <= 1) &&
-        populate_reverse_constraints(newdb)) {
+        populate_reverse_constraints(iq, newdb)) {
         logmsg(LOGMSG_ERROR, "%s: failed to populate reverse constraints\n", __func__);
         rc = -1;
         goto err;
@@ -249,11 +248,11 @@ int finalize_add_table(struct ireq *iq, struct schema_change_type *s,
         sc_errf(s, "failed to lock comdb2_tables (%s:%d)\n", __func__, __LINE__);
         return -1;
     }
-    if (iq && iq->tranddl > 1 && verify_constraints_exist(db, NULL, NULL, s) != 0) {
+    if (iq && iq->tranddl > 1 && verify_constraints_exist(iq, db, NULL, NULL, s) != 0) {
         sc_errf(s, "error verifying constraints\n");
         return -1;
     }
-    if (iq && iq->tranddl > 1 && populate_reverse_constraints(db)) {
+    if (iq && iq->tranddl > 1 && populate_reverse_constraints(iq, db)) {
         sc_errf(s, "error populating reverse constraints\n");
         return -1;
     }
