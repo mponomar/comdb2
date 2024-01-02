@@ -465,7 +465,6 @@ void free_thd_info(thd_info *data, int npoints) {
 uint8_t *get_bigbuf()
 {
     uint8_t *p_buf = NULL;
-    cheap_stack_trace();
     LOCK(&buf_lock) { p_buf = pool_getablk(p_bufs); }
     UNLOCK(&buf_lock);
     return p_buf;
@@ -511,8 +510,6 @@ void *thd_req(void *vthd)
     int numwriterthreads;
 
     if (!thd->inited) {
-        printf("init\n");
-
         if (!thd->do_inline)
             thread_started("request");
 
@@ -1091,8 +1088,6 @@ int handle_buf_main2(struct dbenv *dbenv, SBUF2 *sb, const uint8_t *p_buf,
     struct thd *thd;
     int numwriterthreads;
     struct dbq_entry_t *newent = NULL;
-
-    printf("%s doinline %d\n", __func__, doinline);
 
     if (db_is_exiting()) {
         return reterr(curswap, 0, NULL, ERR_REJECTED);
