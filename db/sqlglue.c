@@ -13379,40 +13379,6 @@ int do_comdb2_legacy(char *appsock, void *payload, int payloadlen, int luxref, i
 
     rc = handle_buf_main2(thedb, NULL, payload, payload + (1024*64), 0, "hi", 0, "hello", NULL, REQ_SQLLEGACY, &userdata, luxref, 0, NULL, 0, 0, legacy_iq_setup, 1);
 
-#if 0
-            /* This part is to avoid deadlock. */
-            /* If the reply was given before the control reached here,
-             * check every 1 seconds if reply was given.
-             * If the worker thread has already given signal, reply_state will
-             * be DONE and we won't go inside loop again.
-             * If the worker thread give signal, after we check for reply_state
-             * the condition will timeout after 1 sec and variable will be
-             * checked again. */
-            while (p_slock->reply_state != REPLY_STATE_DONE) {
-                /* Assuming here that a tag request can't be 1000 second long.
-                   We have to exit in cases of error scenarios of
-                    offloading block requests. */
-                if (num_sec > TAG_MAX_WAITS) {
-                    /* I'm holding the mutex at this point. */
-                    p_slock->reply_state = REPLY_STATE_DISCARD;
-                    logmsg(LOGMSG_ERROR,
-                           "Timeout waiting for the tag request "
-                           "from `%s' to complete.\n",
-                           frommach);
-                    break;
-                }
-                struct timespec ts;
-                clock_gettime(CLOCK_REALTIME, &ts);
-                ts.tv_sec += 1;
-                /* For 99.99% of cases,  control will reach here before worker
-                 * thread gives reply.*/
-                pthread_cond_timedwait(&(p_slock->wait_cond),
-                                       &(p_slock->req_lock), &ts);
-                num_sec++;
-            }
-#endif
-
-
     *outlen = userdata.len;
     *rcode = userdata.rc;
     return rc;

@@ -1138,7 +1138,6 @@ static int newsql_raw_payload(struct sqlclntstate *c, void *a) {
     r.sqlite_row.data = rsp->buf;
     r.sqlite_row.len = rsp->outlen;
     r.error_code = rsp->rc;
-    printf("rsperr %d\n", r.error_code);
     return newsql_response_int(c, &r, RESPONSE_HEADER__SQL_RESPONSE_RAW, 0);
 }
 
