@@ -1110,7 +1110,7 @@ static int newsql_fixed_columns(struct sqlclntstate *c, void *a) {
         char *name = rows->names[i];
         int type = rows->types[i];
         size_t len = strlen(name) + 1;
-        ADJUST_LONG_COL_NAME(name, len);
+        ADJUST_LONG_COL_NAME(appdata, name, len);
         cols[i].value.data = (uint8_t *)name;
         cols[i].value.len = len;
         cols[i].type = type;

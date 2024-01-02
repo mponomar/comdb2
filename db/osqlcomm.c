@@ -3581,6 +3581,8 @@ static void net_block_reply(void *hndl, void *uptr, char *fromhost,
     /* using p_slock pointer as the request id now, this contains info about
      * socket request.*/
     struct buf_lock_t *p_slock = (struct buf_lock_t *)net_msg->rqid;
+    printf("reply: rqid %p magic %x\n", p_slock, p_slock->magic);
+
     {
         Pthread_mutex_lock(&p_slock->req_lock);
         if (p_slock->reply_state == REPLY_STATE_DISCARD) {

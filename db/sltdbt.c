@@ -505,6 +505,7 @@ int handle_ireq(struct ireq *iq)
             /* process socket end request */
             if (iq->is_socketrequest) {
                 if (iq->sb == NULL) {
+                    printf("send block reply\n");
                     rc = offload_comm_send_blockreply(
                         iq->frommach, iq->fwd_tag_rqid, iq->p_buf_out_start,
                         iq->p_buf_out - iq->p_buf_out_start, rc);
