@@ -1995,7 +1995,6 @@ void curstats(struct dbenv *dbenv);
 /* Discard - set by an appsock thread if the child tag thread has timed out. */
 #define REPLY_STATE_DISCARD 2
 struct buf_lock_t {
-    int magic;
     pthread_mutex_t req_lock;
     pthread_cond_t wait_cond;
     int rc;
