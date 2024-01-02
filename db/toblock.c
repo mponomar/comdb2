@@ -556,10 +556,6 @@ static int forward_block_to_master(struct ireq *iq, block_state_t *p_blkstate,
 
     req_len = p_blkstate->p_buf_req_end - iq->p_buf_out_start;
 
-    printf("forwarded req from %s to master node %s db %d rqlen "
-            "%zu is_socketrequest %d sb %p ipc_sndbak %p\n",
-            getorigin(iq), mstr, iq->origdb->dbnum, req_len, iq->is_socketrequest, iq->sb, iq->ipc_sndbak);
-
     if (iq->is_socketrequest || iq->ipc_sndbak) {
         if (iq->is_socketrequest && iq->sb == NULL) {
             printf("%s %d (incoherent)\n", __func__, __LINE__);
@@ -567,11 +563,8 @@ static int forward_block_to_master(struct ireq *iq, block_state_t *p_blkstate,
         } else {
             rc = offload_comm_send_blockreq(mstr, iq->request_data,
                                             iq->p_buf_out_start, req_len);
-            // free_bigbuf_nosignal(iq->p_buf_out_start);
-            printf(">>> %s %d rc %d rqid %p magic %x\n", __func__, __LINE__, rc, iq->request_data, ((struct buf_lock_t*)iq->request_data)->magic);
         }
     } else if (comdb2_ipc_swapnpasdb_sinfo) {
-        printf("old way\n");
         if (comdb2_ipc_setrmtdbmc) {
             if (iq->origdb->dbnum)
                 comdb2_ipc_setrmtdbmc(iq->origdb->dbnum, mstr, req_len,
@@ -581,10 +574,6 @@ static int forward_block_to_master(struct ireq *iq, block_state_t *p_blkstate,
                                       iq->p_buf_out_start);
         }
         rc = comdb2_ipc_swapnpasdb_sinfo(iq);
-        printf("%s %d rc %d\n", __func__, __LINE__, rc);
-    }
-    else {
-        printf("huh?\n");
     }
 
     if (rc != 0) {

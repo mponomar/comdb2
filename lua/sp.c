@@ -7201,8 +7201,7 @@ static int exec_comdb2_legacy(struct sqlthdstate *thd, struct sqlclntstate *clnt
 
     // TODO: check size
     memcpy(rsp.buf, b.data, b.length);
-    rc = do_comdb2_legacy(what, rsp.buf, b.length, luxref, flags, &rsp.outlen, &rsp.rc);
-    printf("do_comdb2_legacy rc %d rsp.rc %d\n", rc, rsp.rc);
+    do_comdb2_legacy(what, rsp.buf, b.length, luxref, flags, &rsp.outlen, &rsp.rc);
     write_response(clnt, RESPONSE_RAW_PAYLOAD, &rsp, 0);
 
     return 0;

@@ -3557,7 +3557,6 @@ int offload_comm_send_blockreply(char *host, unsigned long long rqid, void *buf,
 {
     int rc = 0;
     int len = buflen + sizeof(net_block_msg_t);
-    printf(">>> %s\n", __func__);
     net_block_msg_t *net_msg = malloc(len);
     net_msg->rqid = rqid;
     net_msg->rc = return_code;
@@ -3574,15 +3573,12 @@ static void net_block_reply(void *hndl, void *uptr, char *fromhost,
                             uint8_t is_tcp)
 {
 
-    printf("%s\n", __func__);
     cheap_stack_trace();
 
     net_block_msg_t *net_msg = dtap;
     /* using p_slock pointer as the request id now, this contains info about
      * socket request.*/
     struct buf_lock_t *p_slock = (struct buf_lock_t *)net_msg->rqid;
-    printf("reply: rqid %p magic %x\n", p_slock, p_slock->magic);
-
     {
         Pthread_mutex_lock(&p_slock->req_lock);
         if (p_slock->reply_state == REPLY_STATE_DISCARD) {
@@ -8601,8 +8597,6 @@ int offload_net_send(const char *host, int usertype, void *data, int datalen,
             return -1;
         }
     }
-
-    printf("%s: -> %s\n", __func__, host);
 
     if (host == gbl_myhostname) {
         /* local save */
