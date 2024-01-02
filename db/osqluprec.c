@@ -279,10 +279,6 @@ static void uprec_sender_array_init(void)
     uprec->ngoods = 0;
     uprec->ntimeouts = 0;
 
-    // initialize slock
-    printf(">>>>>> %s:%d\n", __func__, __LINE__);
-
-    uprec->slock.magic = 0xdeadbeef;
     Pthread_mutex_init(&(uprec->slock.req_lock), NULL);
     Pthread_cond_init(&(uprec->slock.wait_cond), NULL);
 
@@ -387,8 +383,6 @@ static int offload_comm_send_sync_blockreq(char *node, void *buf, int buflen)
     p_slock->sb = NULL;
 
     // initialize lock and cond
-    printf(">>>>>> %s:%d\n", __func__, __LINE__);
-    p_slock->magic = 0xdeadbeef;
     Pthread_mutex_init(&(p_slock->req_lock), 0);
     Pthread_cond_init(&(p_slock->wait_cond), NULL);
 
