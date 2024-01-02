@@ -472,6 +472,7 @@ static int forward_longblock_to_master(struct ireq *iq,
                     p_blkstate->p_buf_req_start) != p_blkstate->p_buf_req_start)
         return ERR_INTERNAL;
 
+    printf("forwarding\n");
     fwd.source_node = 0;
     /* write it and make sure we wrote the same length */
     if (p_blkstate->p_buf_req_start != iq->p_buf_out ||
@@ -566,10 +567,11 @@ static int forward_block_to_master(struct ireq *iq, block_state_t *p_blkstate,
         } else {
             rc = offload_comm_send_blockreq(mstr, iq->request_data,
                                             iq->p_buf_out_start, req_len);
-            free_bigbuf_nosignal(iq->p_buf_out_start);
-            printf(">>>>>>>>>>>>>>>>>>>>>>>>>> %s %d rc %d\n", __func__, __LINE__, rc);
+            // free_bigbuf_nosignal(iq->p_buf_out_start);
+            printf(">>> %s %d rc %d rqid %p magic %x\n", __func__, __LINE__, rc, iq->request_data, ((struct buf_lock_t*)iq->request_data)->magic);
         }
     } else if (comdb2_ipc_swapnpasdb_sinfo) {
+        printf("old way\n");
         if (comdb2_ipc_setrmtdbmc) {
             if (iq->origdb->dbnum)
                 comdb2_ipc_setrmtdbmc(iq->origdb->dbnum, mstr, req_len,

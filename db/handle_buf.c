@@ -465,7 +465,6 @@ void free_thd_info(thd_info *data, int npoints) {
 uint8_t *get_bigbuf()
 {
     uint8_t *p_buf = NULL;
-    printf("hi!!!!");
     cheap_stack_trace();
     LOCK(&buf_lock) { p_buf = pool_getablk(p_bufs); }
     UNLOCK(&buf_lock);
@@ -922,6 +921,8 @@ void cleanup_lock_buffer(struct buf_lock_t *lock_buffer)
     if (lock_buffer == NULL)
         return;
 
+    printf("cleanup_lock_buffer\n");
+
     /* sbuf2 is owned by the appsock. Don't close it here. */
 
     Pthread_cond_destroy(&lock_buffer->wait_cond);
@@ -1065,6 +1066,12 @@ static int init_ireq_legacy(struct dbenv *dbenv, struct ireq *iq, SBUF2 *sb,
 
     if (iq->frommach == NULL)
         iq->frommach = gbl_myhostname;
+
+    // p_slock->magic = 0xdeadbeef;
+    // Pthread_mutex_init(&(p_slock->req_lock), 0);
+    // Pthread_cond_init(&(p_slock->wait_cond), NULL);
+
+
 
     return 0;
 }
