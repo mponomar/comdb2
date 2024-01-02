@@ -918,8 +918,6 @@ void cleanup_lock_buffer(struct buf_lock_t *lock_buffer)
     if (lock_buffer == NULL)
         return;
 
-    printf("cleanup_lock_buffer\n");
-
     /* sbuf2 is owned by the appsock. Don't close it here. */
 
     Pthread_cond_destroy(&lock_buffer->wait_cond);
