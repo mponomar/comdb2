@@ -3207,6 +3207,9 @@ typedef struct {
 int enqueue_touch_page(DB_MPOOLFILE *mpf, db_pgno_t pgno);
 void touch_page(DB_MPOOLFILE *mpf, db_pgno_t pgno);
 
+void __bb_dbreg_collect(DB_ENV *dbenv, void(*callback)(void *usrptr, char *name, int dbreg, int inhash, int deleted, void *ufid), void *usrptr);
+
+
 //#############################################
 #if defined(__cplusplus)
 }

@@ -1512,6 +1512,48 @@ __bb_dbreg_print_dblist_stdout(dbenv)
 	logmsg(LOGMSG_USER, "__bb_dbreg_print_dblist ^^^^^^^^^^\n");
 }
 
+void
+__bb_dbreg_collect(dbenv, callback, usrptr)
+DB_ENV *dbenv;
+void *usrptr;
+void(*callback)(void *usrptr, char *name, int dbreg, int inhash, int deleted, void *ufid);
+{
+	DB *dbp;
+	DB_LOG *dblp;
+	FNAME *fnp;
+	LOG *lp;
+	int del;
+	char *name;
+
+	dblp = dbenv->lg_handle;
+	lp = dblp->reginfo.primary;
+
+	MUTEX_LOCK(dbenv, &lp->fq_mutex);
+
+	for (fnp = SH_TAILQ_FIRST(&lp->fq, __fname);
+	    fnp != NULL; fnp = SH_TAILQ_NEXT(fnp, q, __fname)) {
+		if (fnp->name_off == INVALID_ROFF)
+			name = NULL;
+		else
+			name = R_ADDR(&dblp->reginfo, fnp->name_off);
+
+		dbp = fnp->id >= dblp->dbentry_cnt ? NULL :
+		    dblp->dbentry[fnp->id].dbp;
+		del = fnp->id >= dblp->dbentry_cnt ? 0 :
+		    dblp->dbentry[fnp->id].deleted;
+
+        int inhash;
+        Pthread_mutex_lock(&dbenv->ufid_to_db_lk);
+        inhash = !!(hash_find(dbenv->ufid_to_db_hash, dbp->fileid) != NULL);
+        Pthread_mutex_unlock(&dbenv->ufid_to_db_lk);
+
+        callback(usrptr, name, fnp->id, inhash, del, fnp->ufid);
+    }
+
+	MUTEX_UNLOCK(dbenv, &lp->fq_mutex);
+}
+
+
 /*
  * PUBLIC: int __dbreg_ufid_exists __P((DB_ENV *, const u_int8_t *, int *));
  *  Return whether the unique file id exists in dbreg. Also return logging file id
