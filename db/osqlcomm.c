@@ -3573,8 +3573,7 @@ static void net_block_reply(void *hndl, void *uptr, char *fromhost,
                             uint8_t is_tcp)
 {
 
-    cheap_stack_trace();
-
+    printf("%s\n", __func__);
     net_block_msg_t *net_msg = dtap;
     /* using p_slock pointer as the request id now, this contains info about
      * socket request.*/
@@ -5719,7 +5718,8 @@ static void net_osql_master_check(void *hndl, void *uptr, char *fromhost,
 
             reply_type = NET_OSQL_MASTER_CHECKED;
 
-            if ((rc = offload_net_send(fromhost, reply_type, buf, sizeof(buf), 1, NULL, 0))) {
+            if ((rc = offload_net_send(fromhost, reply_type, buf, sizeof(buf),
+                                       1, NULL, 0))) {
                 logmsg(LOGMSG_ERROR, "%s: error writting record to master in "
                                 "offload mode rc=%d!\n",
                         __func__, rc);
@@ -8135,7 +8135,8 @@ static void net_osql_rcv_echo_ping(void *hndl, void *uptr, char *fromhost,
         return;
     }
 
-    rc = offload_net_send(fromhost, NET_OSQL_ECHO_PONG, dtap, dtalen, 1, NULL, 0);
+    rc = offload_net_send(fromhost, NET_OSQL_ECHO_PONG, dtap, dtalen, 1, NULL,
+                          0);
     if (rc) {
         logmsg(LOGMSG_ERROR, "Failure to pong!\n");
         return;
