@@ -472,7 +472,6 @@ static int forward_longblock_to_master(struct ireq *iq,
                     p_blkstate->p_buf_req_start) != p_blkstate->p_buf_req_start)
         return ERR_INTERNAL;
 
-    printf("forwarding\n");
     fwd.source_node = 0;
     /* write it and make sure we wrote the same length */
     if (p_blkstate->p_buf_req_start != iq->p_buf_out ||
@@ -558,11 +557,12 @@ static int forward_block_to_master(struct ireq *iq, block_state_t *p_blkstate,
 
     if (iq->is_socketrequest || iq->ipc_sndbak) {
         if (iq->is_socketrequest && iq->sb == NULL) {
-            printf("%s %d (incoherent)\n", __func__, __LINE__);
             return ERR_INCOHERENT;
         } else {
             rc = offload_comm_send_blockreq(mstr, iq->request_data,
                                             iq->p_buf_out_start, req_len);
+            // HERE 
+            // free_bigbuf_nosignal(iq->p_buf_out_start);
         }
     } else if (comdb2_ipc_swapnpasdb_sinfo) {
         if (comdb2_ipc_setrmtdbmc) {
@@ -6220,8 +6220,7 @@ cleanup:
     logmsg(LOGMSG_DEBUG, "%s cleanup rc %d did_replay:%d fromline:%d\n",
            __func__, outrc, did_replay, fromline);
 #endif
-    // cheat
-    // bdb_checklock(thedb->bdb_env);
+    bdb_checklock(thedb->bdb_env);
 
     iq->timings.req_finished = osql_log_time();
     /*printf("Set req_finished=%llu\n", iq->timings.req_finished);*/

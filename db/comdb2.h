@@ -1998,6 +1998,7 @@ struct buf_lock_t {
     pthread_mutex_t req_lock;
     pthread_cond_t wait_cond;
     int rc;
+    int len;
     int reply_state; /* See REPLY_STATE_* macros above */
     uint8_t *bigbuf;
     SBUF2 *sb;

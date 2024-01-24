@@ -504,18 +504,23 @@ void *thd_req(void *vthd)
     struct timespec ts;
     int rc;
     int iamwriter = 0;
-    struct thread_info *thdinfo;
+    struct thread_info *thdinfo = NULL;
     struct thr_handle *thr_self;
     struct reqlogger *logger;
     int numwriterthreads;
 
     if (!thd->inited) {
-        if (!thd->do_inline)
+        if (thd->do_inline) {
+            thd->thr_self = thrman_self();
+        }
+        else {
+            thd->thr_self = thrman_register(THRTYPE_REQ);
             thread_started("request");
+        }
+
 
         ENABLE_PER_THREAD_MALLOC(__func__);
 
-        thd->thr_self = thr_self = thrman_register(THRTYPE_REQ);
         dbenv = thd->iq->dbenv;
 
         // This was already called in the thread that's calling this code if we're called
@@ -571,11 +576,8 @@ void *thd_req(void *vthd)
 
         Pthread_setspecific(thd_info_key, thdinfo);
         thd->inited = 1;
-        if (thd->do_inline)
-            return NULL;
     }
-    else
-        thr_self = thd->thr_self;
+    thr_self = thd->thr_self;
 
     logger = thrman_get_reqlogger(thr_self);
 
@@ -772,25 +774,23 @@ void *thd_req(void *vthd)
     } while (1);
 }
 
-static __thread struct thd *inlinerq;
 void thd_req_inline(struct ireq *iq) {
+    struct thd inlinerq = {0};
+#if 0
     if (!inlinerq) {
         // TODO: cleanup
         inlinerq = calloc(1, sizeof(struct thd));
         inlinerq->do_inline = 1;
         inlinerq->inited = 0;
     }
-    inlinerq->tid = pthread_self();
-    inlinerq->iq = iq;
-    thd_req(inlinerq);
-}
+#endif
+    inlinerq.do_inline = 1;
+    inlinerq.inited = 0;
+    inlinerq.tid = pthread_self();
+    inlinerq.iq = iq;
+    thd_req(&inlinerq);
 
-void thd_req_cleanup(void) {
-    struct thread_info *thdinfo;
-    if (inlinerq)
-        free(inlinerq);
-    inlinerq = NULL;
-    thdinfo = pthread_getspecific(thd_info_key);
+    struct thread_info *thdinfo = pthread_getspecific(thd_info_key);
     delete_constraint_table(thdinfo->ct_add_table);
     delete_constraint_table(thdinfo->ct_del_table);
     delete_constraint_table(thdinfo->ct_add_index);
@@ -799,9 +799,7 @@ void thd_req_cleanup(void) {
         pool_free(thdinfo->ct_add_table_genid_pool);
     }
     delete_defered_index_tbl();
-    backend_thread_event(thedb, COMDB2_THR_EVENT_DONE_RDWR);
 }
-
 
 /* sndbak error code &  return resources.*/
 static int reterr(intptr_t curswap, struct thd *thd, struct ireq *iq, int rc)
@@ -915,6 +913,7 @@ int handle_socket_long_transaction(struct dbenv *dbenv, SBUF2 *sb,
 
 void cleanup_lock_buffer(struct buf_lock_t *lock_buffer)
 {
+    printf("%s\n", __func__);
     if (lock_buffer == NULL)
         return;
 
@@ -1061,12 +1060,6 @@ static int init_ireq_legacy(struct dbenv *dbenv, struct ireq *iq, SBUF2 *sb,
 
     if (iq->frommach == NULL)
         iq->frommach = gbl_myhostname;
-
-    // p_slock->magic = 0xdeadbeef;
-    // Pthread_mutex_init(&(p_slock->req_lock), 0);
-    // Pthread_cond_init(&(p_slock->wait_cond), NULL);
-
-
 
     return 0;
 }

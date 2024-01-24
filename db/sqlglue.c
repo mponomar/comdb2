@@ -3095,6 +3095,7 @@ static int cursor_move_remote(BtCursor *pCur, int *pRes, int how)
 
     assert(pCur->fdbc != NULL);
 
+
     rc = cursor_move_preprop(pCur, pRes, how, &done);
     if (done) {
         return rc;
@@ -13355,31 +13356,55 @@ int comdb2_is_field_indexable(const char *table_name, int fld_idx) {
         }
     }
     return 1;
+
 }
-struct stuff {
-    int len;
-    int rc;
-};
 
 // do nothing!
-void legacy_sndbak(struct ireq *iq, int rc, int len) {
-    struct stuff *s;
-    s = (struct stuff*) iq->request_data;
-    s->len = len;
-    s->rc = rc;
+static void legacy_sndbak(struct ireq *iq, int rc, int len) {
+    struct buf_lock_t *p_slock = iq->request_data;
+    printf("%s rc %d len %d\n", __func__, rc, len);
+    p_slock->len = len;
+    p_slock->rc = rc;
+    signal_buflock(p_slock);
 }
 
 static void legacy_iq_setup(struct ireq *iq) {
     iq->ipc_sndbak = legacy_sndbak;
 }
 
+extern pthread_mutex_t buf_lock;
+extern pool_t *p_slocks; /* pool of socket locks*/
 int do_comdb2_legacy(char *appsock, void *payload, int payloadlen, int luxref, int flags, int *outlen, int *rcode) {
     int rc;
-    struct stuff userdata = {0};
 
-    rc = handle_buf_main2(thedb, NULL, payload, payload + (1024*64), 0, "hi", 0, "hello", NULL, REQ_SQLLEGACY, &userdata, luxref, 0, NULL, 0, 0, legacy_iq_setup, 1);
+    struct buf_lock_t *p_slock = NULL;
+    Pthread_mutex_lock(&buf_lock);
+    p_slock = pool_getablk(p_slocks);
+    Pthread_mutex_unlock(&buf_lock);
 
-    *outlen = userdata.len;
-    *rcode = userdata.rc;
+    Pthread_mutex_init(&(p_slock->req_lock), 0);
+    Pthread_cond_init(&(p_slock->wait_cond), NULL);
+    p_slock->bigbuf = (uint8_t*) payload;
+    p_slock->sb = NULL;
+    p_slock->reply_state = REPLY_STATE_NA;
+
+    int state;
+    Pthread_mutex_lock(&p_slock->req_lock);
+    rc = handle_buf_main2(thedb, NULL, payload, payload + (1024*64), 0, "hi", 0, "hello", NULL, REQ_SQLLEGACY, p_slock, luxref, 0, NULL, 0, 0, legacy_iq_setup, 1);
+    do {
+        state = p_slock->reply_state;
+        if (state == REPLY_STATE_NA) {
+            Pthread_cond_wait(&p_slock->wait_cond, &p_slock->req_lock); 
+            state = p_slock->reply_state;
+            printf("wakeup: state %d\n", state);
+       }
+        else {
+            Pthread_mutex_unlock(&p_slock->req_lock);
+        }
+    } while (state == REPLY_STATE_NA);
+
+    *outlen = p_slock->len;
+    *rcode = p_slock->rc;
+    printf("rc %d rcode %d outlen %d\n", rc, *rcode, *outlen);
     return rc;
 }

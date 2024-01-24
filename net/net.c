@@ -1062,7 +1062,7 @@ int net_send_tails(netinfo_type *netinfo_ptr, const char *host, int usertype,
 }
 
 int net_send_tail(netinfo_type *netinfo_ptr, const char *host, int usertype,
-                  void *data, int datalen, int nodelay, void *tail, int tailen) 
+                  void *data, int datalen, int nodelay, void *tail, int tailen)
 {
 
 #ifdef _BLOCKSQL_DBG

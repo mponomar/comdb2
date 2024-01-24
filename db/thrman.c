@@ -132,8 +132,6 @@ struct thr_handle *thrman_register(enum thrtype type)
 
     thr = pthread_getspecific(thrman_key);
     if (thr) {
-        // cheat
-        return thr;
         char buf[1024];
         logmsg(LOGMSG_FATAL, "thrman_register(%s): thread already registered: %s\n",
                 thrman_type2a(type), thrman_describe(thr, buf, sizeof(buf)));

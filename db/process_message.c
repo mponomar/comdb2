@@ -5413,6 +5413,12 @@ clipper_usage:
             printf("%d\n", i);
             sleep(1);
         }
+    } else if (tokcmp(tok, ltok, "alarm") == 0) {
+        alarm(5);
+        for (int i = 5; i >= 0; i--) {
+            printf("%d\n", i);
+            sleep(1);
+        }
     } else {
         // see if any plugins know how to handle this
         struct message_handler *h;
