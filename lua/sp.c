@@ -6730,7 +6730,6 @@ static int push_trigger_args_int(Lua L, dbconsumer_t *q, struct qfound *f, char 
         lua_setfield(L, -2, "type");
     }
 
-    fsnapf(stdout, payload, end - payload);
     while (payload && payload < end) {
         payload = consume_field(L, payload);
     }
@@ -6843,6 +6842,7 @@ static int emit_result(Lua L, long long *sprc, char **err)
             break;
         }
     }
+    // HERE
     lua_settop(L, 0); // not necessary, right??
 
     if (rettab) dbtable_emit_int(L, rettab);
@@ -7200,6 +7200,7 @@ static int exec_comdb2_legacy(struct sqlthdstate *thd, struct sqlclntstate *clnt
     // TODO: check size
     memcpy(rsp.buf, b.data, b.length);
     do_comdb2_legacy(what, rsp.buf, b.length, luxref, flags, &rsp.outlen, &rsp.rc);
+    printf("rsp: len %d rc %d\n", rsp.outlen, rsp.rc);
     write_response(clnt, RESPONSE_RAW_PAYLOAD, &rsp, 0);
 
     return 0;
