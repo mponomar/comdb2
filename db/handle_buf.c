@@ -784,6 +784,7 @@ void thd_req_inline(struct ireq *iq) {
         inlinerq->inited = 0;
     }
 #endif
+    // TODO: reuse the constraint tables, etc
     inlinerq.do_inline = 1;
     inlinerq.inited = 0;
     inlinerq.tid = pthread_self();
