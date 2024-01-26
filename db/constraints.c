@@ -1865,6 +1865,7 @@ int delete_constraint_table(void *table)
     int rc = 0;
     if (table == NULL)
         return rc;
+
     rc = bdb_temp_table_close(thedb->bdb_env, table, &bdberr);
     return rc;
 }
