@@ -7201,8 +7201,10 @@ static int exec_comdb2_legacy(struct sqlthdstate *thd, struct sqlclntstate *clnt
 
     // TODO: check size
     memcpy(rsp.buf, b.data, b.length);
+    // logmsg(LOGMSG_WARN, "-> %p %d\n", rsp.buf, b.length);
     do_comdb2_legacy(what, rsp.buf, b.length, luxref, flags, &rsp.outlen, &rsp.rc);
-    printf("rsp: len %d rc %d\n", rsp.outlen, rsp.rc);
+    // logmsg(LOGMSG_WARN, "rsp: len %d rc %d\n", rsp.outlen, rsp.rc);
+    // fsnapf(stdout, rsp.buf, rsp.outlen);
     write_response(clnt, RESPONSE_RAW_PAYLOAD, &rsp, 0);
 
     return 0;
