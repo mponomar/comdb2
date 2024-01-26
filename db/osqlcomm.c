@@ -3573,7 +3573,6 @@ static void net_block_reply(void *hndl, void *uptr, char *fromhost,
                             uint8_t is_tcp)
 {
 
-    printf("%s\n", __func__);
     net_block_msg_t *net_msg = dtap;
     /* using p_slock pointer as the request id now, this contains info about
      * socket request.*/
@@ -3588,8 +3587,14 @@ static void net_block_reply(void *hndl, void *uptr, char *fromhost,
             cleanup_lock_buffer(p_slock);
         } else {
             p_slock->rc = net_msg->rc;
-            sndbak_open_socket(p_slock->sb, (u_char *)net_msg->data,
-                               net_msg->datalen, net_msg->rc);
+            p_slock->len = net_msg->datalen;
+            if (p_slock->sb)
+                sndbak_open_socket(p_slock->sb, (u_char *)net_msg->data,
+                        net_msg->datalen, net_msg->rc);
+            else if (p_slock->bigbuf) {
+                memcpy(p_slock->bigbuf, net_msg->data, net_msg->datalen);
+            }
+
             /* Signal to allow the appsock thread
                to take new request from client. */
             signal_buflock(p_slock);
