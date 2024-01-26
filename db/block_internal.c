@@ -162,6 +162,8 @@ uint8_t *block_rspkl_put(const struct block_rspkl *p_block_rspkl,
     if (p_buf_end < p_buf || BLOCK_RSPKL_LEN > (p_buf_end - p_buf))
         return NULL;
 
+    printf("<- %p [%s]\n", p_buf, __func__);
+
     p_buf = buf_put(&(p_block_rspkl->num_completed),
                     sizeof(p_block_rspkl->num_completed), p_buf, p_buf_end);
     p_buf = buf_put(&(p_block_rspkl->numerrs), sizeof(p_block_rspkl->numerrs),
@@ -175,6 +177,8 @@ uint8_t *block_rspkl_pos_put(const struct block_rspkl_pos *p_block_rspkl_pos,
 {
     if (p_buf_end < p_buf || BLOCK_RSPKL_POS_LEN > (p_buf_end - p_buf))
         return NULL;
+
+    printf("<- %p [%s]\n", p_buf, __func__);
 
     p_buf = buf_put(&(p_block_rspkl_pos->num_completed),
                     sizeof(p_block_rspkl_pos->num_completed), p_buf, p_buf_end);

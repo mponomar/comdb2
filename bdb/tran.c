@@ -2477,6 +2477,8 @@ cursor_tran_t *bdb_get_cursortran(bdb_state_type *bdb_state, uint32_t flags,
                 __func__);
     }
 
+    cheap_stack_trace();
+
     BDB_READLOCK("bdb_get_cursortran");
 
     curtran = calloc(sizeof(cursor_tran_t), 1);

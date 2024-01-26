@@ -2563,6 +2563,7 @@ static int pack_up_response(struct ireq *iq, int have_keyless_requests,
                             int num_reqs, int numerrs, struct block_err *err,
                             int rc, int opnum)
 {
+    fprintf(stderr, "keyless %d positioned %d\n", have_keyless_requests, iq->is_block2positionmode);
     if (!have_keyless_requests) {
         struct block_rsp rsp;
 
@@ -5011,6 +5012,8 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle,
             /* TODO can I just return here? should prob go to cleanup ? */
             return ERR_INTERNAL;
     } else {
+        printf("done: num_completed %d positioned %d\n", is_block2sqlmode ?  nops : opnum, iq->is_block2positionmode);
+
         if (iq->is_block2positionmode) {
             struct block_rspkl_pos rspkl_pos;
 
@@ -5907,7 +5910,9 @@ cleanup:
     logmsg(LOGMSG_DEBUG, "%s cleanup rc %d did_replay:%d fromline:%d\n",
            __func__, outrc, did_replay, fromline);
 #endif
-    bdb_checklock(thedb->bdb_env);
+    // legacy_sndbak is being done from an SQL thread, which will hold a curtran lock, so skip this check
+    if (!iq->ipc_sndbak)
+        bdb_checklock(thedb->bdb_env);
 
     iq->timings.req_finished = osql_log_time();
     /*printf("Set req_finished=%llu\n", iq->timings.req_finished);*/
