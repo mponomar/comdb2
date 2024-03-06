@@ -153,15 +153,19 @@ int start_schema_change_tran(struct ireq *iq, tran_type *trans)
             s = stored_sc;
             iq->sc = s;
             Pthread_mutex_lock(&s->mtx);
+            s->finalize_only = 1;
             s->nothrevent = 1;
             s->resume = SC_OSQL_RESUME;
             Pthread_mutex_unlock(&s->mtx);
             uuidstr_t us;
             comdb2uuidstr(s->uuid, us);
             logmsg(LOGMSG_INFO,
-                   "Resuming schema change: uuid %s table %s"
-                   " kind %s resume %d\n",
-                   us, s->tablename, schema_change_kind(s), s->resume);
+                   "Resuming schema change: rqid [%llx %s] "
+                   "table %s, add %d, drop %d, fastinit %d, alter "
+                   "%d finalize_only %d\n",
+                   s->rqid, us, s->tablename, s->kind == SC_ADDTABLE,
+                   s->kind == SC_DROPTABLE, IS_FASTINIT(s), IS_ALTERTABLE(s),
+                   s->finalize_only);
 
         } else {
             int bdberr;
@@ -306,7 +310,7 @@ int start_schema_change_tran(struct ireq *iq, tran_type *trans)
     arg->sc = iq->sc;
     s->started = 0;
 
-    if (s->resume && s->resume != SC_OSQL_RESUME && IS_ALTERTABLE(s)) {
+    if (s->resume && IS_ALTERTABLE(s) && !s->finalize_only) {
         if (gbl_test_sc_resume_race) {
             logmsg(LOGMSG_INFO, "%s:%d sleeping 5s for sc_resume test\n",
                    __func__, __LINE__);
