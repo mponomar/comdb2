@@ -72,7 +72,6 @@ static int used_bools = 0;
 #define MIN(a, b) ((a < b) ? a : b)
 
 static strbuf *errors = NULL;
-static strbuf *syntax_errors = NULL;
 
 int get_union_size(int un);
 int get_case_size(int csn);
@@ -101,7 +100,6 @@ int gbl_on_del_set_null_feature = 1;
 int gbl_sequence_feature = 1;
 
 void csc2_error(const char *fmt, ...);
-void csc2_syntax_error(const char *fmt, ...);
 
 void csc2_allow_bools(void)
 {
@@ -121,9 +119,8 @@ int csc2_used_bools(void)
 #define CHECK_LEGACY_SCHEMA(A)                                                 \
     do {                                                                       \
         if (gbl_legacy_schema && comdb2_iam_master() && (A)) {                 \
-            csc2_syntax_error(                                                 \
+            csc2_error(                                                        \
                 "ERROR: TABLE SCHEMA NOT SUPPORTED IN LEGACY MODE\n");         \
-            any_errors++;                                                      \
             return;                                                            \
         }                                                                      \
     } while (0)
@@ -133,10 +130,6 @@ int csc2_used_bools(void)
         csc2_error("Error at line %3d: DUPLICATE CONSTRAINT NAMES ARE "        \
                    "NOT ALLOWED (variable '%s')\n",                            \
                    current_line, name);                                        \
-        csc2_syntax_error("Error at line %3d: DUPLICATE CONSTRAINT NAMES "     \
-                          "ARE NOT ALLOWED (variable '%s')",                   \
-                          current_line, name);                                 \
-        any_errors++;                                                          \
         return;                                                                \
     } while (0)
 
@@ -147,7 +140,6 @@ void start_constraint_list(char *keyname)
     if (macc_globals->nconstraints >= MAXCNSTRTS) {
         csc2_error("ERROR: TOO MANY CONSTRAINTS SPECIFIED. MAX %d\n",
                    MAXCNSTRTS);
-        any_errors++;
         return;
     }
     struct constraint *constraints = macc_globals->constraints;
@@ -166,8 +158,7 @@ void set_constraint_mod(int start, int op, int type)
         macc_globals->constraints[macc_globals->nconstraints].flags |= CT_DEL_CASCADE;
     else if (op == 2) {
         if (gbl_on_del_set_null_feature == 0 && comdb2_iam_master()) {
-            csc2_syntax_error("ERROR: ON DELETE SET NULL support not enabled\n");
-            any_errors++;
+            csc2_error("ERROR: ON DELETE SET NULL support not enabled\n");
             return;
         }
 
@@ -217,7 +208,6 @@ void add_constraint(char *tbl, char *key)
                    "(MAX: %d)\n",
                    macc_globals->constraints[macc_globals->nconstraints].lclkey,
                    MAXCNSTRTS);
-        any_errors++;
         return;
     }
     constraints[macc_globals->nconstraints].ncnstrts++;
@@ -228,8 +218,7 @@ void add_constraint(char *tbl, char *key)
 void add_check_constraint(char *expr)
 {
     if (gbl_check_constraint_feature == 0 && comdb2_iam_master()) {
-        csc2_syntax_error("ERROR: CHECK CONSTRAINT support not enabled\n");
-        any_errors++;
+        csc2_error("ERROR: CHECK CONSTRAINT support not enabled\n");
         return;
     }
 
@@ -440,7 +429,6 @@ int check_options() /* CHECK VALIDITY OF OPTIONS      */
 
         if (tables[jj].nsym == 0) {
             csc2_error("ERROR: TAG '%s' IS EMPTY\n", tables[jj].table_tag);
-            any_errors++;
         }
 
         for (ii = 0; ii < tables[jj].nsym; ii++) {
@@ -448,14 +436,12 @@ int check_options() /* CHECK VALIDITY OF OPTIONS      */
                 csc2_error("Record \"%s\" has UNIONS or CASE statements. "
                                 "SQL does not support this currently.\n",
                         tables[jj].table_tag);
-                any_errors++;
                 break;
             }
             if (numdim(tables[jj].sym[ii].dim) > 0) {
                 fprintf(stderr, "Record \"%s\" has ARRAY fields. SQL does not "
                                 "support this currently.\n",
                         tables[jj].table_tag);
-                any_errors++;
                 break;
             }
             /*	  if (tables[jj].sym[ii].type==T_PSTR)
@@ -478,7 +464,6 @@ int check_options() /* CHECK VALIDITY OF OPTIONS      */
                 if (ondskidx == macc_globals->ntables) {
                     csc2_error("ERROR \"%s\" TAG DOES NOT EXIST IN SCHEMA!\n",
                                ONDISKTAG);
-                    any_errors++;
                     break;
                 }
                 for (k = 0; k < tables[ondskidx].nsym; k++) {
@@ -492,7 +477,6 @@ int check_options() /* CHECK VALIDITY OF OPTIONS      */
                                "EXIST IN \"%s\" TAG!\n",
                                tables[jj].sym[ii].nm, tables[jj].table_tag,
                                ONDISKTAG);
-                    any_errors++;
                     break;
                 }
                 /* make sure that blob fields do not have different types in
@@ -514,7 +498,6 @@ int check_options() /* CHECK VALIDITY OF OPTIONS      */
                                    "ALLOWED FOR BLOBS OR VUTF8S\n",
                                    tables[jj].sym[ii].nm, tables[jj].table_tag,
                                    ONDISKTAG);
-                        any_errors++;
                         break;
                     }
                 }
@@ -526,7 +509,6 @@ int check_options() /* CHECK VALIDITY OF OPTIONS      */
                     csc2_error("ERROR FIELD \"%s\" IS A BLOB OR VUTF8 "
                                "FIELD, IT MAY NOT APPEAR IN DEFAULT TAG.\n",
                                tables[jj].sym[ii].nm);
-                    any_errors++;
                     break;
                 }
             }
@@ -546,7 +528,6 @@ int check_options() /* CHECK VALIDITY OF OPTIONS      */
                                 "'%s'. SQL does not support this currently.\n",
                         ii, tables[ck->stbl].sym[jj].nm);
                 goterr = 1;
-                any_errors++;
                 break;
             }
             /* don't allow blobs to be indexed */
@@ -557,7 +538,6 @@ int check_options() /* CHECK VALIDITY OF OPTIONS      */
                                 "This is not supported.\n",
                         ii, tables[ck->stbl].sym[jj].nm);
                 goterr = 1;
-                any_errors++;
                 break;
             }
 
@@ -570,7 +550,6 @@ int check_options() /* CHECK VALIDITY OF OPTIONS      */
     }
     if (!ondisktag) {
         csc2_error("ONDISK tag not defined.\n");
-        any_errors++;
     }
     return any_errors;
 }
@@ -630,7 +609,6 @@ int arroff(int s, int el[6], int rg[2])
         if (el[i] == -1) {
             csc2_error("ERROR CALCULATING ARRAY OFFSET FOR SYMBOL %s!\n",
                        macc_globals->tables[macc_globals->ntables].sym[s].nm);
-            any_errors++;
             return -1;
         }
         if (!declaration)
@@ -657,7 +635,6 @@ int addtokey(int sym, int tbl, int dim[6],
     int keyfields = 0;
     if (!nk) {
         csc2_error("ERROR: OUT OF MEM: %s - ABORTING\n", strerror(errno));
-        any_errors++;
         return -1;
     }
     nk->cmp = 0;
@@ -677,7 +654,6 @@ int addtokey(int sym, int tbl, int dim[6],
         if (keyfields >= MAX_FIELDS_PER_KEY) {
             csc2_error("ERROR: TOO MANY FIELDS IN KEY - MAX IS %d\n",
                        MAX_FIELDS_PER_KEY);
-            any_errors++;
             return -1;
         }
         kp->cmp = nk;
@@ -696,7 +672,6 @@ int keysize(struct key *ck) /* CALCULATES SIZE OF A STRUCT KEY */
     }
     if (ondtidx < 0) {
         csc2_error("ERROR: INVALID KEY TABLE INDEX %d.\n", ck->stbl);
-        any_errors++;
         return 0;
     }
     struct table *tables = macc_globals->tables;
@@ -709,7 +684,6 @@ int keysize(struct key *ck) /* CALCULATES SIZE OF A STRUCT KEY */
         csc2_error("ERROR: BAD RANGE FOR %s(%d:%d), SYMBOL #%d\n",
                    tables[ondtidx].sym[ck->sym].nm, ck->rg[0], ck->rg[1],
                    ck->sym);
-        any_errors++;
         return 0;
     }
     if (chr && rng) /* a character range */
@@ -762,13 +736,11 @@ int add_cluster_node(int node)
     if (node <= 0 || node > 10000) {
         csc2_error("ERROR at line %3d: ILLEGAL NODE#, VALID=1-10000\n",
                    current_line);
-        any_errors++;
         return -1;
     }
     if (macc_globals->ncluster >= MAX_CLUSTER) {
         csc2_error("ERROR at line %3d: CLUSTER LIMIT REACHED, MAX=%d\n",
                    current_line, MAX_CLUSTER);
-        any_errors++;
         return -1;
     }
     for (i = 0; i < macc_globals->ncluster; i++) {
@@ -776,7 +748,6 @@ int add_cluster_node(int node)
             csc2_error(
                 "ERROR at line %3d: NODE %d ALREADY INCLUDED IN CLUSTER\n",
                 current_line, node);
-            any_errors++;
             return -1;
         }
     }
@@ -870,13 +841,11 @@ void set_split(int ix, int percnt)
     if (ix < -1 || ix > 16) {
         csc2_error("ERROR at line %3d: ILLEGAL INDEX #, VALID=0-15\n",
                    current_line);
-        any_errors++;
         return;
     }
     if (percnt < 1 || percnt > 99) {
         csc2_error("ERROR at line %3d: BAD SPLIT PERCENT %d, VALID = 1-99\n",
                    current_line, percnt);
-        any_errors++;
         return;
     }
     if (ix == -1) {
@@ -910,9 +879,6 @@ void key_setdatakey(void)
     if (macc_globals->workkeyflag & PARTIALDATAKEY) {
         csc2_error("Error at line %3d: CANNOT HAVE DATACOPY AND PARTIAL DATACOPY.\n",
                 current_line);
-        csc2_syntax_error("Error at line %3d: CANNOT HAVE DATACOPY AND PARTIAL DATACOPY.",
-                          current_line);
-        any_errors++;
         return;
     }
     macc_globals->workkeyflag |= DATAKEY;
@@ -923,16 +889,10 @@ void key_setpartialdatakey(void)
     if (macc_globals->workkeyflag & DATAKEY) {
         csc2_error("Error at line %3d: CANNOT HAVE DATACOPY AND PARTIAL DATACOPY.\n",
                     current_line);
-        csc2_syntax_error("Error at line %3d: CANNOT HAVE DATACOPY AND PARTIAL DATACOPY.",
-                          current_line);
-        any_errors++;
         return;
     } else if (macc_globals->workkeyflag & PARTIALDATAKEY) {
         csc2_error("Error at line %3d: CANNOT HAVE MULTIPLE PARTIAL DATACOPIES.\n",
                     current_line);
-        csc2_syntax_error("Error at line %3d: CANNOT HAVE MULTIPLE PARTIAL DATACOPIES.",
-                          current_line);
-        any_errors++;
         return;
     }
 
@@ -944,9 +904,6 @@ void key_setpartialdatakey(void)
         if (type == T_DECIMAL32 || type == T_DECIMAL64 || type == T_DECIMAL128) {
             csc2_error("Error at line %3d: CURRENTLY CANNOT HAVE PARTIAL DATACOPY WITH DECIMAL COLUMNS.\n",
                         current_line);
-            csc2_syntax_error("Error at line %3d: CURRENTLY CANNOT HAVE PARTIAL DATACOPY WITH DECIMAL COLUMNS.",
-                        current_line);
-            any_errors++;
             return;
         }
     }
@@ -987,7 +944,6 @@ static void key_add_comn(int ix, char *tag, char *exprname,
 
     if (!macc_globals->workkey) {
         csc2_error("ERROR: KEY FAILED\n");
-        any_errors++;
         return;
     }
 
@@ -995,7 +951,6 @@ static void key_add_comn(int ix, char *tag, char *exprname,
         if (strcasecmp(tag, macc_globals->tables[ii].table_tag) == 0) {
             csc2_error("ERROR: NAME CLASH BETWEEN TAG AND KEY NAME '%s'.\n",
                        tag);
-            any_errors++;
             return;
         }
     }
@@ -1003,13 +958,11 @@ static void key_add_comn(int ix, char *tag, char *exprname,
     if ((macc_globals->workkeyflag & DUPKEY) &&
         (macc_globals->workkeyflag & PRIMARY)) {
         csc2_error("ERROR: DUPLICATES NOT ALLOWED ON PRIMARY KEY\n");
-        any_errors++;
         return;
     }
     if ((macc_globals->workkeyflag & DUPKEY) &&
         (macc_globals->workkeyflag & UNIQNULLS)) {
         csc2_error("ERROR: DUPLICATES NOT ALLOWED ON UNIQUE NULLS\n");
-        any_errors++;
         return;
     }
 #endif
@@ -1026,7 +979,6 @@ static void key_add_comn(int ix, char *tag, char *exprname,
                 csc2_error("ERROR: PRIMARY KEY ALREADY SPECIFIED.  CANNOT HAVE "
                            ">1 PRIMARY KEYS (%s)\n",
                            tag);
-                any_errors++;
                 return;
             }
 #endif
@@ -1051,9 +1003,6 @@ static void key_add_comn(int ix, char *tag, char *exprname,
         if (exprnum == -1) {
             csc2_error("Error at line %3d: CAN'T FIND TYPE '%s'\n",
                     current_line, exprname);
-            csc2_syntax_error("Error at line %3d: CAN'T FIND TYPE '%s'",
-                              current_line, exprname);
-            any_errors++;
             return;
         }
     }
@@ -1062,10 +1011,6 @@ static void key_add_comn(int ix, char *tag, char *exprname,
         csc2_error(
             "Error at line %3d: KEY %s TOO BIG(%d)! VALID SIZE=1-%d BYTES\n",
             current_line, tag, sz, MAXKEYLEN);
-        csc2_syntax_error(
-            "Error at line %3d: KEY %s TOO BIG(%d)! VALID SIZE=1-%d BYTES",
-            current_line, tag, sz, MAXKEYLEN);
-        any_errors++;
         return;
     }
     if (ix != 0) {
@@ -1081,10 +1026,6 @@ static void key_add_comn(int ix, char *tag, char *exprname,
             csc2_error(
                     "Error at line %3d: INDEX %d IS MISSING OR OUT OF ORDER!\n",
                     current_line, loweridx);
-            csc2_syntax_error(
-                "Error at line %3d: INDEX %d IS MISSING OR OUT OF ORDER!",
-                current_line, loweridx);
-            any_errors++;
             return;
         }
     }
@@ -1098,9 +1039,6 @@ static void key_add_comn(int ix, char *tag, char *exprname,
             if (macc_globals->keyexprnum[ii] == -1) {
                 csc2_error("Error at line %3d: TWO KEYS FOR INDEX %d!\n",
                            current_line, macc_globals->keyixnum[ii]);
-                csc2_syntax_error("Error at line %3d: TWO KEYS FOR INDEX %d!",
-                                  current_line, macc_globals->keyixnum[ii]);
-                any_errors++;
                 return;
             }
         } else {
@@ -1133,11 +1071,6 @@ static void key_add_comn(int ix, char *tag, char *exprname,
                 csc2_error("Error at line %3d: CANT HAVE SAME TAG '%s' "
                            "FOR INDICES %d AND %d!\n",
                            current_line, tag, ix, macc_globals->keyixnum[jj]);
-                csc2_syntax_error("Error at line %3d: CANT HAVE SAME TAG '%s' "
-                                  "FOR INDICES %d AND %d!",
-                                  current_line, tag, ix,
-                                  macc_globals->keyixnum[jj]);
-                any_errors++;
                 return;
             }
         }
@@ -1159,7 +1092,6 @@ static void key_add_comn(int ix, char *tag, char *exprname,
     if (macc_globals->workkeyflag & PARTIALDATAKEY) {
         if (!macc_globals->head_pd) {
             csc2_error("ERROR: PARTIAL DATACOPY FAILED\n");
-            any_errors++;
             return;
         }
 
@@ -1176,9 +1108,6 @@ void rng_add(int i) /* used by parser, adds a completed rng */
     if (i < 0 || i >= MAXRNGS) {
         csc2_error("Error at line %3d: ILLEGAL RANGE #%d, VALID=0-%d\n",
                 current_line, i, MAXRNGS);
-        csc2_syntax_error("Error at line %3d: ILLEGAL RANGE #%d, VALID=0-%d",
-                          current_line, i, MAXRNGS);
-        any_errors++;
         return;
     }
     if (!macc_globals->rngs[i])
@@ -1212,11 +1141,8 @@ static int find_symbol(char *buf, int *tidx) {
     if (i == -1) {
         csc2_error("Error at line %3d: SYMBOL NOT FOUND: %s.\n",
                 current_line, buf);
-        csc2_syntax_error("Error at line %3d: SYMBOL NOT FOUND: %s.",
-                          current_line, buf);
         csc2_error("IF IN MULTI-TABLE MODE MAKE SURE %s TAG IS DEFINED\n",
                 ONDISKTAG);
-        any_errors++;
     }
     return i;
 }
@@ -1234,13 +1160,12 @@ void key_piece_add(char *buf,
         int keyfields = 0;
         if (!nk) {
             csc2_error("ERROR: OUT OF MEM: %s - ABORTING\n", strerror(errno));
-            any_errors++;
             return;
         }
         nk->cmp = 0;
         nk->stbl = gettable(ONDISKTAG);
         if (nk->stbl < 0) {
-            any_errors++;
+            csc2_error("No schema defined?\n", strerror(errno));
             return;
         }
         nk->keyflags = macc_globals->workkeypieceflag;
@@ -1257,7 +1182,6 @@ void key_piece_add(char *buf,
             if (keyfields >= MAX_FIELDS_PER_KEY) {
                 csc2_error("ERROR: TOO MANY FIELDS IN KEY - MAX IS %d\n",
                            MAX_FIELDS_PER_KEY);
-                any_errors++;
                 return;
             }
             kp->cmp = nk;
@@ -1282,9 +1206,6 @@ void key_piece_add(char *buf,
                 tables[tidx].sym[i].type != T_CSTR) {
                 csc2_error("Error at line %3d: BAD KEY: %s\n",
                         current_line, buf);
-                csc2_syntax_error("Error at line %3d: BAD KEY: %s",
-                                  current_line, buf);
-                any_errors++;
                 return;
             } else if (rg[0] == -1) { /* -1 = no # in range, ie: c(1:) */
                 rg[0] = 1;
@@ -1295,10 +1216,6 @@ void key_piece_add(char *buf,
                 csc2_error(
                     "Error at line %3d: RANGE INDEX 0 IS OUT OF BOUNDS: %s\n",
                     current_line, buf);
-                csc2_syntax_error(
-                    "Error at line %3d: RANGE INDEX 0 IS OUT OF BOUNDS: %s",
-                    current_line, buf);
-                any_errors++;
                 return;
             }
             if ((rg[1] - 1) < (rg[0] - 1) ||
@@ -1306,19 +1223,12 @@ void key_piece_add(char *buf,
                 csc2_error(
                     "Error at line %3d: RANGE INDEX 1 IS OUT OF BOUNDS: %s\n",
                     current_line, buf);
-                csc2_syntax_error(
-                    "Error at line %3d: RANGE INDEX 1 IS OUT OF BOUNDS: %s",
-                    current_line, buf);
-                any_errors++;
                 return;
             }
         }
         if (numdim(el) != numdim(tables[tidx].sym[i].dim)) {
             csc2_error("Error at line %3d: WRONG # OF SUBSCRIPTS: %s\n",
                     current_line, buf);
-            csc2_syntax_error("Error at line %3d: WRONG # OF SUBSCRIPTS: %s",
-                              current_line, buf);
-            any_errors++;
             return;
         }
         for (t = 0; t < 6 && (tables[tidx].sym[i].dim[t] != -1); t++) {
@@ -1326,10 +1236,6 @@ void key_piece_add(char *buf,
                 csc2_error(
                         "Error at line %3d: INVALID ARRAY SUBSCRIPT: %s\n",
                         current_line, buf);
-                csc2_syntax_error(
-                    "Error at line %3d: INVALID ARRAY SUBSCRIPT: %s",
-                    current_line, buf);
-                any_errors++;
                 return;
             }
         }
@@ -1354,8 +1260,6 @@ void datakey_piece_add(char *buf) {
         while (temp) {
             if (strcmp(buf, temp->field) == 0) {
                 csc2_error("Error at line %3d: DUPLICATE FIELD: %s.\n", current_line, buf);
-                csc2_syntax_error("Error at line %3d: DUPLICATE FIELD: %s.", current_line, buf);
-                any_errors++;
                 return;
             }
             temp = temp->next;
@@ -1365,7 +1269,6 @@ void datakey_piece_add(char *buf) {
     struct partial_datacopy *pd = (struct partial_datacopy *)csc2_malloc(sizeof(struct partial_datacopy));
     if (!pd) {
         csc2_error("ERROR: OUT OF MEM: %s - ABORTING\n", strerror(errno));
-        any_errors++;
         return;
     }
 
@@ -1396,12 +1299,10 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
 
     if (typ == T_LOGICAL) {
         used_bools = 1;
-        csc2_error("Error at line %3d: 'bool' DATATYPE IS DEPRECATED - USE INT INSTEAD\n",
+        if (!allow_bools) {
+            csc2_error("Error at line %3d: 'bool' DATATYPE IS DEPRECATED - USE INT INSTEAD\n",
                    current_line);
-        csc2_syntax_error("Error at line %3d: 'bool' DATATYPE IS DEPRECATED - USE INT INSTEAD",
-                          current_line);
-        if (!allow_bools)
-            any_errors++;
+        }
     }
 
     if (typ == T_BLOB && dims[0] != -1) {
@@ -1510,8 +1411,6 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
     default:
         /*huh?*/
         csc2_error("%d Error at line %3d: UNKNOWN TYPE: %s\n", __LINE__, current_line, name);
-        csc2_syntax_error("%d Error at line %3d: UNKNOWN TYPE: %s", __LINE__, current_line, name);
-        any_errors++;
         return;
     }
 
@@ -1519,17 +1418,12 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
     struct table *tbl = &macc_globals->tables[ntables];
     if (tbl->nsym >= MAX) {
         csc2_error("Error at line %3d: SYMBOL TABLE FULL: %s\n", current_line, name);
-        csc2_syntax_error("Error at line %3d: SYMBOL TABLE FULL: %s", current_line, name);
-        any_errors++;
         return;
     }
 
     if (tbl->nsym >= COMDB2_MAX) {
         csc2_error("Error at line %3d: TOO MANY SYMBOLS. MAX %d. AT SYM %s\n",
                    current_line, COMDB2_MAX, name);
-        csc2_syntax_error("Error at line %3d: TOO MANY SYMBOLS. MAX %d. AT SYM %s",
-                          current_line, COMDB2_MAX, name);
-        any_errors++;
         return;
     }
 
@@ -1537,9 +1431,6 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
     if (process_array_(&sym->dim[0], rg, name, &(sym->arr), &sym->dim_cnst[0])) { /* fill dimension array */
         csc2_error("Error at line %3d: BAD ARRAY SPECIFIER: %s\n",
                    current_line, name);
-        csc2_syntax_error("Error at line %3d: BAD ARRAY SPECIFIER: %s",
-                          current_line, name);
-        any_errors++;
         return;
     }
 
@@ -1555,13 +1446,8 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
             strcmp(tbl->table_tag, ONDISKTAG)) {
             csc2_error("Error at line %3d: SYMBOL '%s' MAY NOT HAVE NULL OPTION SET.\n",
                        current_line, name);
-            csc2_syntax_error("Error at line %3d: SYMBOL '%s' MAY NOT HAVE NULL OPTION SET.",
-                              current_line, name);
             csc2_error("Error at line %3d: MUST BE IN %s SCHEMA.\n",
                        current_line, ONDISKTAG);
-            csc2_syntax_error("Error at line %3d: MUST BE IN %s SCHEMA.",
-                              current_line, ONDISKTAG);
-            any_errors++;
             return;
         }
 
@@ -1571,9 +1457,6 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
             if (typ != T_UCHAR) {
                 csc2_error("Error at line %3d: DBPAD MAY ONLY BE APPLIED TO BYTE ARRAYS\n",
                            current_line);
-                csc2_syntax_error("Error at line %3d: DBPAD MAY ONLY BE APPLIED TO BYTE ARRAYS",
-                                  current_line);
-                any_errors++;
                 return;
             }
         } else
@@ -1590,9 +1473,6 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
                     fopt->valtype != CLIENT_SEQUENCE && fopt->opttype != FLDOPT_NULL) {
                     csc2_error("Error at line %3d: FIELD OPTION TYPE IN SCHEMA MUST MATCH FIELD TYPE: %s\n",
                                current_line, name);
-                    csc2_syntax_error("Error at line %3d: FIELD OPTION TYPE IN SCHEMA MUST MATCH FIELD TYPE: %s",
-                                      current_line, name);
-                    any_errors++;
                     return;
                 }
                 break;
@@ -1602,9 +1482,6 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
                 if (fopt->valtype != CLIENT_REAL && fopt->opttype != FLDOPT_NULL) {
                     csc2_error("Error at line %3d: FIELD OPTION TYPE IN SCHEMA MUST MATCH FIELD TYPE: %s\n",
                                current_line, name);
-                    csc2_syntax_error("Error at line %3d: FIELD OPTION TYPE IN SCHEMA MUST MATCH FIELD TYPE: %s",
-                                      current_line, name);
-                    any_errors++;
                     return;
                 }
                 break;
@@ -1619,9 +1496,6 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
                     fopt->opttype != FLDOPT_NULL) {
                     csc2_error("Error at line %3d: FIELD OPTION TYPE IN SCHEMA MUST BE AN INTEGER OR HEX FOR THIS FIELD TYPE: %s\n",
                                current_line, name);
-                    csc2_syntax_error("Error at line %3d: FIELD OPTION TYPE IN SCHEMA MUST BE AN INTEGER OR HEX FOR THIS FIELD TYPE: %s",
-                                      current_line, name);
-                    any_errors++;
                     return;
                 }
                 if (fopt->valtype == CLIENT_FUNCTION && fopt->opttype != FLDOPT_NULL &&
@@ -1630,9 +1504,6 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
                     if (siz != 16) {
                         csc2_error("Error at line %3d: CAN ONLY HAVE BYTE[16] FOR GUID() DBSTORE: %s\n",
                                    current_line, name);
-                        csc2_syntax_error("Error at line %3d: CAN ONLY HAVE BYTE[16] FOR GUID() DBSTORE: %s\n",
-                                          current_line, name);
-                        any_errors++;
                         return;
                     } else {
                         CHECK_LEGACY_SCHEMA(1);
@@ -1642,9 +1513,6 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
                     if (gbl_ready) {
                         csc2_error("Error at line %3d: STRING DEFAULT OPTION NOT ALLOWED FOR FIELD: %s\n",
                                    current_line, name);
-                        csc2_syntax_error("Error at line %3d: STRING DEFAULT OPTION NOT ALLOWED FOR FIELD: %s\n",
-                                          current_line, name);
-                        any_errors++;
                         return;
                     }
                     csc2_error("Warning at line %3d: STRING DEFAULT OPTION WILL BE IGNORED FOR FIELD: %s\n",
@@ -1653,9 +1521,6 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
                 if (fopt->valtype == CLIENT_INT && fopt->opttype != FLDOPT_NULL && fopt->value.i8val != 0) {
                     csc2_error("Error at line %3d: FIELD OPTION TYPE IN SCHEMA MUST BE ZERO FOR THIS FIELD TYPE: %s\n",
                                current_line, name);
-                    csc2_syntax_error("Error at line %3d: FIELD OPTION TYPE IN SCHEMA MUST BE ZERO FOR THIS FIELD TYPE: %s",
-                                      current_line, name);
-                    any_errors++;
                     return;
                 }
                 break;
@@ -1665,9 +1530,6 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
                     !is_valid_datetime(fopt->value.strval, "") && strcmp(fopt->value.strval, "CURRENT_TIMESTAMP") != 0) {
                     csc2_error("Error at line %3d: STRING DEFAULT OPTION SCHEMA MUST BE A VALID DATETIME: %s\n",
                                current_line, name);
-                    csc2_syntax_error("Error at line %3d: STRING DEFAULT OPTION SCHEMA MUST BE A VALID DATETIME: %s\n",
-                                      current_line, name);
-                    any_errors++;
                     return;
                 }
                 CHECK_LEGACY_SCHEMA((fopt->opttype != FLDOPT_NULL));
@@ -1678,9 +1540,6 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
                     fopt->valtype != CLIENT_FUNCTION && fopt->opttype != FLDOPT_NULL) {
                     csc2_error("Error at line %3d: FIELD OPTION TYPE IN SCHEMA MUST MATCH FIELD TYPE: %s\n",
                                current_line, name);
-                    csc2_syntax_error("Error at line %3d: FIELD OPTION TYPE IN SCHEMA MUST MATCH FIELD TYPE: %s",
-                                      current_line, name);
-                    any_errors++;
                     return;
                 }
                 break;
@@ -1695,17 +1554,12 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
                 if (fopt->opttype != FLDOPT_NULL) {
                     csc2_error("Error at line %3d: CANNOT SPECIFY LOAD/STORE OPTIONS FOR BLOB/DATE FIELDS\n",
                             current_line);
-                    csc2_syntax_error("Error at line %3d: CANNOT SPECIFY LOAD/STORE OPTIONS FOR BLOB/DATE FIELDS",
-                                      current_line);
-                    any_errors++;
                     return;
                 }
                 break;
             default:
                 /*huh?*/
                 csc2_error("%d Error at line %3d: UNKNOWN TYPE: %s\n", __LINE__, current_line, name);
-                csc2_syntax_error("%d Error at line %3d: UNKNOWN TYPE: %s", __LINE__, current_line, name);
-                any_errors++;
                 return;
             }
 
@@ -1715,9 +1569,6 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
             if (fopt->opttype == sym->fopts[j].opttype) {
                 csc2_error("Error at line %3d: FIELD IN SCHEMA CANNOT HAVE OPTIONS REPEATED: %s\n",
                            current_line, name);
-                csc2_syntax_error("Error at line %3d: FIELD IN SCHEMA CANNOT HAVE OPTIONS REPEATED: %s",
-                                  current_line, name);
-                any_errors++;
             }
         }
     }
@@ -1725,9 +1576,6 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
     if (rg[0] || rg[1]) {
         csc2_error( "Error at line %3d: CHARACTER RANGE NOT ALLOWED IN RECORD{}: %s\n",
                 current_line, name);
-        csc2_syntax_error("Error at line %3d: CHARACTER RANGE NOT ALLOWED IN RECORD{}: %s",
-                          current_line, name);
-        any_errors++;
         return;
     }
     cp = strchr(name, '(');
@@ -1815,9 +1663,6 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
         if (!strcmp(tbl->sym[i].nm, sym->nm)) {
             csc2_error("Error at line %3d: DUPLICATE VARIABLE NAMES ARE NOT ALLOWED (variable '%s')\n",
                     current_line, name);
-            csc2_syntax_error("Error at line %3d: DUPLICATE VARIABLE NAMES ARE NOT ALLOWED (variable '%s')",
-                              current_line, name);
-            any_errors++;
         }
     }
 
@@ -1825,17 +1670,10 @@ void rec_c_add(int typ, int size, char *name, char *cmnt)
     if (T_CSTR == typ && sym->size < 2) {
         csc2_error("Error at line %3d: CSTRINGS ARE \\0 TERMINATED SO MUST BE AT LEAST 2 BYTES IN SIZE\n",
                 current_line);
-        csc2_syntax_error("Error at line %3d: CSTRINGS ARE \\0 TERMINATED SO MUST BE AT LEAST 2 BYTES IN SIZE",
-                          current_line);
-        any_errors++;
     } else if (T_PSTR == typ && sym->size < 1) {
         csc2_error("Error at line %3d: ZERO LENGTH PSTRINGS ARE NOT ALLOWED\n", current_line);
-        csc2_syntax_error("Error at line %3d: ZERO LENGTH PSTRINGS ARE NOT ALLOWED", current_line);
-        any_errors++;
     } else if (T_UCHAR == typ && sym->size < 1) {
         csc2_error("Error at line %3d: ZERO LENGTH BYTE ARRAYS ARE NOT ALLOWED\n", current_line);
-        csc2_syntax_error("Error at line %3d: ZERO LENGTH BYTE ARRAYS ARE NOT ALLOWED", current_line);
-        any_errors++;
     }
     tbl->nsym++;
 }
@@ -1845,17 +1683,11 @@ void add_constant(char *name, int value, short type)
     if (macc_globals->nsym >= MAX) {
         csc2_error( "Error at line %3d: CONSTANTS TABLE FULL: %s\n",
                 current_line, name);
-        csc2_syntax_error("Error at line %3d: CONSTANTS TABLE FULL: %s",
-                          current_line, name);
-        any_errors++;
         return;
     }
     if (constant(name) != -1) {
         csc2_error( "Error at line %3d: REDEFINING CONSTANT: %s\n",
                 current_line, name);
-        csc2_syntax_error("Error at line %3d: REDEFINING CONSTANT: %s",
-                          current_line, name);
-        any_errors++;
         return;
     }
     constants[macc_globals->ncnst].nm = name;
@@ -1890,14 +1722,12 @@ void start_table(char *tag, int preset)
                 csc2_error("'_' CANNOT BE FIRST CHARACTER.\n");
             else
                 csc2_error("ONLY LETTERS, DIGITS, AND '_' ARE ALLOWED.\n");
-            any_errors++;
             return;
         }
     }
 
     if (!strcmp(tag, ONDISKTAG) && numkeys() != 0) {
         csc2_error("ERROR: KEYS DEFINED BEFORE %s SCHEMA.\n", tag);
-        any_errors++;
         return;
     }
     struct table *tables = macc_globals->tables;
@@ -1905,13 +1735,11 @@ void start_table(char *tag, int preset)
         if (!strcmp(tables[i].table_tag, tag)) {
             csc2_error("TABLE ERROR: TABLE WITH TAG '%s' ALREADY DEFINED.\n",
                        tag);
-            any_errors++;
             return;
         }
     }
     if (macc_globals->ntables >= MAXTBLS) {
         csc2_error("TABLE ERROR: ONLY UP TO %d TABLES ALLOWED\n", MAXTBLS);
-        any_errors++;
         return;
     }
     strncpy(tables[macc_globals->ntables].table_tag, tag,
@@ -1942,7 +1770,6 @@ void add_array(int dim, char *label)
 {
     if (dimidx >= 6) {
         csc2_error("ARRAY ERROR: ONLY UP TO 6 DIMENSIONS ALLOWED\n");
-        any_errors++;
         reset_array();
         return;
     }
@@ -1957,36 +1784,31 @@ void add_fldopt(int opttype, int valtype, void *value)
 {
     if (nfieldopt >= 8) {
         csc2_error("FIELD OPTION ERROR: ONLY UP TO 8 OPTIONS ALLOWED\n");
-        any_errors++;
         reset_fldopt();
         return;
     }
 
     if (valtype == CLIENT_SEQUENCE && gbl_sequence_feature == 0 &&
         comdb2_iam_master()) {
-        csc2_syntax_error("ERROR: SEQUENCE support not enabled\n");
-        any_errors++;
+        csc2_error("ERROR: SEQUENCE support not enabled\n");
         return;
     }
 
     if (valtype == CLIENT_FUNCTION && gbl_default_function_feature == 0 &&
         comdb2_iam_master()) {
-        csc2_syntax_error("ERROR: DEFAULT FUNCTION support not enabled\n");
-        any_errors++;
+        csc2_error("ERROR: DEFAULT FUNCTION support not enabled\n");
         return;
     }
 
     if (valtype != CLIENT_INT && valtype != CLIENT_REAL && valtype != CLIENT_CSTR && valtype != CLIENT_BYTEARRAY &&
         valtype != CLIENT_SEQUENCE && valtype != CLIENT_FUNCTION) {
         csc2_error("FIELD OPTION ERROR: INVALID VALUE TYPE %d\n", valtype);
-        any_errors++;
         reset_fldopt();
         return;
     }
     if (opttype != FLDOPT_DBSTORE && opttype != FLDOPT_DBLOAD &&
         opttype != FLDOPT_NULL && opttype != FLDOPT_PADDING) {
         csc2_error("FIELD OPTION ERROR: INVALID OPTION TYPE %d\n", opttype);
-        any_errors++;
         reset_fldopt();
         return;
     }
@@ -1994,7 +1816,6 @@ void add_fldopt(int opttype, int valtype, void *value)
         int ivalue;
         if (valtype != CLIENT_INT) {
             csc2_error("FIELD OPTION ERROR: INVALID VALUE TYPE FOR PADDING\n");
-            any_errors++;
             reset_fldopt();
             return;
         }
@@ -2002,7 +1823,6 @@ void add_fldopt(int opttype, int valtype, void *value)
         if (ivalue < 0 || ivalue > 0xff) {
             csc2_error("FIELD OPTION ERROR: PADDING VALUE MUST BE IN THE RANGE "
                        "0..255\n");
-            any_errors++;
             reset_fldopt();
             return;
         }
@@ -2027,7 +1847,6 @@ void add_fldopt(int opttype, int valtype, void *value)
                     csc2_error("FIELD OPTION ERROR: CONVERSION FAILED FROM %s "
                                "TO NUMBER\n",
                                (char *)value);
-                    any_errors++;
                     reset_fldopt();
                     return;
                 }
@@ -2053,7 +1872,6 @@ void add_range(int rg)
 {
     if (rngidx >= 2) {
         csc2_error("RANGE ERROR: ONLY UP TO 2 RANGE INDICES ALLOWED\n");
-        any_errors++;
         reset_range();
         return;
     }
@@ -2219,9 +2037,6 @@ void start_union(char *name)
     if (macc_globals->dpth_idx + 1 >= MAX_DEPTH) {
         csc2_error( "Error at line %3d: PARSE TREE DEPTH TOO BIG %s\n",
                 current_line, name);
-        csc2_syntax_error("Error at line %3d: PARSE TREE DEPTH TOO BIG %s",
-                          current_line, name);
-        any_errors++;
         return;
     }
     dpth_info = (char *)&macc_globals->cur_dpth[macc_globals->dpth_idx++];
@@ -2259,9 +2074,6 @@ void start_rectypedef(char *rtname)
     if (macc_globals->dpth_idx + 1 >= MAX_DEPTH) {
         csc2_error( "Error at line %3d: PARSE TREE DEPTH TOO BIG %s\n",
                 current_line, rtname);
-        csc2_syntax_error("Error at line %3d: PARSE TREE DEPTH TOO BIG %s",
-                          current_line, rtname);
-        any_errors++;
         return;
     }
     dpth_info = (char *)&macc_globals->cur_dpth[macc_globals->dpth_idx++];
@@ -2271,7 +2083,6 @@ void start_rectypedef(char *rtname)
     macc_globals->union_level++;
     if (ncases + 1 >= MAX_NESTED_RECTYPE || ncases < -1) {
         csc2_error( "MAXIMUM NESTED RECTYPE'S REACHED (16)");
-        any_errors++;
         return;
     }
     nested_rectype[++ncases] = 0;
@@ -2300,10 +2111,6 @@ void start_case(char *txt)
         csc2_error( "Error at line %3d: CAN'T FIND TYPE"
                         " IN CASE STATEMENT: %s\n",
                 current_line, txt);
-        csc2_syntax_error("Error at line %3d: CAN'T FIND TYPE"
-                          " IN CASE STATEMENT: %s",
-                          current_line, txt);
-        any_errors++;
         return;
     }
     /*	printf("CASE %s %d\n", txt, i);*/
@@ -2319,9 +2126,6 @@ void start_case(char *txt)
     if (macc_globals->dpth_idx + 1 >= MAX_DEPTH) {
         csc2_error( "Error at line %3d: PARSE TREE DEPTH TOO BIG %s\n",
                 current_line, txt);
-        csc2_syntax_error("Error at line %3d: PARSE TREE DEPTH TOO BIG %s",
-                          current_line, txt);
-        any_errors++;
         return;
     }
     if (macc_globals->dpth_idx - 1 >= 0) {
@@ -2355,10 +2159,6 @@ void expr_add_pc(char *sym, int op, int num)
         csc2_error( "Error at line %3d: BAD CONDITION ARRAY "
                         "SPECIFIER\n",
                 current_line);
-        csc2_syntax_error("Error at line %3d: BAD CONDITION ARRAY "
-                          "SPECIFIER",
-                          current_line);
-        any_errors++;
         return;
     }
 
@@ -2366,9 +2166,6 @@ void expr_add_pc(char *sym, int op, int num)
     if (macc_globals->ex_p >= EXPRMAX) {
         csc2_error( "Error at line %3d: OUT OF EXPRESSION SPACE",
                 current_line);
-        csc2_syntax_error("Error at line %3d: OUT OF EXPRESSION SPACE",
-                          current_line);
-        any_errors++;
         return;
     }
     if (sym)
@@ -2392,10 +2189,6 @@ void expr_assoc_name(char *name)
         csc2_error( "Error at line %3d: OUT OF EXPRESSION TABLE "
                         "SPACE",
                 current_line);
-        csc2_syntax_error("Error at line %3d: OUT OF EXPRESSION TABLE "
-                          "SPACE",
-                          current_line);
-        any_errors++;
         return;
     }
     struct expr_table *exprtab = macc_globals->exprtab;
@@ -2431,7 +2224,6 @@ void resolve_case_names()
                     csc2_error("ERROR: Unresolved variable: '%s"
                                "' in type '%s'\n",
                                exprtab[i].expr[j].sym, exprtab[i].name);
-                    any_errors++;
                 }
                 for (k = exprtab[i].expr[j].symnum + 1; k < macc_globals->nsym;
                      k++) {
@@ -2440,7 +2232,6 @@ void resolve_case_names()
                         csc2_error("ERROR: Condition %s Symbol Name is Found "
                                    "More Than Once! '%s'\n",
                                    exprtab[i].name, exprtab[i].expr[j].sym);
-                        any_errors++;
                     }
                 }
             } else {
@@ -2555,6 +2346,8 @@ static int dyns_load_schema_int(char *filename, char *schematxt, char *dbname,
     char *ifn = NULL;
     int fhopen = 0;
     extern FILE *yyin; /* lexer's input file           */
+
+    printf("loading schema\n");
 
     char VER[16];
     strcpy(VER, revision + 10); /* get my version               */
@@ -3500,11 +3293,8 @@ void csc2_free_all(void)
         strbuf_free(errors);
         errors = NULL;
     }
-    if (syntax_errors) {
-        strbuf_free(syntax_errors);
-        syntax_errors = NULL;
-    }
     Pthread_mutex_unlock(&csc2_subsystem_mtx);
+    printf("free syntax errors\n");
 }
 
 char *csc2_get_errors(void)
@@ -3514,19 +3304,14 @@ char *csc2_get_errors(void)
     return (char *)strbuf_buf(errors);
 }
 
-char *csc2_get_syntax_errors(void)
-{
-    if (syntax_errors == NULL)
-        return NULL;
-    return (char *)strbuf_buf(syntax_errors);
-}
-
 void csc2_error(const char *fmt, ...)
 {
     char s[1];
     va_list args;
     int len;
     char *out;
+
+    any_errors++;
 
     if (errors == NULL) {
         errors = strbuf_new();
@@ -3547,33 +3332,5 @@ void csc2_error(const char *fmt, ...)
     va_end(args);
     strbuf_append(errors, out);
     logmsg(LOGMSG_ERROR, "%s", out);
-    comdb2_free(out);
-}
-
-void csc2_syntax_error(const char *fmt, ...)
-{
-    char s[1];
-    va_list args;
-    int len;
-    char *out;
-
-    if (syntax_errors == NULL) {
-        syntax_errors = strbuf_new();
-        if (syntax_errors == NULL)
-            return;
-    }
-
-    va_start(args, fmt);
-    len = vsnprintf(s, 1, fmt, args);
-    va_end(args);
-    if (len <= 0) {
-        return;
-    }
-    len++;
-    out = csc2_malloc(len);
-    va_start(args, fmt);
-    vsnprintf(out, len, fmt, args);
-    va_end(args);
-    strbuf_append(syntax_errors, out);
     comdb2_free(out);
 }

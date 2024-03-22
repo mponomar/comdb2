@@ -43,7 +43,7 @@ struct dbtable *create_new_dbtable(struct dbenv *dbenv, char *tablename,
 
     rc = dyns_load_schema_string(csc2, dbenv->envname, tablename);
     if (rc) {
-        char *syntax_error = csc2_get_syntax_errors();
+        char *syntax_error = csc2_get_errors();
         if (syntax_error) {
             errstat_set_rcstrf(err, -1, "%s", syntax_error);
         } else {
