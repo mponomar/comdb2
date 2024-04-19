@@ -1547,6 +1547,8 @@ const char *sqlite3ErrStr(int rc){
     /* SQLITE_COST_TOO_HIGH     */ "query cost too high",
     /* SQLITE_NO_TEMPTABLES     */ "temporary tables disallowed",
     /* SQLITE_NO_TABLESCANS     */ "table scans disallowed",
+    /* SQLITE_ANALYZE_ALREADY_RUNNING */  "analyze is already running on some table",
+    /* SQLITE_MISSING_SEMI */  "expected ';'",
   };
   static const int comdb2MinErr = SQLITE_DEADLOCK;
 #endif /* defined(SQLITE_BUILDING_FOR_COMDB2) */

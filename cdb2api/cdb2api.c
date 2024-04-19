@@ -7092,3 +7092,21 @@ static int refresh_gbl_events_on_hndl(cdb2_hndl_tp *hndl)
     pthread_mutex_unlock(&cdb2_event_mutex);
     return 0;
 }
+
+int cdb2_get_property(cdb2_hndl_tp *hndl, const char *key, char **value) {
+    if (hndl == NULL)
+        return CDB2ERR_NOSTATEMENT;
+    *value = NULL;
+    if (strcmp(key, "sql:tail") == 0) {
+        if (hndl->firstresponse == NULL)
+            return CDB2ERR_NOSTATEMENT;
+        if (!hndl->firstresponse->has_sql_tail_offset) {
+            return CDB2ERR_OLD_SERVER;
+        }
+        *value = hndl->sql + hndl->firstresponse->sql_tail_offset;
+        return 0;
+    }
+    else
+        return CDB2ERR_UNKNOWN_PROPERTY;
+}
+

@@ -398,6 +398,8 @@ static int newsql_columns(struct sqlclntstate *clnt, sqlite3_stmt *stmt)
     resp.response_type = RESPONSE_TYPE__COLUMN_NAMES;
     resp.n_value = ncols;
     resp.value = value;
+    resp.has_sql_tail_offset = 1;
+    resp.sql_tail_offset = clnt->tail_offset;
     if (clnt->sqlite_row_format)
         resp.has_sqlite_row = 1;
 
@@ -996,6 +998,7 @@ static int newsql_write_response(struct sqlclntstate *c, int t, void *a, int i)
     case RESPONSE_ERROR_ACCESS: return newsql_error(c, a, CDB2ERR_ACCESS);
     case RESPONSE_ERROR_BAD_STATE: return newsql_error(c, a, CDB2ERR_BADSTATE);
     case RESPONSE_ERROR_PREPARE: return newsql_error(c, a, CDB2ERR_PREPARE_ERROR);
+    case RESPONSE_ERROR_INCOMPLETE: return newsql_error(c, a, CDB2ERR_INCOMPLETE);
     case RESPONSE_ERROR_REJECT: return newsql_error(c, a, CDB2ERR_REJECTED);
     case RESPONSE_REDIRECT_FOREIGN: return newsql_redirect_foreign(c, a, i);
     case RESPONSE_FLUSH: return c->plugin.flush(c);
@@ -1912,6 +1915,8 @@ int process_set_commands(struct sqlclntstate *clnt, CDB2SQLQUERY *sql_query)
             } else if (strncasecmp(sqlstr, "sockbplog", 10) == 0) {
                 init_bplog_socket(clnt);
                 rc = 0;
+            } else if (strncasecmp(sqlstr, "multiline", 9) == 0) {
+                clnt->multiline = 1;
             } else {
                 rc = ii + 1;
             }

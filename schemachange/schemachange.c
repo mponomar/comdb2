@@ -289,12 +289,7 @@ int start_schema_change_tran(struct ireq *iq, tran_type *trans)
     logmsg(LOGMSG_INFO, "sc_set_running schemachange %s\n", us);
 
     iq->sc_host = node ? crc32c((uint8_t *)node, strlen(node)) : 0;
-    /* we prevent a table from being schema changed multiple times in the same
-     * transaction in replicant code; we do need here one seed per for every
-     * table schema changed in this transaction, even though they share the same
-     * sc_seed value
-     */
-    if (thedb->master == gbl_myhostname && !s->resume) {
+    if (thedb->master == gbl_myhostname && !s->resume && iq->sc_seed != seed) {
         logmsg(LOGMSG_INFO, "Calling bdb_set_disable_plan_genid 0x%llx\n", seed);
         int bdberr;
         int rc = bdb_set_sc_seed(thedb->bdb_env, NULL, s->tablename, seed,

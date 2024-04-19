@@ -889,7 +889,9 @@ static int dohsql_write_response(struct sqlclntstate *c, int t, void *a, int i)
     case RESPONSE_ERROR_BAD_STATE:
         return inner_error(c, CDB2ERR_BADSTATE, (char *)a);
     case RESPONSE_ERROR_PREPARE:
-        return inner_error(c, CDB2ERR_PREPARE_ERROR, (char *)a);
+        return inner_error(c, CDB2ERR_INCOMPLETE, (char *)a);
+    case RESPONSE_ERROR_INCOMPLETE:
+        return inner_error(c, CDB2ERR_INCOMPLETE, (char *)a);
     case RESPONSE_ERROR_REJECT:
         return inner_error(c, CDB2ERR_REJECTED, (char *)a);
     case RESPONSE_FLUSH:

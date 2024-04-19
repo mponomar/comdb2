@@ -345,6 +345,7 @@ enum {
   ERR_PREPARE_RETRY = -3,
   ERR_ROW_HEADER = -4,
   ERR_CONVERSION_DT = -5,
+  ERR_INCOMPLETE = -6
 };
 
 #define RESPONSE_TYPES                                                         \
@@ -359,6 +360,7 @@ enum {
     XRESPONSE(RESPONSE_ERROR_ACCESS)                                           \
     XRESPONSE(RESPONSE_ERROR_BAD_STATE)                                        \
     XRESPONSE(RESPONSE_ERROR_PREPARE)                                          \
+    XRESPONSE(RESPONSE_ERROR_INCOMPLETE)                                       \
     XRESPONSE(RESPONSE_ERROR_PREPARE_RETRY)                                    \
     XRESPONSE(RESPONSE_ERROR_REJECT)                                           \
     XRESPONSE(RESPONSE_REDIRECT_FOREIGN)                                       \
@@ -593,6 +595,7 @@ enum prepare_flags {
     PREPARE_NO_NORMALIZE = 32,
     PREPARE_ONLY = 64,
     PREPARE_ALLOW_TEMP_DDL = 128,
+    PREPARE_REQUIRE_SEMI  = 256
 };
 
 /* This structure is designed to hold several pieces of data related to
@@ -942,6 +945,8 @@ struct sqlclntstate {
 
     int lastresptype;
     char *externalAuthUser;
+    int tail_offset;
+    int multiline;
 };
 
 /* Query stats. */

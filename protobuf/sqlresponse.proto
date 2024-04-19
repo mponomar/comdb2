@@ -171,4 +171,6 @@ message CDB2_SQLRESPONSE {
     optional string foreign_db = 16;
     optional string foreign_class = 17;
     optional int32 foreign_policy_flag = 18;
+
+    optional int32 sql_tail_offset = 19;
 }

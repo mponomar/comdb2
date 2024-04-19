@@ -11,6 +11,7 @@ endif()
 
 add_executable(cdb2sql
   cdb2sql.cpp
+  completer_buf.c
   ${PROJECT_SOURCE_DIR}/util/bb_getopt_long.c
 )
 

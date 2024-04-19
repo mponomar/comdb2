@@ -60,6 +60,7 @@ enum cdb2_errors {
     CDB2ERR_BADSTATE = -8,
     CDB2ERR_ASYNCERR = -9,
     CDB2_OK_ASYNC = -10,
+    CDB2ERR_INCOMPLETE = -11,
 
     CDB2ERR_INVALID_ID = -12,
     CDB2ERR_RECORD_OUT_OF_RANGE = -13,
@@ -102,6 +103,8 @@ enum cdb2_errors {
     CDB2ERR_CHECK_CONSTRAINT = 403,
     CDB2ERR_DIST_ABORT = 410,
     CDB2ERR_QUERY_REJECTED = 451,
+    CDB2ERR_UNKNOWN_PROPERTY = 452,
+    CDB2ERR_OLD_SERVER = 453,
 
     CDB2ERR_UNKNOWN = 300
 
@@ -249,6 +252,8 @@ void cdb2_disable_sockpool(void);
 int cdb2_push_context(cdb2_hndl_tp *hndl, const char *msg);
 int cdb2_pop_context(cdb2_hndl_tp *hndl);
 int cdb2_clear_contexts(cdb2_hndl_tp *hndl);
+
+int cdb2_get_property(cdb2_hndl_tp *hndl, const char *key, char **value);
 
 int cdb2_init_ssl(int init_libssl, int init_libcrypto);
 int cdb2_is_ssl_encrypted(cdb2_hndl_tp *hndl);

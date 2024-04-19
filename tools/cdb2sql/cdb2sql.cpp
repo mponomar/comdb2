@@ -41,6 +41,7 @@
 
 #include "cdb2api.h"
 #include "cdb2_constants.h"
+#include "completer_buf.h"
 
 static char *dbname = NULL;
 static char *dbtype = NULL;
@@ -109,6 +110,7 @@ static int isadmin = 0;
 static char *gensql_tbl = NULL;
 static char *prompt = main_prompt;
 static int connect_to_master = 0;
+static int multiline = 0;
 
 static int now_ms(void)
 {
@@ -771,8 +773,7 @@ void *get_val(const char **sqlstr, int type, int *vallen)
     return NULL;
 }
 
-static int run_statement(const char *sql, int ntypes, int *types,
-                         int *start_time, int *run_time);
+static int run_statement(const char *sql, int ntypes, int *types, int *start_time, int *run_time);
 
 #ifndef ENABLE_COSTS
 #define ENABLE_COSTS NULL
@@ -1464,6 +1465,92 @@ int process_bind(const char *sql)
     return rc;
 }
 
+static int print_results(FILE *out) {
+    Result_buffer res;
+    int rc;
+    int col;
+    int ncols = cdb2_numcolumns(cdb2h);
+
+    if (printmode & DISP_TABULAR) {
+        res.append_header(cdb2h);
+    }
+
+    /* Print rows */
+    while ((rc = cdb2_next_record(cdb2h)) == CDB2_OK) {
+        if (printmode & DISP_NONE) {
+            continue;
+        }
+
+        if (printmode & DISP_CLASSIC) {
+            fprintf(out, "(");
+        } else if (printmode & DISP_GENSQL) {
+            printf("insert into %s (", gensql_tbl);
+            for (col = 0; col < ncols; col++) {
+                printf("%s", cdb2_column_name(cdb2h, col));
+                if (col != ncols - 1)
+                    printf(", ");
+            }
+            printf(") values (");
+        } else if (printmode & DISP_TABULAR) {
+            res.append_row(cdb2h);
+        }
+
+        for (col = 0; col < ncols; col++) {
+            /* Print column value */
+            if (printmode & DISP_TABULAR) {
+                res.append_column(cdb2h, col);
+            } else {
+                print_column(out, cdb2h, col);
+            }
+
+            /* Print column separator */
+            if (col != ncols - 1) {
+                if (printmode & DISP_TABS) {
+                    fprintf(out, "\t");
+                } else if (printmode & DISP_TABULAR) {
+                    /* Noop */
+                } else {
+                    fprintf(out, ", ");
+                }
+            }
+        }
+
+        if (printmode & DISP_CLASSIC) {
+            fprintf(out, ")\n");
+        } else if (printmode & DISP_TABS) {
+            fprintf(out, "\n");
+        } else if (printmode & DISP_GENSQL) {
+            fprintf(out, ");");
+            fprintf(out, "%s", delimstr);
+        } else if (printmode & DISP_TABULAR) {
+            /* Noop */
+        }
+
+        fflush(out);
+
+        if (rowsleep)
+            sleep(rowsleep);
+        if (pausemode) {
+            char input[128];
+            int cmd;
+            printf(">");
+            fflush(stdout);
+            if (fgets(input, sizeof(input), stdin) == input) {
+                cmd = atoi(input);
+                if (cmd == -1)
+                    pausemode = 0;
+            }
+        }
+    }
+
+    if (printmode & DISP_TABULAR) {
+        res.print_result();
+        fflush(out);
+    }
+
+    return rc;
+}
+
 static int run_statement(const char *sql, int ntypes, int *types,
                          int *start_time, int *run_time)
 {
@@ -1585,6 +1672,8 @@ static int run_statement(const char *sql, int ntypes, int *types,
         cdb2_clearbindings(cdb2h);
     }
 
+    if (rc == CDB2ERR_INCOMPLETE)
+        return rc;
     if (rc != CDB2_OK) {
         const char *err = cdb2_errstr(cdb2h);
         /* cdb2tcm mode needs to pass this info through stdout */
@@ -1594,84 +1683,7 @@ static int run_statement(const char *sql, int ntypes, int *types,
 
     ncols = cdb2_numcolumns(cdb2h);
 
-    Result_buffer res;
-
-    if (printmode & DISP_TABULAR) {
-        res.append_header(cdb2h);
-    }
-
-    /* Print rows */
-    while ((rc = cdb2_next_record(cdb2h)) == CDB2_OK) {
-        if (printmode & DISP_NONE) {
-          continue;
-        }
-
-        if (printmode & DISP_CLASSIC) {
-            fprintf(out, "(");
-        } else if (printmode & DISP_GENSQL) {
-            printf("insert into %s (", gensql_tbl);
-            for (col = 0; col < ncols; col++) {
-                printf("%s", cdb2_column_name(cdb2h, col));
-                if (col != ncols - 1)
-                    printf(", ");
-            }
-            printf(") values (");
-        } else if (printmode & DISP_TABULAR) {
-            res.append_row(cdb2h);
-        }
-
-        for (col = 0; col < ncols; col++) {
-            /* Print column value */
-            if (printmode & DISP_TABULAR) {
-                res.append_column(cdb2h, col);
-            } else {
-                print_column(out, cdb2h, col);
-            }
-
-            /* Print column separator */
-            if (col != ncols - 1) {
-                if (printmode & DISP_TABS) {
-                    fprintf(out, "\t");
-                } else if (printmode & DISP_TABULAR) {
-                    /* Noop */
-                } else {
-                    fprintf(out, ", ");
-                }
-            }
-        }
-
-        if (printmode & DISP_CLASSIC) {
-            fprintf(out, ")\n");
-        } else if (printmode & DISP_TABS) {
-            fprintf(out, "\n");
-        } else if (printmode & DISP_GENSQL) {
-            fprintf(out, ");");
-            fprintf(out, "%s", delimstr);
-        } else if (printmode & DISP_TABULAR) {
-            /* Noop */
-        }
-
-        fflush(out);
-
-        if (rowsleep)
-            sleep(rowsleep);
-        if (pausemode) {
-            char input[128];
-            int cmd;
-            printf(">");
-            fflush(stdout);
-            if (fgets(input, sizeof(input), stdin) == input) {
-                cmd = atoi(input);
-                if (cmd == -1)
-                    pausemode = 0;
-            }
-        }
-    }
-
-    if (printmode & DISP_TABULAR) {
-        res.print_result();
-        fflush(out);
-    }
+    rc = print_results(out);
 
     *run_time = now_ms() - startms;
     if (rc != CDB2_OK_DONE) {
@@ -1711,14 +1723,8 @@ static void process_line(char *sql, int ntypes, int *types,
         (sqlstr[0] == '-' && sqlstr[1] == '-'))
         return;
 
-    /* Lame hack - strip trailing ; so that we can understand the
-     * sql generated by our own gensql mode.  Note that the sql
-     * parser in comdb2 is ok with semicolons - it stops after the
-     * first one it encounters. */
     len = strlen(sqlstr);
     while (len > 0 && isspace(sqlstr[len - 1]))
-        len--;
-    while (len > 0 && sqlstr[len - 1] == ';')
         len--;
     sqlstr[len] = '\0';
 
@@ -1889,14 +1895,8 @@ static int is_multi_line(const char *sql)
     return 0;
 }
 
-static char *get_multi_line_statement(char *line)
-{
-    char *stmt = NULL;
-    int slen = 0;
-    char *nl = (char *) ""; // new-line
-    int n = 0;     // len of nl
-
-    char tmp_prompt[sizeof(main_prompt) + 4];
+static char *get_continuation_prompt() {
+    static char tmp_prompt[sizeof(main_prompt) + 4];
     int spaces = strlen(dbname) - 3, dots = 3;
     if (spaces < 0) {
         dots += spaces;
@@ -1905,6 +1905,18 @@ static char *get_multi_line_statement(char *line)
     sprintf(tmp_prompt, "%.*s%.*s> ", spaces,
             "                                                                ",
             dots, "...");
+    return tmp_prompt;
+}
+
+
+static char *get_multi_line_statement(char *line)
+{
+    char *stmt = NULL;
+    int slen = 0;
+    char *nl = (char *) ""; // new-line
+    int n = 0;     // len of nl
+
+    char *tmp_prompt = get_continuation_prompt();
     prompt = tmp_prompt;
     do {
         int len = strlen(line);
@@ -2042,9 +2054,10 @@ int main(int argc, char *argv[])
         {"host", required_argument, NULL, 'n'},
         {"minretries", required_argument, NULL, 'R'},
         {"connect-to-master", no_argument, NULL, 'm'},
+        {"multi-line", no_argument, NULL, 'l'},
         {0, 0, 0, 0}};
 
-    while ((c = bb_getopt_long(argc, argv, (char *)"hsvr:p:d:c:f:g:t:n:R:m",
+    while ((c = bb_getopt_long(argc, argv, (char *)"hsvr:p:d:c:f:g:t:n:R:ml",
                                long_options, &opt_indx)) != -1) {
         switch (c) {
         case 0:
@@ -2091,6 +2104,9 @@ int main(int argc, char *argv[])
             break;
         case 'm':
             connect_to_master = 1;
+            break;
+        case 'l':
+            multiline = 1;
             break;
         case '?':
             cdb2sql_usage(EXIT_FAILURE);
@@ -2195,18 +2211,107 @@ int main(int argc, char *argv[])
     }
     char *line;
     int multi;
-    while ((line = read_line()) != NULL) {
-        if (strncmp(line, "quit", 4) == 0)
-            break;
-        if ((multi = is_multi_line(line)) != 0)
-            line = get_multi_line_statement(line);
-        if (repeat > 1) {
-            do_repeat(line);
-        } else {
-            process_line(line, 0, NULL, 0, 0);
+
+    if (multiline) {
+        char *buf = NULL;
+        int buflen = 0;
+        int start = 0, end = 0;
+        int offset = 0;
+
+        int rc = 0;
+        run_statement("set multiline", 0, NULL, &start, &end);
+        for (;;) {
+again:
+            int first;
+            first = 1;
+            do {
+                char *s;
+                line = s = read_line();
+                if (line == NULL)
+                    goto done_multiline;
+                if (first) {
+                    while (isspace(*s)) s++;
+                    while (*s == ';') s++;
+                    if (*s == '#')
+                        continue;
+                    if (*s == '-' && *(s+1) == '-')
+                        continue;
+                    if (strlen(s) == 0)
+                        continue;
+                }
+                first = 0;
+                int len = strlen(s);
+                buf = (char*) realloc(buf, buflen + len + 2);
+                if (buf == NULL) {
+                    perror("malloc");
+                    exit(1);
+                }
+                strcat(buf, s);
+                strcat(buf, "\n");
+                buflen += len+2;
+                // printf("full buffer: %s\n", buf);
+                rc = run_statement(buf, 0, NULL, &start, &end);
+                prompt = (char*) get_continuation_prompt();
+            } while (rc == CDB2ERR_INCOMPLETE);
+            // printf("rc after not incomplete: %d\n", rc);
+            char *offsetstr;
+            if (cdb2_get_property(cdb2h, "sql:tail", &offsetstr)) {
+                prompt = main_prompt;
+                free(buf);
+                buf = NULL;
+                buflen = 0;
+                // printf("or no tail?\n");
+                continue;
+            }
+            offset = atoi(offsetstr);
+            printf("%.*s: rc %d %s\n", offset == 0 ? (int) strlen(buf) : offset, buf, rc, cdb2_errstr(cdb2h));
+            if (rc == 0)
+                print_results(stdout);
+            // printf("offset: %d buf at offset: %s len %d\n", offset, buf+offset, (int) strlen(buf+offset));
+            do {
+                // sleep(1);
+                prompt = main_prompt;
+                while (buf[offset] == ';')
+                    offset++;
+                while (isspace(buf[offset]))
+                    offset++;
+                int len = strlen(buf+offset);
+                memmove(buf, buf+offset, len+1);
+                buf[len] = 0;
+                offset = 0;
+                // printf("now: %s\n", buf);
+                rc = run_statement(buf, 0, NULL, &start, &end);
+                // printf("run after shift rc %d\n", rc);
+                if (rc == 0)
+                    print_results(stdout);
+                else if (rc || cdb2_get_property(cdb2h, "sql:tail", &offsetstr)) {
+                    prompt = main_prompt;
+                    free(buf);
+                    buf = NULL;
+                    buflen = 0;
+                    goto again;
+                }
+                offset = atoi(offsetstr);
+            } while (offset);
+            offset = 0;
         }
-        if (multi)
-            free(line);
+done_multiline:
+        ;
+    }
+    else {
+        while ((line = read_line()) != NULL) {
+            if (strncmp(line, "quit", 4) == 0)
+                break;
+            if ((multi = is_multi_line(line)) != 0)
+                line = get_multi_line_statement(line);
+            if (repeat > 1) {
+                do_repeat(line);
+            } else {
+                process_line(line, 0, NULL, 0, 0);
+            }
+            if (multi)
+                free(line);
+        }
     }
     if (istty)
         save_readline_history();
