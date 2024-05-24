@@ -24,6 +24,8 @@
 /************ SCHEMACHANGE TO BUF UTILITY FUNCTIONS
  * *****************************/
 
+int gbl_r7_schema_change_compat = 0;
+
 struct schema_change_type *init_schemachange_type(struct schema_change_type *sc)
 {
     sc->tran = NULL;
@@ -147,26 +149,41 @@ size_t schemachange_packed_size(struct schema_change_type *s)
     s->newcsc2_len = (s->newcsc2) ? strlen(s->newcsc2) + 1 : 0;
 
     s->packed_len =
-        sizeof(s->kind) + sizeof(s->rqid) + sizeof(s->uuid) +
+        ((gbl_r7_schema_change_compat==0) ? 0 : sizeof(s->kind)) + 
+        (gbl_r7_schema_change_compat ? 0 : sizeof(int) /*type*/) +
+        sizeof(s->rqid) + sizeof(s->uuid) +
         sizeof(s->tablename_len) + s->tablename_len + sizeof(s->fname_len) +
         s->fname_len + sizeof(s->aname_len) + s->aname_len +
-        sizeof(s->avgitemsz) + sizeof(s->newdtastripe) + sizeof(s->blobstripe) +
-        sizeof(s->live) + sizeof(s->newcsc2_len) + s->newcsc2_len +
+        sizeof(s->avgitemsz) + 
+        (gbl_r7_schema_change_compat ? sizeof(int) : 0 /* fastinit */) +
+        sizeof(s->newdtastripe) + sizeof(s->blobstripe) +
+        (gbl_r7_schema_change_compat ? sizeof(int) : 0 /* addonly */) + 
+        (gbl_r7_schema_change_compat ? sizeof(int) : 0 /* fulluprecs */) + 
+        (gbl_r7_schema_change_compat ? sizeof(int) : 0 /* partialuprecs */) +
+        (gbl_r7_schema_change_compat ? sizeof(int) : 0 /* alteronly */) +
+        (gbl_r7_schema_change_compat ? sizeof(int) : 0 /* is_trigger */) +
+        sizeof(s->newcsc2_len) + s->newcsc2_len +
         sizeof(s->scanmode) + sizeof(s->delay_commit) +
         sizeof(s->force_rebuild) + sizeof(s->force_dta_rebuild) +
         sizeof(s->force_blob_rebuild) + sizeof(s->force) + sizeof(s->headers) +
         sizeof(s->header_change) + sizeof(s->compress) +
-        sizeof(s->compress_blobs) + sizeof(s->persistent_seq) +
+        sizeof(s->compress_blobs) + 
+        ((gbl_r7_schema_change_compat==0) ? 0 : sizeof(s->persistent_seq)) +
         sizeof(s->ip_updates) + sizeof(s->instant_sc) + sizeof(s->preempted) +
         sizeof(s->use_plan) + sizeof(s->commit_sleep) +
         sizeof(s->convert_sleep) + sizeof(s->same_schema) + sizeof(s->dbnum) +
         sizeof(s->flg) + sizeof(s->rebuild_index) +
         sizeof(s->index_to_rebuild) + sizeof(s->original_master_node) +
+        (gbl_r7_schema_change_compat ? sizeof(int) : 0 /* drop_table */) +
         dests_field_packed_size(s) + sizeof(s->spname_len) + s->spname_len +
+        (gbl_r7_schema_change_compat ? 6*sizeof(int) /* addsp+delesp+defaultsp+is_sfunc+is_afunc+rename*/ : 0) +
+        ((gbl_r7_schema_change_compat == 0) ? 0 : sizeof(s->lua_func_flags)) + 
         sizeof(s->lua_func_flags) + sizeof(s->newtable) +
-        sizeof(s->usedbtablevers) + sizeof(s->qdb_file_ver) +
-        _partition_packed_size(&s->partition);
+        sizeof(s->usedbtablevers) + 
+        ((gbl_r7_schema_change_compat==0) ? 0 : sizeof(s->qdb_file_ver)) +
+        ((gbl_r7_schema_change_compat==0) ? 0 : _partition_packed_size(&s->partition)) ;
 
+    logmsg(LOGMSG_USER, ">>> packed size %d\n", (int) s->packed_len);
     return s->packed_len;
 }
 
@@ -190,137 +207,311 @@ static void *buf_put_dests(struct schema_change_type *s, void *p_buf,
     return p_buf;
 }
 
+#define CHK do { if (p_buf == NULL) { logmsg(LOGMSG_ERROR, "%s:%d start %p end %p diff %d\n", __func__, __LINE__, start, p_buf_end, ((int) (ptrdiff_t) (p_buf_end - start))); return NULL; } } while(0)
 void *buf_put_schemachange(struct schema_change_type *s, void *p_buf, void *p_buf_end)
 {
+    void *start = p_buf;
 
-    if (p_buf >= p_buf_end) return NULL;
+    if (p_buf >= p_buf_end) p_buf = NULL;
+    CHK;
 
-    p_buf = buf_put(&s->kind, sizeof(s->kind), p_buf, p_buf_end);
+    if (!gbl_r7_schema_change_compat) {
+        p_buf = buf_put(&s->kind, sizeof(s->kind), p_buf, p_buf_end);
+        CHK;
+    }
 
     p_buf = buf_put(&s->rqid, sizeof(s->rqid), p_buf, p_buf_end);
+    CHK;
+
+    int fastinit = 0;
+    int alteronly = 0;
+    int addonly = 0;
+    int rename = 0;
+    int fulluprecs = 0;
+    int partialuprecs = 0;
+    int is_trigger = 0;
+    int drop_table = 0;
+    int addsp = 0;
+    int delsp = 0;
+    int defaultsp = 0;
+    int is_sfunc = 0;
+    int is_afunc = 0;
+
+    if( gbl_r7_schema_change_compat) {
+        int type = DBTYPE_TAGGED_TABLE;
+        if (s->kind == SC_LEGACY_QUEUE)
+            type = DBTYPE_QUEUE;
+        /* TODO: morestripe? We don't need to support it in compatibility mode - it's rather situational. */
+        p_buf = buf_put(&type, sizeof(type), p_buf, p_buf_end);
+        CHK;
+
+        // Mirrors buf_get_schemachange_v1
+        switch (s->kind) {
+            case SC_DROPTABLE:
+                drop_table = 1;
+                fastinit = 1;
+                break;
+            case SC_TRUNCATETABLE:
+                fastinit = 1;
+                break;
+            case SC_ALTERTABLE:
+                alteronly = 1;
+                break;
+            case SC_ADDTABLE:
+                addonly = 1;
+                break;
+            case SC_RENAMETABLE:
+                rename = 1;
+                break;
+            case SC_FULLUPRECS:
+                fulluprecs = 1;
+                break;
+            case SC_PARTIALUPRECS:
+                partialuprecs = 1;
+                break;
+            case SC_ADD_TRIGGER:
+                is_trigger = 1;
+                addonly = 1;
+                break;
+            case SC_DEL_TRIGGER:
+                is_trigger = 1;
+                drop_table = 1;
+                break;
+            case SC_ADDSP:
+                addsp = 1;
+                break;
+            case SC_DELSP:
+                delsp = 1;
+                break;
+            case SC_DEFAULTSP:
+                defaultsp = 1;
+                break;
+            case SC_ADD_SFUNC:
+                is_sfunc = 1;
+                break;
+            case SC_ADD_AFUNC:
+                is_afunc = 1;
+                break;
+        }
+    }
 
     p_buf = buf_no_net_put(&s->uuid, sizeof(s->uuid), p_buf, p_buf_end);
+    CHK;
 
     p_buf =
         buf_put(&s->tablename_len, sizeof(s->tablename_len), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_no_net_put(s->tablename, s->tablename_len, p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->fname_len, sizeof(s->fname_len), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_no_net_put(s->fname, s->fname_len, p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->aname_len, sizeof(s->aname_len), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_no_net_put(s->aname, s->aname_len, p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->avgitemsz, sizeof(s->avgitemsz), p_buf, p_buf_end);
+    CHK;
 
-    p_buf =
-        buf_put(&s->newdtastripe, sizeof(s->newdtastripe), p_buf, p_buf_end);
+    if (gbl_r7_schema_change_compat) {
+        p_buf = buf_put(&fastinit, sizeof(fastinit), p_buf, p_buf_end);
+        CHK;
+    }
+
+    p_buf = buf_put(&s->newdtastripe, sizeof(s->newdtastripe), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->blobstripe, sizeof(s->blobstripe), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->live, sizeof(s->live), p_buf, p_buf_end);
+    CHK;
+
+    if (gbl_r7_schema_change_compat) {
+        p_buf = buf_put(&addonly, sizeof(addonly), p_buf, p_buf_end);
+        CHK;
+
+        p_buf = buf_put(&fulluprecs, sizeof(fulluprecs), p_buf, p_buf_end);
+        CHK;
+
+        p_buf = buf_put(&partialuprecs, sizeof(partialuprecs), p_buf, p_buf_end);
+        CHK;
+
+        p_buf = buf_put(&alteronly, sizeof(alteronly), p_buf, p_buf_end);
+        CHK;
+
+        p_buf = buf_put(&is_trigger, sizeof(is_trigger), p_buf, p_buf_end);
+        CHK;
+    }
 
     p_buf = buf_put(&s->newcsc2_len, sizeof(s->newcsc2_len), p_buf, p_buf_end);
+    CHK;
 
     if (s->newcsc2_len) {
         p_buf = buf_no_net_put(s->newcsc2, s->newcsc2_len, p_buf, p_buf_end);
+        CHK;
     }
 
     p_buf = buf_put(&s->scanmode, sizeof(s->scanmode), p_buf, p_buf_end);
+    CHK;
 
     p_buf =
         buf_put(&s->delay_commit, sizeof(s->delay_commit), p_buf, p_buf_end);
+    CHK;
 
     p_buf =
         buf_put(&s->force_rebuild, sizeof(s->force_rebuild), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->force_dta_rebuild, sizeof(s->force_dta_rebuild), p_buf,
-                    p_buf_end);
+            p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->force_blob_rebuild, sizeof(s->force_blob_rebuild),
-                    p_buf, p_buf_end);
+            p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->force, sizeof(s->force), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->headers, sizeof(s->headers), p_buf, p_buf_end);
+    CHK;
 
     p_buf =
         buf_put(&s->header_change, sizeof(s->header_change), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->compress, sizeof(s->compress), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->compress_blobs, sizeof(s->compress_blobs), p_buf,
-                    p_buf_end);
+            p_buf_end);
+    CHK;
 
-    p_buf = buf_put(&s->persistent_seq, sizeof(s->persistent_seq), p_buf,
-                    p_buf_end);
+    if (!gbl_r7_schema_change_compat) {
+        p_buf = buf_put(&s->persistent_seq, sizeof(s->persistent_seq), p_buf, p_buf_end);
+        CHK;
+    }
 
     p_buf = buf_put(&s->ip_updates, sizeof(s->ip_updates), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->instant_sc, sizeof(s->instant_sc), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->preempted, sizeof(s->preempted), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->use_plan, sizeof(s->use_plan), p_buf, p_buf_end);
+    CHK;
 
     p_buf =
         buf_put(&s->commit_sleep, sizeof(s->commit_sleep), p_buf, p_buf_end);
+    CHK;
 
     p_buf =
         buf_put(&s->convert_sleep, sizeof(s->convert_sleep), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->same_schema, sizeof(s->same_schema), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->dbnum, sizeof(s->dbnum), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->flg, sizeof(s->flg), p_buf, p_buf_end);
+    CHK;
 
     p_buf =
         buf_put(&s->rebuild_index, sizeof(s->rebuild_index), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->index_to_rebuild, sizeof(s->index_to_rebuild), p_buf,
-                    p_buf_end);
+            p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->original_master_node, sizeof(s->original_master_node),
-                    p_buf, p_buf_end);
+            p_buf, p_buf_end);
+    CHK;
+
+    p_buf = buf_put(&drop_table, sizeof(drop_table), p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put_dests(s, p_buf, p_buf_end);
+    CHK;
 
     p_buf = buf_put(&s->spname_len, sizeof(s->spname_len), p_buf, p_buf_end);
+    CHK;
     p_buf = buf_no_net_put(s->spname, s->spname_len, p_buf, p_buf_end);
-    p_buf = buf_put(&s->lua_func_flags, sizeof(s->lua_func_flags), p_buf, p_buf_end);
+    CHK;
+
+    if (gbl_r7_schema_change_compat) {
+        p_buf = buf_put(&addsp, sizeof(addsp), p_buf, p_buf_end);
+        CHK;
+        p_buf = buf_put(&delsp, sizeof(delsp), p_buf, p_buf_end);
+        CHK;
+        p_buf = buf_put(&defaultsp, sizeof(defaultsp), p_buf, p_buf_end);
+        CHK;
+        p_buf = buf_put(&is_sfunc, sizeof(is_sfunc), p_buf, p_buf_end);
+        CHK;
+        p_buf = buf_put(&is_afunc, sizeof(is_afunc), p_buf, p_buf_end);
+        CHK;
+        p_buf = buf_put(&rename, sizeof(rename), p_buf, p_buf_end);
+        CHK;
+    }
+
+    if (!gbl_r7_schema_change_compat) {
+        p_buf = buf_put(&s->lua_func_flags, sizeof(s->lua_func_flags), p_buf, p_buf_end);
+        CHK;
+    }
 
     p_buf = buf_no_net_put(s->newtable, sizeof(s->newtable), p_buf, p_buf_end);
+    CHK;
     p_buf = buf_put(&s->usedbtablevers, sizeof(s->usedbtablevers), p_buf,
-                    p_buf_end);
+            p_buf_end);
+    CHK;
 
-    p_buf = buf_put(&s->qdb_file_ver, sizeof(s->qdb_file_ver), p_buf, p_buf_end);
+    if (!gbl_r7_schema_change_compat) {
+        p_buf = buf_put(&s->qdb_file_ver, sizeof(s->qdb_file_ver), p_buf, p_buf_end);
+        CHK;
 
-    p_buf = buf_put(&s->partition.type, sizeof(s->partition.type), p_buf,
-                    p_buf_end);
-    switch (s->partition.type) {
-    case PARTITION_ADD_TIMED:
-    case PARTITION_ADD_MANUAL: {
-        p_buf = buf_put(&s->partition.u.tpt.period,
+        p_buf = buf_put(&s->partition.type, sizeof(s->partition.type), p_buf,
+                p_buf_end);
+        CHK;
+        switch (s->partition.type) {
+            case PARTITION_ADD_TIMED:
+            case PARTITION_ADD_MANUAL: {
+                p_buf = buf_put(&s->partition.u.tpt.period,
                         sizeof(s->partition.u.tpt.period), p_buf, p_buf_end);
-        p_buf = buf_put(&s->partition.u.tpt.retention,
+                CHK;
+                p_buf = buf_put(&s->partition.u.tpt.retention,
                         sizeof(s->partition.u.tpt.retention), p_buf, p_buf_end);
-        p_buf = buf_put(&s->partition.u.tpt.start,
+                CHK;
+                p_buf = buf_put(&s->partition.u.tpt.start,
                         sizeof(s->partition.u.tpt.start), p_buf, p_buf_end);
-        break;
-    }
-    case PARTITION_MERGE: {
-        p_buf = buf_no_net_put(s->partition.u.mergetable.tablename,
+                CHK;
+                break;
+            }
+            case PARTITION_MERGE: {
+                p_buf = buf_no_net_put(s->partition.u.mergetable.tablename,
                         sizeof(s->partition.u.mergetable.tablename), p_buf, p_buf_end);
-        p_buf = buf_put(&s->partition.u.mergetable.version,
+                CHK;
+                p_buf = buf_put(&s->partition.u.mergetable.version,
                         sizeof(s->partition.u.mergetable.version), p_buf, p_buf_end);
-        break;
-    }
+                CHK;
+                break;
+            }
+        }
     }
 
+    logmsg(LOGMSG_USER, "p_buf %p\n", p_buf);
     return p_buf;
 }
 
@@ -377,6 +568,8 @@ void *buf_get_schemachange_v1(struct schema_change_type *s, void *p_buf,
         is_afunc = 0,      rename = 0;
 
     if (p_buf >= p_buf_end) return NULL;
+
+    logmsg(LOGMSG_USER, ">> %s\n", __func__);
 
     p_buf = (uint8_t *)buf_get(&s->rqid, sizeof(s->rqid), p_buf, p_buf_end);
 
@@ -510,11 +703,11 @@ void *buf_get_schemachange_v1(struct schema_change_type *s, void *p_buf,
     p_buf = (uint8_t *)buf_get(&s->index_to_rebuild,
                                sizeof(s->index_to_rebuild), p_buf, p_buf_end);
 
-    p_buf = (uint8_t *)buf_get(&drop_table, sizeof(drop_table), p_buf, p_buf_end); /* s->drop_table */
-
     p_buf =
         (uint8_t *)buf_get(&s->original_master_node,
                            sizeof(s->original_master_node), p_buf, p_buf_end);
+
+    p_buf = (uint8_t *)buf_get(&drop_table, sizeof(drop_table), p_buf, p_buf_end); /* s->drop_table */
 
     p_buf = (uint8_t *)buf_get_dests(s, p_buf, p_buf_end);
 
@@ -570,6 +763,8 @@ void *buf_get_schemachange_v2(struct schema_change_type *s,
 {
 
     if (p_buf >= p_buf_end) return NULL;
+
+    logmsg(LOGMSG_USER, ">> %s\n", __func__);
 
     p_buf = (uint8_t *)buf_get(&s->kind, sizeof(s->kind), p_buf, p_buf_end);
 
@@ -780,11 +975,18 @@ int pack_schema_change_type(struct schema_change_type *s, void **packed,
 
     /* pack all the data */
     p_buf = buf_put_schemachange(s, p_buf, p_buf_end);
+    if (p_buf == NULL) {
+        logmsg(LOGMSG_ERROR, "Failed to pack?\n");
+        free(*packed);
+        *packed = NULL;
+        *packed_len = 0;
+        return -1;
+    }
 
     if (p_buf != (uint8_t *)((char *)(*packed)) + *packed_len) {
         logmsg(LOGMSG_ERROR,
                "pack_schema_change_type: size of data written did not"
-               " equal precomputed size, this should not happen\n");
+               " equal precomputed size, this should not happen packed: %d expected %d\n", (int)((char*) p_buf - (char*) packed), (int) *packed_len);
         free(*packed);
         *packed = NULL;
         *packed_len = 0;

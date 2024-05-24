@@ -49,6 +49,8 @@ int start_schema_change_tran(struct ireq *iq, tran_type *trans)
     int maxcancelretry = 10;
     int rc;
 
+    logmsg(LOGMSG_USER, "hi! resume %d\n", s->resume);
+
     if (!bdb_iam_master(thedb->bdb_env)) {
         sc_errf(s, "I am not master\n");
         free_schema_change_type(s);

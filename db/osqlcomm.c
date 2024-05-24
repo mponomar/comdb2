@@ -794,6 +794,7 @@ static uint8_t *osqlcomm_schemachange_type_get(struct schema_change_type *sc,
                                                const uint8_t *p_buf,
                                                const uint8_t *p_buf_end)
 {
+    logmsg(LOGMSG_USER, "%s\n", __func__);
     uint8_t *tmp_buf =
         buf_get_schemachange(sc, (void *)p_buf, (void *)p_buf_end);
 
@@ -6226,6 +6227,7 @@ int osql_process_schemachange(struct ireq *iq, unsigned long long rqid,
     if (type != OSQL_SCHEMACHANGE)
         return 0;
 
+    logmsg(LOGMSG_USER, "%s\n", __func__);
     struct schema_change_type *sc = new_schemachange_type();
     p_buf_end = p_buf + msglen;
     p_buf = osqlcomm_schemachange_type_get(sc, p_buf, p_buf_end);
@@ -6252,6 +6254,9 @@ int osql_process_schemachange(struct ireq *iq, unsigned long long rqid,
     else
         sc->nothrevent = 1;
     sc->finalize = 0;
+
+    logmsg(LOGMSG_USER, "original_master_node \"%s\"\n", sc->original_master_node);
+
     if (sc->original_master_node[0] != 0 &&
         strcmp(sc->original_master_node, gbl_myhostname))
         sc->resume = 1;

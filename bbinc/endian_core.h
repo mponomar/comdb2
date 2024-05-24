@@ -21,6 +21,8 @@
 #include <string.h>
 #include <strings.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 /*
 ** buf*get(dst, dst_len, src, src_end)
@@ -79,8 +81,10 @@ static inline void *buf_no_net_get_int(void *v_dst, size_t len, void *v_src,
     uint8_t *end = v_end;
     if (chk == NULL || end == NULL)
         return NULL;
-    if (end < chk || len > (end - chk))
+    if (end < chk || len > (end - chk)) {
+        fprintf(stderr, "end %p end-chk %d len %d\n", end, (int)(uintptr_t)(end-chk), (int) len);
         return NULL;
+    }
     end = chk + len;
     memcpy(dst, src, len);
     return end;

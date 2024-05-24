@@ -2507,8 +2507,12 @@ REGISTER_TUNABLE("transaction_grace_period",
 REGISTER_TUNABLE("dohsql_joins",
                  "Enable to support joins in parallel sql execution (default: on)",
                  TUNABLE_BOOLEAN, &gbl_dohsql_joins, 0, NULL, NULL, NULL, NULL);
+
 REGISTER_TUNABLE("sc_history_max_rows", "Max number of rows returned in comdb2_sc_history (Default: 1000)",
                  TUNABLE_INTEGER, &gbl_sc_history_max_rows, 0, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("sc_status_max_rows", "Max number of rows returned in comdb2_sc_status (Default: 1000)",
                  TUNABLE_INTEGER, &gbl_sc_status_max_rows, 0, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("r7_schema_change_compat", "Write r7-compatible schema change records for mixed clusters (default: off)",
+                 TUNABLE_BOOLEAN, &gbl_r7_schema_change_compat, 0, NULL, NULL, NULL, NULL);
+
 #endif /* _DB_TUNABLES_H */

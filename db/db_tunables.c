@@ -487,6 +487,8 @@ extern int gbl_dohsql_joins;
 extern int gbl_sc_history_max_rows;
 extern int gbl_sc_status_max_rows;
 
+extern int gbl_r7_schema_change_compat;
+
 /*
   =========================================================
   Value/Update/Verify functions for some tunables that need
