@@ -14,6 +14,7 @@
    limitations under the License.
 */
 
+#include "eventlog/eventlog.h"
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -40,6 +41,7 @@
 #include <pb_alloc.h>
 
 #include <newsql.h>
+#include <eventlog.h>
 
 extern int gbl_nid_dbname;
 extern int gbl_incoherent_clnt_wait;
@@ -833,7 +835,9 @@ payload:
             return;
         }
         evbuffer_drain(appdata->rd_buf, len);
+        eventlog_net_event(appdata->clnt.origin_host, "cdb2api", "payload", EVENTLOG_NET_IN, data, appdata->hdr.length);
     }
+
     process_newsql_payload(appdata, query);
 }
 
@@ -858,6 +862,9 @@ hdr:
     appdata->hdr.compression = ntohl(hdr.compression);
     appdata->hdr.state = ntohl(hdr.state);
     appdata->hdr.length = ntohl(hdr.length);
+
+    eventlog_net_event(appdata->clnt.origin_host, "cdb2api", "header", EVENTLOG_NET_IN, &appdata->hdr, sizeof(appdata->hdr));
+
     rd_payload(-1, 0, appdata);
 }
 
@@ -995,6 +1002,10 @@ static void pb_evbuffer_append(ProtobufCBuffer *vbuf, size_t len, const uint8_t 
 static int newsql_pack(struct sqlwriter *sqlwriter, void *data)
 {
     struct newsql_pack_arg *arg = data;
+
+    eventlog_net_event(NULL, "cdb2api", "rsphdr", EVENTLOG_NET_OUT, &arg->hdr, sizeof(arg->hdr));
+    eventlog_net_event_sql_response(NULL, arg->resp);
+
     if (arg->resp_len <= SQLWRITER_MAX_BUF || arg->appdata->clnt.query_timeout) {
         return newsql_pack_small(sqlwriter, arg);
     }
@@ -1031,6 +1042,7 @@ static int newsql_write_evbuffer(struct sqlclntstate *clnt, int type, int state,
     }
     arg.appdata = appdata;
     arg.resp = resp;
+
     return sql_write(appdata->writer, &arg, flush);
 }
 

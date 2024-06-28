@@ -22,7 +22,6 @@ set(src
   endian.c
   envstubs.c
   errstat.c
-  eventlog.c
   fdb_access.c
   fdb_bend.c
   fdb_bend_sql.c
@@ -197,6 +196,7 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/dfp/decNumber
   ${PROJECT_SOURCE_DIR}/dfp/dfpal
   ${PROJECT_SOURCE_DIR}/dlmalloc
+  ${PROJECT_SOURCE_DIR}/eventlog
   ${PROJECT_SOURCE_DIR}/lua
   ${PROJECT_SOURCE_DIR}/mem
   ${PROJECT_BINARY_DIR}/mem
@@ -210,6 +210,7 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/sqlite/ext/misc
   ${PROJECT_SOURCE_DIR}/sqlite/src
   ${PROJECT_BINARY_DIR}/sqlite
+  ${PROJECT_BINARY_DIR}/eventlog
   ${OPENSSL_INCLUDE_DIR}
   ${PROTOBUF-C_INCLUDE_DIR}
   ${PROJECT_SOURCE_DIR}/plugins/reversesql
@@ -240,6 +241,7 @@ target_link_libraries(comdb2 PRIVATE
   sqlite
   util
   tz
+  eventlog
   ${LibArchive_LIBRARIES}
   ${LZ4_LIBRARY}
   ${RDKAFKA_LIBRARY}
