@@ -40,6 +40,8 @@
 #include <pb_alloc.h>
 
 #include <newsql.h>
+#include <eventlog.h>
+
 
 extern int gbl_nid_dbname;
 extern int gbl_incoherent_clnt_wait;
@@ -807,6 +809,7 @@ payload:
             return;
         }
         evbuffer_drain(appdata->rd_buf, len);
+        eventlog_net_event(dummyfd, "cdb2api", "payload", EVENTLOG_NET_IN, data, appdata->hdr.length, NULL);
     }
     process_newsql_payload(appdata, query);
 }
@@ -839,7 +842,8 @@ hdr:
     appdata->hdr.compression = ntohl(hdr.compression);
     appdata->hdr.state = ntohl(hdr.state);
     appdata->hdr.length = ntohl(hdr.length);
-    rd_payload(-1, 0, appdata);
+    eventlog_net_event(appdata->fd, "cdb2api", "header", EVENTLOG_NET_IN, &appdata->hdr, sizeof(appdata->hdr), NULL);
+    rd_payload(dummyfd, 0, appdata);
 }
 
 static void *newsql_destroy_stmt_evbuffer(struct sqlclntstate *clnt, void *arg)
@@ -926,6 +930,8 @@ static int newsql_pack_hb(struct sqlwriter *writer, void *arg)
     h->type = htonl(RESPONSE_HEADER__SQL_RESPONSE_HEARTBEAT);
     h->state = htonl(state);
 
+    eventlog_net_event(sql_writer_getfd(writer), "cdb2api", "hrtbt", EVENTLOG_NET_OUT, &h, sizeof(struct newsqlheader), NULL);
+
     return evbuffer_commit_space(sql_wrbuf(writer), v, 1);
 }
 
@@ -976,6 +982,10 @@ static void pb_evbuffer_append(ProtobufCBuffer *vbuf, size_t len, const uint8_t 
 static int newsql_pack(struct sqlwriter *sqlwriter, void *data)
 {
     struct newsql_pack_arg *arg = data;
+    int fd = sql_writer_getfd(sqlwriter);
+    eventlog_net_event(fd, "cdb2api", "rsphdr", EVENTLOG_NET_OUT, arg->hdr, sizeof(struct newsqlheader), NULL);
+    eventlog_net_event_sql_response(fd, arg->resp);
+
     if (arg->resp_len <= SQLWRITER_MAX_BUF || arg->appdata->clnt.query_timeout) {
         return newsql_pack_small(sqlwriter, arg);
     }
@@ -1106,7 +1116,7 @@ static void newsql_setup_clnt_evbuffer(struct appsock_handler_arg *arg, int admi
         exhausted_appsock_connections(clnt);
         free_newsql_appdata_evbuffer(-1, 0, appdata);
     } else {
-        rd_hdr(-1, 0, appdata);
+        rd_hdr(arg->fd, 0, appdata);
     }
 }
 

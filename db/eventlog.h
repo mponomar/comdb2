@@ -16,6 +16,14 @@ void eventlog_bind_datetime(struct cson_array *, const char *, dttz_t *, const c
 void eventlog_bind_interval(struct cson_array *, const char *, intv_t *);
 void eventlog_bind_array(struct cson_array *, const char *, void *array_ptr, int array_count, int type);
 
+typedef enum eventlog_net_direction {
+    EVENTLOG_NET_IN,
+    EVENTLOG_NET_OUT,
+    EVENTLOG_NET_CONNECT,
+    EVENTLOG_NET_RESET,
+    EVENTLOG_NET_CLOSE,
+} eventlog_net_direction;
+
 void eventlog_init();
 void eventlog_status(void);
 void eventlog_add(const struct reqlogger *logger);
@@ -32,5 +40,8 @@ int eventlog_debug_enabled(void);
         } while(0);                \
     }                              \
 } while(0)
+
+void eventlog_net_event(int fd, const char *api, const char *msgtype, eventlog_net_direction direction, const void *buffer, size_t bufsize, ...);
+void eventlog_net_event_sql_response(int fd, const void *pb);
 
 #endif

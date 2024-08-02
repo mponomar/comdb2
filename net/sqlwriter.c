@@ -505,3 +505,9 @@ void sql_disable_ssl(struct sqlwriter *writer)
     writer->ssl = NULL;
     writer->wr_evbuffer_fn = wr_evbuffer_plaintext;
 }
+
+int sql_writer_getfd(struct sqlwriter *writer)
+{
+    return event_get_fd(writer->flush_ev);
+}
+
