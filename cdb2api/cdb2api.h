@@ -23,7 +23,6 @@
 #define INCLUDED_CDB2API_H
 
 #include <stdio.h>
-#include <stdlib.h>
 
 #if defined __cplusplus
 extern "C" {
@@ -61,7 +60,7 @@ enum cdb2_errors {
     CDB2ERR_BADSTATE = -8,
     CDB2ERR_ASYNCERR = -9,
     CDB2_OK_ASYNC = -10,
-
+    CDB2ERR_INCOMPLETE = -11,
     CDB2ERR_INVALID_ID = -12,
     CDB2ERR_RECORD_OUT_OF_RANGE = -13,
 
@@ -72,6 +71,8 @@ enum cdb2_errors {
 
     CDB2ERR_THREADPOOL_INTERNAL = -20, /* some error in threadpool code */
     CDB2ERR_ANALYZE_ALREADY_RUNNING = -22,
+    CDB2ERR_OLD_SERVER = -23,
+    CDB2ERR_UNKNOWN_PROPERTY = -24,
 
     CDB2ERR_NOMASTER = -101,
     CDB2ERR_UNTAGGED_DATABASE = -102,
@@ -264,6 +265,8 @@ char *cdb2_string_escape(cdb2_hndl_tp *hndl, const char *str);
 
 int cdb2_send_2pc(cdb2_hndl_tp *hndl, char *dbname, char *pname, char *ptier, char *source, unsigned int op,
                   char *dist_txnid, int rcode, int outrc, char *errmsg, int async);
+
+int cdb2_get_property(cdb2_hndl_tp *hndl, const char *key, char **value);
 
 typedef enum cdb2_event_ctrl {
     CDB2_OVERWRITE_RETURN_VALUE = 1,

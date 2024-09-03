@@ -977,6 +977,9 @@ struct sqlclntstate {
 
     // coordinator participant information
     LISTC_T(struct participant) participants;
+
+    int tail_offset;
+    int multiline;
 };
 
 /* Query stats. */
