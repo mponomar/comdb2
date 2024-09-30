@@ -13359,7 +13359,6 @@ int comdb2_is_field_indexable(const char *table_name, int fld_idx) {
 
 }
 
-// do nothing!
 static void legacy_sndbak(struct ireq *iq, int rc, int len) {
     struct buf_lock_t *p_slock = iq->request_data;
     p_slock->len = len - 8;
@@ -13389,7 +13388,7 @@ int do_comdb2_legacy(char *appsock, void *payload, int payloadlen, int luxref, i
 
     int state;
     Pthread_mutex_lock(&p_slock->req_lock);
-    rc = handle_buf_main2(thedb, NULL, payload, payload + 1024*64, 0, "hi", 0, "hello", NULL, REQ_SQLLEGACY, p_slock, luxref, 0, NULL, 0, 0, legacy_iq_setup, 1);
+    rc = handle_buf_main2(thedb, NULL, payload, payload + 1024*64, 0, "hi", 0, "hello", NULL, REQ_SQLLEGACY, p_slock, luxref, 0, NULL, 0, flags, legacy_iq_setup, 1);
     do {
         state = p_slock->reply_state;
         if (state == REPLY_STATE_NA) {
