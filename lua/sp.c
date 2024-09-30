@@ -7121,25 +7121,6 @@ struct legacy_response {
     blob_t result;
 };
 
-int legacy_request_values(struct sqlclntstate *clnt, struct fixed_row_source *src, int rownum, int colnum, void **value, int *len) {
-    if (rownum >= 1)
-        return CDB2_OK_DONE;
-    struct legacy_response *rsp = (struct legacy_response*) src->data;
-
-    if (colnum == 0) {
-        *value = rsp->result.data;
-        *len = rsp->result.length;
-    }
-    else if (colnum == 1) {
-        *value = &rsp->rc;
-        *len = sizeof(int64_t);
-    }
-
-    else
-        return -1;
-    return CDB2_OK;
-}
-
 
 extern int do_comdb2_legacy(char *appsock, void *payload, int payloadlen, int luxref, int flags, int *outlen, int *rcode);
 static int exec_comdb2_legacy(struct sqlthdstate *thd, struct sqlclntstate *clnt, char **err, const char *args) {
@@ -7190,8 +7171,8 @@ static int exec_comdb2_legacy(struct sqlthdstate *thd, struct sqlclntstate *clnt
 
     char *what = arg[0].u.c;
     blob_t b = arg[1].u.b;
-    double luxref = arg[2].u.i;
-    double flags = arg[3].u.i;
+    int luxref = arg[2].u.i;
+    int flags = arg[3].u.i;
 
     struct legacy_response {
         int rc;
@@ -7203,6 +7184,12 @@ static int exec_comdb2_legacy(struct sqlthdstate *thd, struct sqlclntstate *clnt
     memcpy(rsp.buf, b.data, b.length);
     // logmsg(LOGMSG_WARN, "-> %p %d\n", rsp.buf, b.length);
     do_comdb2_legacy(what, rsp.buf, b.length, luxref, flags, &rsp.outlen, &rsp.rc);
+    // logic from sndbak - keep it compatible
+    char *fb = (char *)rsp.buf;
+    int *bp = (int *)rsp.buf;
+    bp[1] = htonl(rsp.rc);
+    fb[0] = 0xfd;
+
     // logmsg(LOGMSG_WARN, "rsp: len %d rc %d\n", rsp.outlen, rsp.rc);
     // fsnapf(stdout, rsp.buf, rsp.outlen);
     write_response(clnt, RESPONSE_RAW_PAYLOAD, &rsp, 0);
