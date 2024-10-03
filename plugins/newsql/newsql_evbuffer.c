@@ -1024,7 +1024,7 @@ static void pb_evbuffer_append(ProtobufCBuffer *vbuf, size_t len, const uint8_t 
 static int newsql_pack(struct sqlwriter *sqlwriter, void *data)
 {
     struct newsql_pack_arg *arg = data;
-    if (arg->resp->response_type != RESPONSE_TYPE__RAW_DATA && (arg->resp_len <= SQLWRITER_MAX_BUF || arg->appdata->clnt.query_timeout)) {
+    if (arg->resp && arg->resp->response_type != RESPONSE_TYPE__RAW_DATA && (arg->resp_len <= SQLWRITER_MAX_BUF || arg->appdata->clnt.query_timeout)) {
         return newsql_pack_small(sqlwriter, arg);
     }
     struct pb_evbuffer_appender appender = PB_EVBUFFER_APPENDER_INIT(sqlwriter);
@@ -1060,7 +1060,7 @@ static int newsql_write_evbuffer(struct sqlclntstate *clnt, int type, int state,
     
     int response_len;
 
-    if (resp->response_type == RESPONSE_TYPE__RAW_DATA) {
+    if (resp && resp->response_type == RESPONSE_TYPE__RAW_DATA) {
         response_len = sizeof(int) + resp->sqlite_row.len;
     }
     else
