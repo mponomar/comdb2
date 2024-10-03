@@ -1434,43 +1434,18 @@ static int lua_sql_step(Lua lua, sqlite3_stmt *stmt)
             return luaL_error(lua, "unknown field type:%d for col:%s",
                               type, sqlite3_column_name(stmt, col));
         }
-        lua_setfield(lua, -2, sqlite3_column_name(stmt, col));
+        lua_pushvalue(lua, -1); //make a copy
+        lua_rawseti(lua, -3, col + 1); //add to array
+        lua_setfield(lua, -2, sqlite3_column_name(stmt, col)); // add to hash-table
     }
     return rc;
 }
 
-static void set_sqlrow_stmt(Lua L)
-{
-    /*
-    **  stack:
-    **    1. row (lua table)
-    **    2. stmt
-    **  tag stmt to row by:
-    **    newtbl = {}
-    **    newtbl.__metatable = stmt
-    **    setmetatable(row, newtbl)
-    */
-    lua_newtable(L);
-    lua_pushvalue(L, -3);
-    lua_setfield(L, -2, "__metatable");
-    lua_setmetatable(L, -2);
-}
-
-static sqlite3_stmt *get_sqlrow_stmt(Lua L)
-{
-    dbstmt_t *stmt = NULL;
-    if (lua_getmetatable(L, -1) == 0) return NULL;
-    lua_getfield(L, -1, "__metatable");
-    if (luabb_type(L, -1) == DBTYPES_DBSTMT) stmt = lua_touserdata(L, -1);
-    lua_pop(L, 2);
-    return stmt ? stmt->stmt : NULL;
-}
-
-static int stmt_sql_step(Lua L, dbstmt_t *stmt)
+static int stmt_sql_step(Lua L, dbstmt_t *dbstmt)
 {
     int rc;
-    if ((rc = lua_sql_step(L, stmt->stmt)) == SQLITE_ROW) {
-        set_sqlrow_stmt(L);
+    if ((rc = lua_sql_step(L, dbstmt->stmt)) == SQLITE_ROW) {
+        set_sqlrow_stmt(L, dbstmt);
     }
     return rc;
 }
@@ -2424,8 +2399,10 @@ static int luatable_emit(Lua L)
 {
     int cols;
     SP sp = getsp(L);
-    sqlite3_stmt *stmt = get_sqlrow_stmt(L);
-    if (stmt) {
+    sqlite3_stmt *stmt = NULL;
+    dbstmt_t *dbstmt = get_sqlrow_stmt(L);
+    if (dbstmt) {
+        stmt = dbstmt->stmt;
         cols = column_count(NULL, stmt);
     } else if (sp->parent->ntypes) {
         push_clnt_cols(L, sp);
@@ -2434,8 +2411,6 @@ static int luatable_emit(Lua L)
     } else {
         return luaL_error(L, "attempt to emit row without defining columns");
     }
-    /* NC: Should we iterate over all the rows here and call lua_end_step()
-       (like dbstmt_emit()) ? */
     int rc = l_send_back_row(L, stmt, cols);
     lua_pushinteger(L, rc);
     return 1;
@@ -5617,7 +5592,7 @@ static cson_value *table_to_cson(Lua L, int lvl, json_conv *conv)
     int utf8_len;
     switch (dbtype) {
     case DBTYPES_LTABLE:
-        if (is_array(L)) {
+        if (is_array(L) && !get_sqlrow_stmt(L)) {
             type = "array";
             v = table_to_cson_array(L, lvl, conv);
         } else {
@@ -5772,6 +5747,9 @@ static int l_send_back_row(Lua lua, sqlite3_stmt *stmt, int nargs)
         }
         Pthread_mutex_unlock(parent->emit_mutex);
         if (rc) return rc;
+    }
+    if (nargs != parent->ntypes) {
+        return luaL_error(lua, "bad number of emit columns:%d (need:%d)", nargs, parent->ntypes);
     }
     int type = stmt ? RESPONSE_ROW : RESPONSE_ROW_LUA;
     int sp_rc = sp->rc;

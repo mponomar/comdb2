@@ -660,6 +660,7 @@ struct sqlclntstate {
     struct plugin_callbacks adapter;
     struct plugin_callbacks adapter_backup;
     struct typessql *typessql_state;
+    unsigned typessql : 1; // should query use typessql (determined from set stmt)
 
     /* bplog write plugin */
     int (*begin)(struct sqlclntstate *clnt, int retries, int keep_id);
@@ -941,6 +942,7 @@ struct sqlclntstate {
     unsigned can_redirect_fdb: 1;
     unsigned force_fdb_push_redirect : 1; // this should only be set if can_redirect_fdb is true
     unsigned force_fdb_push_remote : 1;
+    unsigned return_long_column_names : 1; // if 0 then tunable decides
 
     char *sqlengine_state_file;
     int sqlengine_state_line;
@@ -952,9 +954,9 @@ struct sqlclntstate {
     int64_t last_cost;
     int disable_fdb_push;
 
-    /* Commit LSN prior to modsnap start point */
-    uint32_t last_commit_lsn_file; 
-    uint32_t last_commit_lsn_offset;
+    /* Modsnap start point */
+    uint32_t modsnap_start_lsn_file; 
+    uint32_t modsnap_start_lsn_offset;
 
     /* Checkpoint LSN prior to modsnap start point */
     uint32_t last_checkpoint_lsn_file;

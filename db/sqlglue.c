@@ -14,8 +14,6 @@
    limitations under the License.
  */
 
-#include "sqlglue.h"
-
 #include "sqloffload.h"
 #include "analyze.h"
 
@@ -82,6 +80,7 @@
 #include <sqlite3.h>
 
 #include "dbinc/debug.h"
+#include "sqlglue.h"
 #include "sqlinterfaces.h"
 
 #include "osqlsqlthr.h"
@@ -1040,21 +1039,8 @@ int convert_sql_failure_reason_str(const struct convert_failure *reason,
     return 0;
 }
 
-struct mem_info {
-    struct schema *s;
-    Mem *m;
-    int null;
-    int *nblobs;
-    struct field_conv_opts_tz *convopts;
-    const char *tzname;
-    blob_buffer_t *outblob;
-    int maxblobs;
-    struct convert_failure *fail_reason;
-    int fldidx;
-};
-
-static int mem_to_ondisk(void *outbuf, struct field *f, struct mem_info *info,
-                         bias_info *bias_info)
+int mem_to_ondisk(void *outbuf, struct field *f, struct mem_info *info,
+                  bias_info *bias_info)
 {
     Mem *m = info->m;
     struct schema *s = info->s;
@@ -2209,12 +2195,6 @@ int schema_var_size(struct schema *sc)
                * header byte + sqlite type byte) */
     return sz;
 }
-
-struct schema_mem {
-    struct schema *sc;
-    Mem *min;
-    Mem *mout;
-};
 
 /**
 ** Updates comdb2 dbtable with any scalar funcs that may be
@@ -4893,10 +4873,10 @@ int sqlite3BtreeBeginTrans(Vdbe *vdbe, Btree *pBt, int wrflag, int *pSchemaVersi
     /* Latch last commit LSN */
     if ((clnt->dbtran.mode == TRANLEVEL_MODSNAP) && !clnt->modsnap_in_progress && (db->handle != NULL)) {
             if (clnt->is_hasql_retry) {
-                get_snapshot(clnt, (int *) &clnt->last_commit_lsn_file, (int *) &clnt->last_commit_lsn_offset);
+                get_snapshot(clnt, (int *) &clnt->modsnap_start_lsn_file, (int *) &clnt->modsnap_start_lsn_offset);
             }
             if (bdb_get_modsnap_start_state(db->handle, clnt->is_hasql_retry, clnt->snapshot, 
-                    &clnt->last_commit_lsn_file, &clnt->last_commit_lsn_offset, &clnt->last_checkpoint_lsn_file, 
+                    &clnt->modsnap_start_lsn_file, &clnt->modsnap_start_lsn_offset, &clnt->last_checkpoint_lsn_file, 
                     &clnt->last_checkpoint_lsn_offset)) {
                 logmsg(LOGMSG_ERROR, "%s: Failed to get modsnap txn start state\n", __func__);
                 rc = SQLITE_INTERNAL;
@@ -8247,8 +8227,8 @@ sqlite3BtreeCursor_cursor(Btree *pBt,      /* The btree */
     }
     cur->tableversion = cur->db->tableversion;
 
-    clnt->dbtran.cursor_tran->last_commit_lsn.file = clnt->last_commit_lsn_file;
-    clnt->dbtran.cursor_tran->last_commit_lsn.offset = clnt->last_commit_lsn_offset;
+    clnt->dbtran.cursor_tran->modsnap_start_lsn.file = clnt->modsnap_start_lsn_file;
+    clnt->dbtran.cursor_tran->modsnap_start_lsn.offset = clnt->modsnap_start_lsn_offset;
     clnt->dbtran.cursor_tran->last_checkpoint_lsn.file = clnt->last_checkpoint_lsn_file;
     clnt->dbtran.cursor_tran->last_checkpoint_lsn.offset = clnt->last_checkpoint_lsn_offset;
 
@@ -10874,7 +10854,7 @@ int sqlite3BtreeCount(BtCursor *pCur, i64 *pnEntry)
                 break;
             }
 
-            rc = bdb_direct_count(pCur->bdbcur, pCur->ixnum, (int64_t *)&count, pCur->clnt->dbtran.mode == TRANLEVEL_MODSNAP ? 1 : 0, pCur->clnt->last_commit_lsn_file, pCur->clnt->last_commit_lsn_offset, 
+            rc = bdb_direct_count(pCur->bdbcur, pCur->ixnum, (int64_t *)&count, pCur->clnt->dbtran.mode == TRANLEVEL_MODSNAP ? 1 : 0, pCur->clnt->modsnap_start_lsn_file, pCur->clnt->modsnap_start_lsn_offset, 
                     pCur->clnt->last_checkpoint_lsn_file, pCur->clnt->last_checkpoint_lsn_offset);
             if (rc == BDBERR_DEADLOCK &&
                 recover_deadlock(thedb->bdb_env, clnt, NULL, 0)) {
@@ -12633,6 +12613,8 @@ int verify_indexes_column_value(struct sqlclntstate *clnt, sqlite3_stmt *stmt, v
             }
         } else if (pFrom->flags & MEM_Int) {
             pTo->u.i = pFrom->u.i;
+        } else if (pFrom->flags & MEM_Datetime) {
+            pTo->du = pFrom->du;
         }
     }
     return 0;

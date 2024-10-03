@@ -26,6 +26,7 @@
 #include "sp.h"
 #include "sql.h"
 #include "sqloffload.h"
+#include "sqlquery.pb-c.h"
 
 #include "newsql.h"
 
@@ -229,8 +230,8 @@ static struct query_effects *newsql_get_query_effects(struct sqlclntstate *clnt)
     if (newsql_has_high_availability(clnt)) {                                  \
         int file = 0, offset = 0;                                              \
         if (clnt->modsnap_in_progress) {                                       \
-            file = clnt->last_commit_lsn_file;                                 \
-            offset = clnt->last_commit_lsn_offset;                             \
+            file = clnt->modsnap_start_lsn_file;                                 \
+            offset = clnt->modsnap_start_lsn_offset;                             \
         } else if (fill_snapinfo(clnt, &file, &offset)) {                      \
             sql_response.error_code = (char)CDB2ERR_CHANGENODE;                \
         }                                                                      \
@@ -371,15 +372,14 @@ static int get_col_type(struct sqlclntstate *clnt, sqlite3_stmt *stmt, int col,
 }
 
 #define MAX_COL_NAME_LEN 31
-#define ADJUST_LONG_COL_NAME(appdata, n, l)                                    \
-    do {                                                                       \
-        if ((l > MAX_COL_NAME_LEN) &&                                          \
-            ((gbl_return_long_column_names == 0) ||                            \
-             (appdata->protocol_version == 1 /* fastsql */))) {                \
-            l = MAX_COL_NAME_LEN + 1;                                          \
-            char *namebuf = alloca(l);                                         \
-            n = strncpy0(namebuf, n, l);                                       \
-        }                                                                      \
+#define ADJUST_LONG_COL_NAME(clnt_return_long_column_names, appdata, n, l)                                             \
+    do {                                                                                                               \
+        if ((l > MAX_COL_NAME_LEN) && ((!clnt_return_long_column_names && gbl_return_long_column_names == 0) ||        \
+                                       (appdata->protocol_version == 1 /* fastsql */))) {                              \
+            l = MAX_COL_NAME_LEN + 1;                                                                                  \
+            char *namebuf = alloca(l);                                                                                 \
+            n = strncpy0(namebuf, n, l);                                                                               \
+        }                                                                                                              \
     } while (0)
 
 static int newsql_columns(struct sqlclntstate *clnt, sqlite3_stmt *stmt)
@@ -394,7 +394,7 @@ static int newsql_columns(struct sqlclntstate *clnt, sqlite3_stmt *stmt)
         cdb2__sqlresponse__column__init(&cols[i]);
         const char *name = sqlite3_column_name(stmt, i);
         size_t len = strlen(name) + 1;
-        ADJUST_LONG_COL_NAME(appdata, name, len);
+        ADJUST_LONG_COL_NAME(clnt->return_long_column_names, appdata, name, len);
         cols[i].value.data = (uint8_t *)name;
         cols[i].value.len = len;
         cols[i].has_type = 1;
@@ -450,7 +450,7 @@ static int newsql_columns_lua(struct sqlclntstate *clnt,
         cdb2__sqlresponse__column__init(&cols[i]);
         const char *name = sp_column_name(arg, i);
         size_t len = strlen(name) + 1;
-        ADJUST_LONG_COL_NAME(appdata, name, len);
+        ADJUST_LONG_COL_NAME(clnt->return_long_column_names, appdata, name, len);
         cols[i].value.data = (uint8_t *)name;
         cols[i].value.len = len;
         cols[i].has_type = 1;
@@ -2004,6 +2004,22 @@ int process_set_commands(struct sqlclntstate *clnt, CDB2SQLQUERY *sql_query)
                 } else {
                     rc = ii + 1;
                 }
+            } else if (strncasecmp(sqlstr, "typessql", 8) == 0) {
+                sqlstr += 8;
+                sqlstr = skipws(sqlstr);
+                if (strncasecmp(sqlstr, "off", 3) == 0) {
+                    clnt->typessql = 0;
+                } else {
+                    clnt->typessql = 1;
+                }
+            } else if (strncasecmp(sqlstr, "return_long_column_names", 24) == 0) {
+                sqlstr += 24;
+                sqlstr = skipws(sqlstr);
+                if (strncasecmp(sqlstr, "off", 3) == 0) {
+                    clnt->return_long_column_names = 0;
+                } else {
+                    clnt->return_long_column_names = 1;
+                }
             } else {
                 rc = ii + 1;
             }
@@ -2228,8 +2244,14 @@ newsql_loop_result newsql_loop(struct sqlclntstate *clnt, CDB2SQLQUERY *sql_quer
     ATOMIC_ADD64(gbl_nnewsql, 1);
     if (clnt->plugin.has_ssl(clnt)) ATOMIC_ADD64(gbl_nnewsql_ssl, 1);
 
+    int allow_incoherent = 0;
+    for (int i = 0; i < sql_query->n_features; i++) {
+        if (sql_query->features[i] == CDB2_CLIENT_FEATURES__ALLOW_INCOHERENT)
+            allow_incoherent = 1;
+    }
+
     /* coherent  _or_ in middle of transaction */
-    if (!incoh_reject(clnt->admin, thedb->bdb_env) || clnt->ctrl_sqlengine != SQLENG_NORMAL_PROCESS) {
+    if ((!allow_incoherent && !incoh_reject(clnt->admin, thedb->bdb_env)) || clnt->ctrl_sqlengine != SQLENG_NORMAL_PROCESS) {
         return NEWSQL_SUCCESS;
     }
     if (gbl_incoherent_clnt_wait > 0) {
