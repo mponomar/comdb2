@@ -1341,7 +1341,7 @@ struct ireq {
     /* REGION 2 */
     /************/
     uint8_t region2; /* used for offsetof */
-    char corigin[80];
+    char corigin[200];
     char debug_buf[256];
     char tzname[DB_MAX_TZNAMEDB];
 
@@ -1475,6 +1475,11 @@ struct ireq {
     int comdbg_flags;
     int64_t timestamp;
     void (*ipc_sndbak)(struct ireq *, int rc, int len);
+    // note: these are transient: they are valid when the ireq is being used
+    // in an inline call to handle_buf
+    void *authdata;
+    char *argv0;
+    int has_ssl;
     /* REVIEW COMMENTS AT BEGINING OF STRUCT BEFORE ADDING NEW VARIABLES */
 };
 
@@ -1963,14 +1968,15 @@ int handle_buf_main(
     char *fromtask, osql_sess_t *sorese, int qtype,
     void *data_hndl, // handle to data that can be used according to request
                      // type
-    int luxref, unsigned long long rqid, void (*iq_setup_func)(struct ireq*));
+    int luxref, unsigned long long rqid, void (*iq_setup_func)(struct ireq*, void *setup_data));
 
 int handle_buf_main2(struct dbenv *dbenv, SBUF2 *sb, const uint8_t *p_buf,
                      const uint8_t *p_buf_end, int debug, char *frommach,
                      int frompid, char *fromtask, osql_sess_t *sorese,
                      int qtype, void *data_hndl, int luxref,
                      unsigned long long rqid, void *p_sinfo, intptr_t curswap,
-                     int comdbg_flags, void (*iq_setup_func)(struct ireq*), int doinline);
+                     int comdbg_flags, void (*iq_setup_func)(struct ireq*, void *setup_data), 
+                     void *setup_data, int doinline, void* authdata);
 
 int handle_buf(struct dbenv *dbenv, uint8_t *p_buf, const uint8_t *p_buf_end,
                int debug, char *frommach); /* 040307dh: 64bits */
@@ -3725,5 +3731,7 @@ static inline char *skipws(char *str)
 }
 
 void get_disable_skipscan_all();
+
+void get_client_origin(char *out, size_t outlen, struct sqlclntstate *clnt);
 
 #endif /* !INCLUDED_COMDB2_H */

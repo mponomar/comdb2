@@ -13366,13 +13366,16 @@ static void legacy_sndbak(struct ireq *iq, int rc, int len) {
     signal_buflock(p_slock);
 }
 
-static void legacy_iq_setup(struct ireq *iq) {
+static void legacy_iq_setup(struct ireq *iq, void *setup_data) {
+    struct sqlclntstate *clnt = (struct sqlclntstate*) setup_data;
     iq->ipc_sndbak = legacy_sndbak;
+    iq->has_ssl = clnt->plugin.has_ssl(clnt);
+    get_client_origin(iq->corigin, sizeof(iq->corigin), clnt);
 }
 
 extern pthread_mutex_t buf_lock;
 extern pool_t *p_slocks; /* pool of socket locks*/
-int do_comdb2_legacy(char *appsock, void *payload, int payloadlen, int luxref, int flags, int *outlen, int *rcode) {
+int do_comdb2_legacy(void *payload, int payloadlen, struct sqlclntstate *clnt, int luxref, int flags, int *outlen, int *rcode) {
     int rc;
 
     struct buf_lock_t *p_slock = NULL;
@@ -13388,7 +13391,7 @@ int do_comdb2_legacy(char *appsock, void *payload, int payloadlen, int luxref, i
 
     int state;
     Pthread_mutex_lock(&p_slock->req_lock);
-    rc = handle_buf_main2(thedb, NULL, payload, payload + 1024*64, 0, "hi", 0, "hello", NULL, REQ_SQLLEGACY, p_slock, luxref, 0, NULL, 0, flags, legacy_iq_setup, 1);
+    rc = handle_buf_main2(thedb, NULL, payload, payload + 1024*64, 0, "hi", 0, "hello", NULL, REQ_SQLLEGACY, p_slock, luxref, 0, NULL, 0, flags, legacy_iq_setup, clnt, 1, clnt->authdata);
     do {
         state = p_slock->reply_state;
         if (state == REPLY_STATE_NA) {
