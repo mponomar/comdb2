@@ -4400,7 +4400,7 @@ static int init(int argc, char **argv)
 
 char *getorigin(struct ireq *iq)
 {
-    if (iq->is_fake || iq->corigin[0] == 0)
+    if (!iq->is_fake && iq->corigin[0] == 0)
         return "INTERNAL";
 
     /* is_fromsocket case in init_ireq should set corigin, and

@@ -7122,14 +7122,18 @@ struct legacy_response {
 };
 
 
-extern int do_comdb2_legacy(char *appsock, void *payload, int payloadlen, int luxref, int flags, int *outlen, int *rcode);
+extern int do_comdb2_legacy(void *payload, int payloadlen, struct sqlclntstate *clnt, int luxref, int flags, int *outlen, int *rcode);
 static int exec_comdb2_legacy(struct sqlthdstate *thd, struct sqlclntstate *clnt, char **err, const char *args) {
-    sparg_t arg[4];
+    sparg_t arg[3];
     int rc;
     char *errstr = NULL;
-    arg_t expected_types[4] = { arg_str, arg_blob, arg_int, arg_int };
+    arg_t expected_types[3] = { arg_blob, arg_int, arg_int };
 
-    for (int i = 0; i < 4; i++) {
+    void *authdata = clnt->authdata;
+    if (authdata == NULL && (gbl_uses_externalauth || gbl_uses_externalauth_connect))
+        clnt->authdata = get_authdata(clnt);
+
+    for (int i = 0; i < 3; i++) {
         rc = getarg(&args, clnt, &arg[i]);
         if (rc == arg_end) {
             errstr = strdup("parse error reading arguments");
@@ -7169,10 +7173,9 @@ static int exec_comdb2_legacy(struct sqlthdstate *thd, struct sqlclntstate *clnt
         }
     }
 
-    char *what = arg[0].u.c;
-    blob_t b = arg[1].u.b;
-    int luxref = arg[2].u.i;
-    int flags = arg[3].u.i;
+    blob_t b = arg[0].u.b;
+    int luxref = arg[1].u.i;
+    int flags = arg[2].u.i;
 
     struct legacy_response {
         int rc;
@@ -7183,7 +7186,7 @@ static int exec_comdb2_legacy(struct sqlthdstate *thd, struct sqlclntstate *clnt
     // TODO: check size
     memcpy(rsp.buf, b.data, b.length);
     // logmsg(LOGMSG_WARN, "-> %p %d\n", rsp.buf, b.length);
-    do_comdb2_legacy(what, rsp.buf, b.length, luxref, flags, &rsp.outlen, &rsp.rc);
+    do_comdb2_legacy(rsp.buf, b.length, clnt, luxref, flags, &rsp.outlen, &rsp.rc);
     // logic from sndbak - keep it compatible
     char *fb = (char *)rsp.buf;
     int *bp = (int *)rsp.buf;
@@ -7223,7 +7226,7 @@ static int exec_procedure_int(struct sqlthdstate *thd,
 
     struct sql_thread *sqlthd = pthread_getspecific(query_info_key);
 
-    if (strcmp(spname, "comdb2_legacy") == 0)
+    if (strncmp(spname, "comdb2_legacy_", 14) == 0)
         return exec_comdb2_legacy(thd, clnt, err, end_ptr);
 
     if (strcmp(spname, "debug") == 0) {

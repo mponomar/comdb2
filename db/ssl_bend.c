@@ -126,6 +126,7 @@ int ssl_process_lrl(char *line, size_t len)
             my_ssl_eprintln("Unrecognized SSL mode `%s`.", tok);
             return EINVAL;
         }
+        printf("ssl client mode: %d %.*s\n", gbl_client_ssl_mode, ltok, tok);
     } else if (tokcmp(line, ltok, "ssl_replicant_mode") == 0) {
         /* SSL client mode */
         tok = segtok(line, len, &st, &ltok);
