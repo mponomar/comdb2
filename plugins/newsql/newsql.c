@@ -2188,9 +2188,17 @@ newsql_loop_result newsql_loop(struct sqlclntstate *clnt, CDB2SQLQUERY *sql_quer
     ATOMIC_ADD32(gbl_nnewsql, 1);
     if (clnt->plugin.has_ssl(clnt)) ATOMIC_ADD32(gbl_nnewsql_ssl, 1);
 
+    int allow_incoherent = 0;
+    for (int i = 0; i < sql_query->n_features; i++) {
+        if (sql_query->features[i] == CDB2_CLIENT_FEATURES__ALLOW_INCOHERENT) {
+            allow_incoherent = 1;
+            break;
+        }
+    }
+
     /* coherent  _or_ in middle of transaction */
     /* do cheaper check first */
-    if (clnt->ctrl_sqlengine != SQLENG_NORMAL_PROCESS || !incoh_reject(clnt->admin, thedb->bdb_env)) {
+    if (clnt->ctrl_sqlengine != SQLENG_NORMAL_PROCESS || allow_incoherent || !incoh_reject(clnt->admin, thedb->bdb_env)) {
         return NEWSQL_SUCCESS;
     }
     if (gbl_incoherent_clnt_wait > 0) {
