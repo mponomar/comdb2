@@ -1092,39 +1092,6 @@ static int newsql_redirect_foreign(struct sqlclntstate *clnt, char **foreign_db,
     return newsql_response(clnt, &r, 1);
 }
 
-static int newsql_fixed_columns(struct sqlclntstate *c, void *a) {
-    struct fixed_row_source *rows = (struct fixed_row_source*) a;
-    
-    int ncols = rows->ncolumns;
-    struct newsql_appdata *appdata = c->appdata;
-    update_col_info(&appdata->col_info, ncols);
-    size_t n_types = appdata->sqlquery->n_types;
-    if (n_types && n_types != ncols) {
-        return -2;
-    }
-    CDB2SQLRESPONSE__Column cols[ncols];
-    CDB2SQLRESPONSE__Column *value[ncols];
-    for (int i = 0; i < ncols; ++i) {
-        value[i] = &cols[i];
-        cdb2__sqlresponse__column__init(&cols[i]);
-        char *name = rows->names[i];
-        int type = rows->types[i];
-        size_t len = strlen(name) + 1;
-        ADJUST_LONG_COL_NAME(appdata, name, len);
-        cols[i].value.data = (uint8_t *)name;
-        cols[i].value.len = len;
-        cols[i].type = type;
-        cols[i].has_type = 1;
-    }
-    c->osql.sent_column_data = 1;
-    CDB2SQLRESPONSE resp = CDB2__SQLRESPONSE__INIT;
-    resp.response_type = RESPONSE_TYPE__COLUMN_NAMES;
-    resp.n_value = ncols;
-    resp.value = value;
-    int rc = newsql_response(c, &resp, 0);
-    return rc;
-}
-
 struct legacy_response {
     int rc;
     int outlen;
