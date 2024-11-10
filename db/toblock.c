@@ -2574,7 +2574,6 @@ static int pack_up_response(struct ireq *iq, int have_keyless_requests,
                             int num_reqs, int numerrs, struct block_err *err,
                             int rc, int opnum)
 {
-    fprintf(stderr, "keyless %d positioned %d\n", have_keyless_requests, iq->is_block2positionmode);
     if (!have_keyless_requests) {
         struct block_rsp rsp;
 
