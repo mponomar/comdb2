@@ -762,6 +762,7 @@ void *thd_req(void *vthd)
         }
         UNLOCK(&lock);
 
+        // TODO: reuse
         /* Should not be done under lock - might be expensive */
         truncate_constraint_table(thdinfo->ct_add_table);
         truncate_constraint_table(thdinfo->ct_del_table);

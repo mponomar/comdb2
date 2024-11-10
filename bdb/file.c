@@ -8541,7 +8541,7 @@ int bdb_purge_unused_files(bdb_state_type *bdb_state, tran_type *tran,
         return 1;
     }
 
-    logmsg(LOGMSG_INFO, "deleting file %s\n", uf_ptr->fname);
+    // logmsg(LOGMSG_INFO, "deleting file %s\n", uf_ptr->fname);
     print(bdb_state, "deleting file %s\n", uf_ptr->fname);
 
     if ((rc = bdb_del_file(bdb_state, tran->tid, uf_ptr->fname, bdberr))) {

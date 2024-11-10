@@ -7184,6 +7184,7 @@ static int exec_comdb2_legacy(struct sqlthdstate *thd, struct sqlclntstate *clnt
     } rsp;
 
     // TODO: check size
+    // TODO: why copy?
     memcpy(rsp.buf, b.data, b.length);
     // logmsg(LOGMSG_WARN, "-> %p %d\n", rsp.buf, b.length);
     do_comdb2_legacy(rsp.buf, b.length, clnt, luxref, flags, &rsp.outlen, &rsp.rc);
@@ -7195,13 +7196,14 @@ static int exec_comdb2_legacy(struct sqlthdstate *thd, struct sqlclntstate *clnt
 
     // logmsg(LOGMSG_WARN, "rsp: len %d rc %d\n", rsp.outlen, rsp.rc);
     // fsnapf(stdout, rsp.buf, rsp.outlen);
+    rsp.outlen += 8;
     write_response(clnt, RESPONSE_RAW_PAYLOAD, &rsp, 0);
 
     return 0;
 
 badargs:
     if (errstr == NULL)
-        *err = strdup("errur");
+        *err = strdup("Badly formed legacy request?");
     else
         *err = errstr;
     return -1;
