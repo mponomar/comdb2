@@ -13391,7 +13391,7 @@ int do_comdb2_legacy(void *payload, int payloadlen, struct sqlclntstate *clnt, i
 
     int state;
     Pthread_mutex_lock(&p_slock->req_lock);
-    rc = handle_buf_main2(thedb, NULL, payload, payload + 1024*64, 0, "hi", 0, "hello", NULL, REQ_SQLLEGACY, p_slock, luxref, 0, NULL, 0, flags, legacy_iq_setup, clnt, 1, clnt->authdata);
+    rc = handle_buf_main2(thedb, NULL, payload, payload + 1024*64, 0, clnt->origin, clnt->last_pid, clnt->argv0, NULL, REQ_SQLLEGACY, p_slock, luxref, 0, NULL, 0, flags, legacy_iq_setup, clnt, 1, clnt->authdata);
     do {
         state = p_slock->reply_state;
         if (state == REPLY_STATE_NA) {
