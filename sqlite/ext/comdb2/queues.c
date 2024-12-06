@@ -130,12 +130,12 @@ static int get_stats(struct systbl_queues_cursor *pCur) {
       if (stats[consumern].has_stuff)
           depth += stats[consumern].depth;
   }
-
   pCur->depth = depth;
   if (stats[0].epoch)
       pCur->age  = comdb2_time_epoch() - stats[0].epoch;
   else
       pCur->age  = 0;
+
   pCur->tot_enqueued = bdb_get_qdb_adds(qdb->handle);
   pCur->tot_dequeued = bdb_get_qdb_cons(qdb->handle);
   return 0;

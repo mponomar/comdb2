@@ -5542,7 +5542,7 @@ int dbq_walk(struct ireq *iq, int flags, dbq_walk_callback_t callback,
 
     if (tran == NULL) {
         // int trans_start(struct ireq *iq, tran_type *parent_trans, tran_type **out_trans)
-        rc = trans_start(iq, NULL, &tran);;
+        rc = trans_start(iq, NULL, &tran);
         if (rc)
             goto done;
         created_tran = 1;

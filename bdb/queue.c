@@ -881,8 +881,8 @@ int bdb_queue_consume_goose(bdb_state_type *bdb_state, tran_type *tran,
 
 static int bdb_queue_walk_int(bdb_state_type *bdb_state, int flags,
                               bbuint32_t *lastitem,
-                              bdb_queue_walk_callback_t callback, void *userptr,
-                              int *bdberr)
+                              bdb_queue_walk_callback_t callback,
+                              tran_type *tran,  void *userptr, int *bdberr)
 {
     DBT dbt_key, dbt_data;
     DBC *dbcp;
@@ -892,26 +892,11 @@ static int bdb_queue_walk_int(bdb_state_type *bdb_state, int flags,
     db_recno_t recno;
     bbuint32_t consumer_mask = 0xffffffff;
     int rc;
-    int tmptid = 0;
-    DB_TXN *tid = NULL;
+    u_int32_t lockerid;
 
-#if 0
-    if(flags & BDB_QUEUE_WALK_KNOWN_CONSUMERS_ONLY)
-        consumer_mask &= ~bdb_state->active_consumers;
-#endif
+    bdb_get_tran_lockerid(tran, &lockerid);
 
-    if (TXN_READ_HACK()) {
-        rc = bdb_state->dbenv->txn_begin(bdb_state->dbenv, NULL, &tid, 0);
-        if (rc != 0) {
-            logmsg(LOGMSG_ERROR, "%s: txn_begin failed %d %s\n", __func__, rc,
-                    db_strerror(rc));
-            *bdberr = BDBERR_MISC;
-            return -1;
-        }
-        tmptid = 1;
-    }
-
-    rc = bdb_state->dbp_data[0][0]->cursor(bdb_state->dbp_data[0][0], tid,
+    rc = bdb_state->dbp_data[0][0]->paired_cursor_from_lid(bdb_state->dbp_data[0][0], lockerid,
                                            &dbcp, 0);
     if (rc != 0) {
         switch (rc) {
@@ -926,8 +911,6 @@ static int bdb_queue_walk_int(bdb_state_type *bdb_state, int flags,
             *bdberr = BDBERR_MISC;
             break;
         }
-        if (tid && tmptid)
-            tid->abort(tid);
         return -1;
     }
 
@@ -966,8 +949,6 @@ static int bdb_queue_walk_int(bdb_state_type *bdb_state, int flags,
                 break;
             }
             dbcp->c_close(dbcp);
-            if (tid && tmptid)
-                tid->abort(tid);
             return -1;
         }
 
@@ -975,8 +956,6 @@ static int bdb_queue_walk_int(bdb_state_type *bdb_state, int flags,
             logmsg(LOGMSG_ERROR, "%s: queue_hdr_get failed\n", __FUNCTION__);
             *bdberr = BDBERR_MISC;
             dbcp->c_close(dbcp);
-            if (tid && tmptid)
-                tid->abort(tid);
             return -1;
         }
     }
@@ -1003,10 +982,9 @@ static int bdb_queue_walk_int(bdb_state_type *bdb_state, int flags,
             logmsg(LOGMSG_ERROR, "%s: queue_hdr_get failed\n", __FUNCTION__);
             *bdberr = BDBERR_MISC;
             dbcp->c_close(dbcp);
-            if (tid && tmptid)
-                tid->abort(tid);
             return -1;
         }
+
         /* Skip zero genid records as those are dummies. */
         if (hdr.fragment_no == 0 && (hdr.consumer_mask & consumer_mask) &&
             (hdr.genid[0] || hdr.genid[1])) {
@@ -1024,8 +1002,6 @@ static int bdb_queue_walk_int(bdb_state_type *bdb_state, int flags,
 
                     if (callbackrc == BDB_QUEUE_WALK_STOP) {
                         dbcp->c_close(dbcp);
-                        if (tid && tmptid)
-                            tid->abort(tid);
                         return 0;
                     } else if (callbackrc == BDB_QUEUE_WALK_STOP_CONSUMER) {
                         /* no more from this consumer, thanks */
@@ -1075,14 +1051,10 @@ static int bdb_queue_walk_int(bdb_state_type *bdb_state, int flags,
             break;
         }
         dbcp->c_close(dbcp);
-        if (tid && tmptid)
-            tid->abort(tid);
         return -1;
     }
 
     dbcp->c_close(dbcp);
-    if (tid && tmptid)
-        tid->abort(tid);
     return 0;
 }
 
@@ -1097,8 +1069,7 @@ int bdb_queue_walk(bdb_state_type *bdb_state, int flags, bbuint32_t *lastitem,
     if (bdb_state->bdbtype == BDBTYPE_QUEUEDB) {
         rc = bdb_queuedb_walk(bdb_state, flags, lastitem, callback, tran, userptr, bdberr);
     } else {
-        /* TODO: The "tran" parameter is not passed here.  Maybe it should be? */
-        rc = 0; //bdb_queue_walk_int(bdb_state, flags, lastitem, callback, userptr, bdberr);
+        rc = bdb_queue_walk_int(bdb_state, flags, lastitem, callback, tran, userptr, bdberr);
     }
     BDB_RELLOCK();
 
