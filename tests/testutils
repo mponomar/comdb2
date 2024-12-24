@@ -1,22 +1,10 @@
 #!/bin/bash
 
 function testdb_start_run {
-    [[ -z "$TESTCASEDB" || -z "$TESTCASETIER" || -z "$TESTUUID" ]] && return 0
-    repo=$(git remote get-url origin | sed "s/'/''/")
-    if [[ -z "$repo" ]]; then
-        exit 0
-    fi
-    branch=$(git rev-parse --abbrev-ref HEAD | sed "s/'/''/")
-    if [[ -z "$branch" ]]; then
-        exit 0
-    fi
-    commit=$(git rev-parse HEAD | sed "s/'/''/")
-    if [[ -z "$commit" ]]; then
-        exit 0
-    fi
+    [[ -z "$TESTCASEDB" || -z "$TESTCASETIER" || -z "$TESTUUID" || -z "$TESTREPO" || -z "$TESTBRANCH" || -z "$TESTCOMMIT" ]] && return 0
     version=${TESTVERSION:-NULL}
     [[ ${version} != "NULL" ]] && version=$(echo $version | sed "s/'/''/")
-    /opt/bb/bin/cdb2sql $TESTCASEDB $TESTCASETIER "insert into runs(start, end, testid, repo, branch, sha, version) values(now(), NULL, '$TESTUUID', '$repo', '$branch', '$commit', '$version')" >/dev/null
+    /opt/bb/bin/cdb2sql $TESTCASEDB $TESTCASETIER "insert into runs(start, end, testid, repo, branch, sha, version) values(now(), NULL, '$TESTUUID', '$TESTREPO', '$TESTBRANCH', '$TESTCOMMIT', '$version')" >/dev/null
 }
 
 function testdb_start_testcase {

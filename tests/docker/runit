@@ -89,6 +89,11 @@ services:
         volumes:
             - ./common:/common
             - ./common/c1:/dedicated
+        environment:
+            - TESTREPO=$TESTREPO
+            - TESTBRANCH=$plugin_branch
+            - TESTCOMMIT=$prefix
+            - TESTVERSION=
 EOF
 
 [[ "$coredir" != "" ]] && { cat >> $compose <<EOF
