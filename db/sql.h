@@ -388,8 +388,6 @@ enum {
     XRESPONSE(RESPONSE_ROW_STR)                                                \
     XRESPONSE(RESPONSE_TRACE)                                                  \
     XRESPONSE(RESPONSE_ROW_REMTRAN)                                            \
-    XRESPONSE(RESPONSE_COLUMNS_FIXED)                                          \
-    XRESPONSE(RESPONSE_ROW_FIXED)                                              \
     XRESPONSE(RESPONSE_RAW_PAYLOAD)
 
 #define XRESPONSE(x) x,

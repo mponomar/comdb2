@@ -1141,8 +1141,6 @@ static int newsql_write_response(struct sqlclntstate *c, int t, void *a, int i)
     case RESPONSE_QUERY_STATS:
         return 0;
     case RESPONSE_ROW_REMTRAN: return newsql_row_remtran(c, a, i);
-    case RESPONSE_COLUMNS_FIXED: return newsql_fixed_columns(c, a);
-    case RESPONSE_ROW_FIXED: return newsql_fixed_row(c, a);
     case RESPONSE_RAW_PAYLOAD: return newsql_raw_payload(c, a);
     default:
         abort();
