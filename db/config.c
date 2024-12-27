@@ -1476,7 +1476,6 @@ static int read_lrl_option(struct dbenv *dbenv, char *line,
         DTTZ_TEXT_TO_PREC(tok, gbl_datetime_precision, 0, return 0);
     } else if (tokcmp(line, strlen("ssl"), "ssl") == 0) {
         /* Let's have a separate function for ssl directives. */
-        printf(">>>>>> ssl!!!\n");
         rc = ssl_process_lrl(line, len);
         if (rc != 0)
             return -1;

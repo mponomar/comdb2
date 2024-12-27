@@ -562,7 +562,7 @@ static int forward_block_to_master(struct ireq *iq, block_state_t *p_blkstate,
             rc = offload_comm_send_blockreq(mstr, iq->request_data,
                                             iq->p_buf_out_start, req_len);
             // HERE 
-            // free_bigbuf_nosignal(iq->p_buf_out_start);
+            free_bigbuf_nosignal(iq->p_buf_out_start);
         }
     } else if (comdb2_ipc_swapnpasdb_sinfo) {
         if (comdb2_ipc_setrmtdbmc) {

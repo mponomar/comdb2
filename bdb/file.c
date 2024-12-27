@@ -2067,7 +2067,7 @@ static int print_catchup_message(bdb_state_type *bdb_state, int phase,
 
                 rc = net_send(bdb_state->repinfo->netinfo,
                               bdb_state->repinfo->master_host,
-                              USER_TYPE_COMMITDELAYMORE, NULL, 0, 0);
+                              USER_TYPE_COMMITDELAYMORE, NULL, 0, 1);
 
                 if (rc != 0) {
                     logmsg(LOGMSG_WARN, "failed to send COMMITDELAYMORE to %s rc: %d\n",
@@ -8541,7 +8541,7 @@ int bdb_purge_unused_files(bdb_state_type *bdb_state, tran_type *tran,
         return 1;
     }
 
-    // logmsg(LOGMSG_INFO, "deleting file %s\n", uf_ptr->fname);
+    logmsg(LOGMSG_INFO, "deleting file %s\n", uf_ptr->fname);
     print(bdb_state, "deleting file %s\n", uf_ptr->fname);
 
     if ((rc = bdb_del_file(bdb_state, tran->tid, uf_ptr->fname, bdberr))) {

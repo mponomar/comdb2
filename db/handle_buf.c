@@ -232,7 +232,9 @@ int thd_init(void)
     listc_init(&idle, offsetof(struct thd, lnk));
     listc_init(&busy, offsetof(struct thd, lnk));
     bdb_set_io_control(thd_io_start, thd_io_complete);
+    Pthread_key_create(&thd_info_key, free);
     Pthread_attr_setstacksize(&attr, 4096 * 1024);
+    logmsg(LOGMSG_INFO, "thd_init: thread subsystem initialized\n");
     return 0;
 }
 
@@ -777,14 +779,6 @@ void *thd_req(void *vthd)
 
 void thd_req_inline(struct ireq *iq) {
     struct thd inlinerq = {0};
-#if 0
-    if (!inlinerq) {
-        // TODO: cleanup
-        inlinerq = calloc(1, sizeof(struct thd));
-        inlinerq->do_inline = 1;
-        inlinerq->inited = 0;
-    }
-#endif
     // TODO: reuse the constraint tables, etc
     inlinerq.do_inline = 1;
     inlinerq.inited = 0;
@@ -915,7 +909,6 @@ int handle_socket_long_transaction(struct dbenv *dbenv, SBUF2 *sb,
 
 void cleanup_lock_buffer(struct buf_lock_t *lock_buffer)
 {
-    printf("%s\n", __func__);
     if (lock_buffer == NULL)
         return;
 

@@ -3095,7 +3095,6 @@ static int cursor_move_remote(BtCursor *pCur, int *pRes, int how)
 
     assert(pCur->fdbc != NULL);
 
-
     rc = cursor_move_preprop(pCur, pRes, how, &done);
     if (done) {
         return rc;

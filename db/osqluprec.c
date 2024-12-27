@@ -260,8 +260,6 @@ static void uprec_sender_array_init(void)
     size_t mallocsz;
     struct errstat xerr;
 
-    printf("%s\n", __func__);
-
     mallocsz = sizeof(struct uprec_tag) +
                (gbl_dtastripe - 1) * sizeof(unsigned long long);
 
@@ -281,6 +279,7 @@ static void uprec_sender_array_init(void)
     uprec->ngoods = 0;
     uprec->ntimeouts = 0;
 
+    // initialize slock
     Pthread_mutex_init(&(uprec->slock.req_lock), NULL);
     Pthread_cond_init(&(uprec->slock.wait_cond), NULL);
 

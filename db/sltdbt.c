@@ -572,10 +572,6 @@ int handle_ireq(struct ireq *iq)
     if (gbl_print_deadlock_cycles)
         osql_snap_info = NULL;
 
-    /* Make sure we do not leak locks */
-
-    // bdb_checklock(thedb->bdb_env);
-
     return rc;
 }
 

@@ -169,7 +169,7 @@ static void *generator_thd(void *voidarg)
 
         msg = gen_message(streamid, dest->send_seqn);
 
-        rc = net_send(net, dest->node, MSGTYPE_MSG, msg, msg->msg_length, 0, __FILE__, __LINE__);
+        rc = net_send(net, dest->node, MSGTYPE_MSG, msg, msg->msg_length, 0);
 
         free(msg);
 
@@ -250,7 +250,7 @@ void process_message(void *ack_handle, void *usr_ptr, int fromnode,
                     netnodes[ii].n_too_low++;
 
                     rc = net_send(net, fromnode, MSGTYPE_RETRAN_REQUEST, &rmsg,
-                                  sizeof(rmsg), 0, __FILE__, __LINE__);
+                                  sizeof(rmsg), 0);
                     if (rc == 0) {
                         netnodes[ii].n_retrans_sent++;
                     } else {
@@ -292,7 +292,7 @@ void process_retrans_request(void *ack_handle, void *usr_ptr, int fromnode,
 
     msg = gen_message(inmsg->streamid, inmsg->seqn);
 
-    rc = net_send(net, fromnode, MSGTYPE_MSG, msg, msg->msg_length, 0, __FILE__, __LINE__);
+    rc = net_send(net, fromnode, MSGTYPE_MSG, msg, msg->msg_length, 0);
 
     free(msg);
 
@@ -431,7 +431,7 @@ int main(int argc, char *argv[])
             if (n != mynetnode) {
                 /* Request an ack */
                 rc = net_send_message(net, n->node, MSGTYPE_NEEDACK, NULL, 0, 1,
-                                      1000, __FILE__, __LINE__);
+                                      1000);
                 if (rc != 0) {
                     n->n_need_acks_failed++;
                 } else {
