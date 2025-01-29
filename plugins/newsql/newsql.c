@@ -2788,3 +2788,165 @@ void dump_response(const CDB2SQLRESPONSE *r) {
     depth--;
     dump(depth, "}\n");
 }
+
+void dump_bind_var(int depth, CDB2SQLQUERY__Bindvalue *v) {
+    dump(depth, "varname: %s\n", v->varname);
+    dump(depth, "type: %d\n", v->type);
+    dump(depth, "value: {\n");
+    dump_value(depth, &v->value);
+    dump(depth, "}\n");
+    if (v->has_isnull) {
+        dump(depth, "null: %d\n", v->isnull);
+    }
+    if (v->has_index) {
+        dump(depth, "index: %d\n", v->index);
+    }
+}
+
+static void dump_sqlquery(int depth, CDB2SQLQUERY *sqlquery) {
+    dump(depth, "dbname: %s\n", sqlquery->dbname);
+    dump(depth, "sql_query: %s\n", sqlquery->sql_query);
+    dump(depth, "n_flag: %d\n", sqlquery->n_flag);
+    if (sqlquery->n_flag) {
+        dump(depth, "flag: {\n");
+        for (int i = 0; i < sqlquery->n_flag; i++) {
+            dump(depth+1, "option %d value %d\n", sqlquery->flag[i]);
+        }
+        dump(depth, "}\n");
+    }
+    dump(depth, "little_endian %d\n", sqlquery->little_endian);
+    dump(depth, "n_bindvars %zd\n", sqlquery->n_bindvars);
+    if (sqlquery->n_bindvars) {
+        dump(depth, "bindvars: {\n");
+        for (int i = 0; i < sqlquery->n_bindvars; i++) {
+            dump(depth, "%d: {\n", i);
+            dump_bind_var(depth+1, sqlquery->bindvars[i]);
+            dump(depth, "}\n");
+        }
+        dump(depth, "}\n");
+    }
+    if (sqlquery->tzname) {
+        dump(depth, "tzname: %s\n", sqlquery->tzname);
+    }
+    dump(depth, "n_set_flags %d\n", sqlquery->n_set_flags);
+    if (sqlquery->n_set_flags) {
+        dump(depth, "set_flags: [\n");
+        for (int i = 0; i < sqlquery->n_set_flags; i++) {
+            dump(depth+1, "%s\n", sqlquery->set_flags[i]);
+        }
+        dump(depth, "]\n");
+    }
+    dump(depth, "n_types %d\n", sqlquery->n_types);
+    if (sqlquery->n_types) {
+        dump(depth, "types: [\n");
+        for (int i = 0 ; i < sqlquery->n_types; i++) {
+            printf("%d\n", sqlquery->types[i]);
+        }
+        dump(depth, "]\n");
+    }
+    if (sqlquery->mach_class) {
+        dump(depth, "mach_class: %s\n", sqlquery->mach_class);
+    }
+    dump(depth, "has_cnonce: %d\n", sqlquery->has_cnonce);
+    if (sqlquery->has_cnonce) {
+        dump(depth, "nonce: [\n");
+        dump_value(depth+1, &sqlquery->cnonce);
+        dump(depth, "]\n");
+    }
+    if (sqlquery->snapshot_info) {
+        dump(depth, "snapshot_info: {\n");
+        dump(depth+1, "file: %d\n", sqlquery->snapshot_info->file);
+        dump(depth+1, "file: %d\n", sqlquery->snapshot_info->offset);
+        dump(depth, "}\n");
+    }
+    if (sqlquery->has_skip_rows) {
+        dump(depth, "skip_rows: %"PRId64"\n", sqlquery->skip_rows);
+    }
+    if (sqlquery->has_retry) {
+        dump(depth, "retry: %d\n", sqlquery->retry);
+    }
+    dump(depth, "n_features %d\n", sqlquery->n_features);
+    if (sqlquery->n_features) {
+        dump(depth, "features: [\n");
+        for (int i = 0 ; i < sqlquery->n_features; i++) {
+            dump(depth+1, "%d\n", sqlquery->features[i]);
+        }
+        dump(depth, "]\n");
+    }
+    if (sqlquery->client_info) {
+        dump(depth, "client_info: {\n");
+        dump(depth+1, "pid: %d\n", sqlquery->client_info->pid);
+        dump(depth+1, "th_id: %"PRIu64"\n", sqlquery->client_info->th_id);
+        dump(depth+1, "host_id: %d\n", sqlquery->client_info->host_id);
+        if (sqlquery->client_info->argv0)
+            dump(depth+1, "argv0: %s\n", sqlquery->client_info->argv0);
+        if (sqlquery->client_info->stack)
+            dump(depth+1, "stack: %s\n", sqlquery->client_info->stack);
+        if (sqlquery->client_info->api_driver_name)
+            dump(depth+1, "api_driver_name: %s\n", sqlquery->client_info->api_driver_name);
+        if (sqlquery->client_info->api_driver_version)
+            dump(depth+1, "api_driver_version: %s\n", sqlquery->client_info->api_driver_version);
+    }
+    dump(depth, "n_context: %d\n", sqlquery->n_context);
+    if (sqlquery->n_context) {
+        dump(depth, "context: [\n");
+        for (int i = 0; i < sqlquery->n_context; i++) {
+            dump(depth+1, "%s\n", sqlquery->context[i]);
+        }
+        dump(depth, "]\n");
+    }
+    if (sqlquery->req_info) {
+        dump(depth, "req_info: {\n");
+        dump(depth+1, "timestampus: %"PRId64"\n", sqlquery->req_info->timestampus);
+        dump(depth+1, "num_retries: %d\n", sqlquery->req_info->num_retries);
+        dump(depth, "}\n");
+    }
+    if (sqlquery->identity) {
+        dump(depth, "identity: {\n");
+        dump(depth+1, "principal: %s\n", sqlquery->identity->principal);
+        dump(depth+1, "majorversion: %"PRId64"\n", sqlquery->identity->majorversion);
+        dump(depth+1, "minorversion: %"PRId64"\n", sqlquery->identity->minorversion);
+        dump_value(depth+1, &sqlquery->identity->data);
+        dump(depth, "}\n");
+    }
+}
+
+static void dump_dbinfo_request(int depth, const CDB2DBINFO *dbinfo) {
+    dump(depth, "dbname: %s\n", dbinfo->dbname);
+    dump(depth, "little_endian: %s\n", dbinfo->little_endian);
+    dump(depth, "has_want_effects: %s\n", dbinfo->has_want_effects);
+    if (dbinfo->has_want_effects) {
+        dump(depth, "want_effects: %s\n", dbinfo->want_effects);
+    }
+}
+
+void dump_request(struct sqlclntstate *clnt) {
+    struct newsql_appdata *appdata = clnt->appdata;
+    CDB2QUERY *query = appdata->query;
+
+    int depth = 0;
+    dump(depth, "CDB2QUERY: {");
+    depth++;
+    if (query->sqlquery) {
+        dump(depth, "sqlquery: {\n");
+        dump_sqlquery(depth+1, query->sqlquery);
+        dump(depth, "}\n");
+    }
+    if (query->dbinfo) {
+        dump(depth, "dbinfo: {\n");
+        dump_dbinfo_request(depth+1, query->dbinfo);
+        dump(depth, "}\n");
+    }
+#if 0
+    if (query->spcmd) {
+        dump(depth, "spcmd: %s\n", query->spcmd);
+    }
+    if (query->disttxn) {
+        dump(depth, "disttxn: {\n");
+        dump_disttxn(depth+1, query->disttxn);
+        dump(depth, "}\n");
+    }
+#endif
+    depth--;
+    dump(depth, "}\n");
+}
