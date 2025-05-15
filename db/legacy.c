@@ -25,9 +25,9 @@ static void log_req(struct ireq *iq, sqlclntstate *clnt, int do_ctrace) {
     }
     else {
         if (do_ctrace)
-            ctrace("Got a legacy request from \"%s\" opcode %d (%s)\n", iq->corigin[0] ? iq->corigin : iq->frommach, iq->opcode, iq->where);
+            ctrace("Got a legacy request from \"%s\" opcode %d\n", iq->corigin[0] ? iq->corigin : iq->frommach, iq->opcode);
         else
-            logmsg(LOGMSG_INFO, "Got a legacy request from \"%s\" opcode %d (%s)\n", iq->corigin[0] ? iq->corigin : iq->frommach, iq->opcode, iq->where);
+            logmsg(LOGMSG_INFO, "Got a legacy request from \"%s\" opcode %d\n", iq->corigin[0] ? iq->corigin : iq->frommach, iq->opcode);
     }
 }
 

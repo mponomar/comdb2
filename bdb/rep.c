@@ -1897,6 +1897,8 @@ int net_hostdown_rtn(netinfo_type *netinfo_ptr, struct interned_string *host)
 
         /* this is replicant, we are running election followed by recovery */
 
+        extern void invalidate_forward_ops(void);
+        invalidate_forward_ops();
         call_for_election(bdb_state, __func__, __LINE__);
     }
 

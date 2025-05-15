@@ -13465,14 +13465,41 @@ static void legacy_iq_setup(struct ireq *iq, void *setup_data) {
     get_client_origin(iq->corigin, sizeof(iq->corigin), clnt);
 }
 
+
 extern pthread_mutex_t buf_lock;
 extern pool_t *p_slocks; /* pool of socket locks*/
+
+// keep a list of blocks we've allocated so we can invalidate them if the node we're
+// waiting for becomes unavailable
+static LISTC_T(struct buf_lock_t) outstanding_fwd_ops;
+static pthread_once_t outstanding_fwd_ops_init_once = PTHREAD_ONCE_INIT;
+
+static void outstanding_fwd_ops_init(void) {
+    listc_init(&outstanding_fwd_ops, offsetof(struct buf_lock_t, lnk));
+}
+
+void invalidate_forward_ops(void) {
+    struct buf_lock_t *blk;
+    Pthread_mutex_lock(&buf_lock);
+    LISTC_FOR_EACH(&outstanding_fwd_ops, blk, lnk) {
+        Pthread_mutex_lock(&blk->req_lock);
+        printf("invalidate %p\n", blk);
+        blk->reply_state = REPLY_STATE_DISCARD;
+        Pthread_cond_signal(&blk->wait_cond);
+        Pthread_mutex_unlock(&blk->req_lock);
+    }
+    Pthread_mutex_unlock(&buf_lock);
+}
+
 int do_comdb2_legacy(void *payload, int payloadlen, struct sqlclntstate *clnt, int luxref, int flags, int *outlen, int *rcode) {
     int rc;
-
     struct buf_lock_t *p_slock = NULL;
+
+    pthread_once(&outstanding_fwd_ops_init_once, outstanding_fwd_ops_init);
+
     Pthread_mutex_lock(&buf_lock);
     p_slock = pool_getablk(p_slocks);
+    listc_abl(&outstanding_fwd_ops, p_slock);
     Pthread_mutex_unlock(&buf_lock);
 
     Pthread_mutex_init(&(p_slock->req_lock), 0);
@@ -13482,14 +13509,28 @@ int do_comdb2_legacy(void *payload, int payloadlen, struct sqlclntstate *clnt, i
     p_slock->reply_state = REPLY_STATE_NA;
 
     int state;
+    struct timespec waituntil;
+    clock_gettime(CLOCK_REALTIME, &waituntil);
+    waituntil.tv_sec += 1;
     Pthread_mutex_lock(&p_slock->req_lock);
     rc = handle_buf_main2(thedb, NULL, payload, payload + 1024*64, 0, clnt->origin, clnt->last_pid, clnt->argv0, NULL, REQ_SQLLEGACY, p_slock, luxref, 0, NULL, 0, flags, legacy_iq_setup, clnt, 1, clnt->authdata);
     do {
         state = p_slock->reply_state;
         if (state == REPLY_STATE_NA) {
-            Pthread_cond_wait(&p_slock->wait_cond, &p_slock->req_lock); 
+            rc = pthread_cond_timedwait(&p_slock->wait_cond, &p_slock->req_lock, &waituntil); 
             state = p_slock->reply_state;
-       }
+            if (state == REPLY_STATE_NA) {
+                clock_gettime(CLOCK_REALTIME, &waituntil);
+                waituntil.tv_sec += 1;
+            }
+            if (rc == ETIMEDOUT) {
+                fprintf(stderr, "timed out waiting for %p\n", p_slock);
+            }
+            else if (rc) {
+                fprintf(stderr, "pthread_cond_timedwait %d %s\n", rc, strerror(rc));
+                abort();
+            }
+        }
         else {
             Pthread_mutex_unlock(&p_slock->req_lock);
         }
