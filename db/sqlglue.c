@@ -13478,6 +13478,11 @@ static void outstanding_fwd_ops_init(void) {
     listc_init(&outstanding_fwd_ops, offsetof(struct buf_lock_t, lnk));
 }
 
+// Expects buf_lock held
+void remove_buflock_from_oustanding(struct buf_lock_t *blk) {
+    listc_rfl(&outstanding_fwd_ops, blk);
+}
+
 void invalidate_forward_ops(void) {
     struct buf_lock_t *blk;
     Pthread_mutex_lock(&buf_lock);
@@ -13491,6 +13496,14 @@ void invalidate_forward_ops(void) {
     Pthread_mutex_unlock(&buf_lock);
 }
 
+void dump_forward_ops(void) {
+    struct buf_lock_t *blk;
+    LISTC_FOR_EACH(&outstanding_fwd_ops, blk, lnk) {
+        printf("   %p\n", blk);
+    }
+    Pthread_mutex_unlock(&buf_lock);
+}
+
 int do_comdb2_legacy(void *payload, int payloadlen, struct sqlclntstate *clnt, int luxref, int flags, int *outlen, int *rcode) {
     int rc;
     struct buf_lock_t *p_slock = NULL;
@@ -13499,10 +13512,19 @@ int do_comdb2_legacy(void *payload, int payloadlen, struct sqlclntstate *clnt, i
 
     Pthread_mutex_lock(&buf_lock);
     p_slock = pool_getablk(p_slocks);
+    //printf("add %p\n", p_slock);
+    // Mark it as forwarded here even if it's not to avoid relocking buf_lock if it's a 
+    // write and has to be forwarded.  The only thing it affects is membership in
+    // outstanding_fwd_ops.
+    p_slock->forwarded = 1;
     listc_abl(&outstanding_fwd_ops, p_slock);
     Pthread_mutex_unlock(&buf_lock);
 
-    Pthread_mutex_init(&(p_slock->req_lock), 0);
+    pthread_mutexattr_t lkattr;
+    Pthread_mutexattr_init(&lkattr);
+    Pthread_mutexattr_settype(&lkattr, PTHREAD_MUTEX_ERRORCHECK);
+
+    Pthread_mutex_init(&(p_slock->req_lock), &lkattr);
     Pthread_cond_init(&(p_slock->wait_cond), NULL);
     p_slock->bigbuf = (uint8_t*) payload;
     p_slock->sb = NULL;
@@ -13519,22 +13541,25 @@ int do_comdb2_legacy(void *payload, int payloadlen, struct sqlclntstate *clnt, i
         if (state == REPLY_STATE_NA) {
             rc = pthread_cond_timedwait(&p_slock->wait_cond, &p_slock->req_lock, &waituntil); 
             state = p_slock->reply_state;
-            if (state == REPLY_STATE_NA) {
-                clock_gettime(CLOCK_REALTIME, &waituntil);
-                waituntil.tv_sec += 1;
-            }
             if (rc == ETIMEDOUT) {
                 fprintf(stderr, "timed out waiting for %p\n", p_slock);
+                if (state == REPLY_STATE_NA) {
+                    clock_gettime(CLOCK_REALTIME, &waituntil);
+                    waituntil.tv_sec += 1;
+                    continue;
+                }
             }
             else if (rc) {
                 fprintf(stderr, "pthread_cond_timedwait %d %s\n", rc, strerror(rc));
                 abort();
             }
         }
-        else {
-            Pthread_mutex_unlock(&p_slock->req_lock);
-        }
+        break;
     } while (state == REPLY_STATE_NA);
+    Pthread_mutex_unlock(&(p_slock->req_lock));
+
+    extern void cleanup_lock_buffer(struct buf_lock_t *lock_buffer);
+    cleanup_lock_buffer(p_slock);
 
     *outlen = p_slock->len;
     *rcode = p_slock->rc;

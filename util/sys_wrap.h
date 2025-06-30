@@ -86,6 +86,8 @@
 #define Pthread_rwlock_unlock(...) WRAP_SYSFUNC(pthread_rwlock_unlock, __VA_ARGS__)
 #define Pthread_rwlock_wrlock(...) WRAP_SYSFUNC(pthread_rwlock_wrlock, __VA_ARGS__)
 #define Pthread_setspecific(...) WRAP_SYSFUNC(pthread_setspecific, __VA_ARGS__)
+#define Pthread_mutexattr_init(...) WRAP_SYSFUNC(pthread_mutexattr_init, __VA_ARGS__)
+#define Pthread_mutexattr_settype(...) WRAP_SYSFUNC(pthread_mutexattr_settype, __VA_ARGS__)
 #define Close(...) WRAP_SYSFUNC_ABORT_ERRNO(close, EBADF, __VA_ARGS__)
 
 extern void comdb2_name_thread(const char *name);

@@ -2030,6 +2030,7 @@ struct buf_lock_t {
     int len;
     int reply_state; /* See REPLY_STATE_* macros above */
     uint8_t *bigbuf;
+    int forwarded;
     LINKC_T(struct buf_lock_t) lnk;
     SBUF2 *sb;
 };

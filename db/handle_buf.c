@@ -775,6 +775,7 @@ void thd_req_inline(struct ireq *iq) {
         pool_free(thdinfo->ct_add_table_genid_pool);
     }
     delete_defered_index_tbl();
+    free(thdinfo);
 }
 
 /* sndbak error code &  return resources.*/
@@ -902,12 +903,15 @@ void cleanup_lock_buffer(struct buf_lock_t *lock_buffer)
         return;
 
     /* sbuf2 is owned by the appsock. Don't close it here. */
-
     Pthread_cond_destroy(&lock_buffer->wait_cond);
     Pthread_mutex_destroy(&lock_buffer->req_lock);
 
+    extern void remove_buflock_from_oustanding(struct buf_lock_t *blk);
+
     LOCK(&buf_lock)
     {
+        if (lock_buffer->forwarded)
+            remove_buflock_from_oustanding(lock_buffer);
         if (lock_buffer->bigbuf != NULL)
             pool_relablk(p_bufs, lock_buffer->bigbuf);
         pool_relablk(p_slocks, lock_buffer);
