@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+bash -n "$0" | exit 1
+
+set -x
+source ${TESTSROOTDIR}/tools/runit_common.sh
+
+dbnm=$1
+
+if [ "x$dbnm" == "x" ] ; then
+    failexit "need a DB name"
+fi
+
+sleep 30
+$CDB2SQL_EXE ${CDB2_OPTIONS} ${DBNAME} "create table t(a int);"
+host=$($CDB2SQL_EXE --tabs ${CDB2_OPTIONS} ${DBNAME} default "select host from comdb2_cluster where is_master='N' and coherent_state='coherent' limit 1")
+master=$($CDB2SQL_EXE --tabs ${CDB2_OPTIONS} ${DBNAME} default "select host from comdb2_cluster where is_master='Y'")
+$CDB2SQL_EXE --host $host ${CDB2_OPTIONS} ${DBNAME} "exec procedure sys.cmd.send('exit')"
+sleep 5
+$CDB2SQL_EXE ${CDB2_OPTIONS} ${DBNAME} -<<'EOF'
+set maxtransize 1000000
+insert into t select value from generate_series(1,1000000);
+EOF
+
+ssh -n -o StrictHostKeyChecking=no $host /opt/bb/bin/comdb2 ${DBNAME} --lrl ${DBDIR}/${DBNAME}.lrl >dbout 2>&1 &
+sleep 10
+
+while :; do
+    start=$(date +%s)
+    cdb2sql --tabs --host ${host} ${CDB2_OPTIONS} ${DBNAME} default "select * from t where a=1"
+    end=$(date +%s)
+    if [[ $(($end - $start)) -gt 2 ]]; then
+        echo "Slow write: $(($end - $start)) seconds"
+        exit 1
+    fi
+    sleep 0.1
+    # keep running until the node is coherent or we had a long event
+    $CDB2SQL_EXE cdb2sql --tabs --host ${master} ${CDB2_OPTIONS} ${DBNAME} default "select * from comdb2_cluster"
+    state=$(cdb2sql --tabs --host ${master} ${CDB2_OPTIONS} ${DBNAME} default "select coherent_state from comdb2_cluster where host='$host'")
+    if [[ "$state" == "coherent" ]]; then
+        break
+    fi
+done
+
+echo "Success"
