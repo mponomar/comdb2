@@ -775,7 +775,6 @@ void thd_req_inline(struct ireq *iq) {
         pool_free(thdinfo->ct_add_table_genid_pool);
     }
     delete_defered_index_tbl();
-    free(thdinfo);
 }
 
 /* sndbak error code &  return resources.*/
@@ -912,7 +911,7 @@ void cleanup_lock_buffer(struct buf_lock_t *lock_buffer)
     {
         if (lock_buffer->forwarded)
             remove_buflock_from_oustanding(lock_buffer);
-        if (lock_buffer->bigbuf != NULL)
+        if (lock_buffer->bigbuf != NULL && !lock_buffer->local_payload)
             pool_relablk(p_bufs, lock_buffer->bigbuf);
         pool_relablk(p_slocks, lock_buffer);
     }

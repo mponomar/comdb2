@@ -13512,13 +13512,13 @@ int do_comdb2_legacy(void *payload, int payloadlen, struct sqlclntstate *clnt, i
 
     Pthread_mutex_lock(&buf_lock);
     p_slock = pool_getablk(p_slocks);
-    //printf("add %p\n", p_slock);
     // Mark it as forwarded here even if it's not to avoid relocking buf_lock if it's a 
     // write and has to be forwarded.  The only thing it affects is membership in
     // outstanding_fwd_ops.
     p_slock->forwarded = 1;
     listc_abl(&outstanding_fwd_ops, p_slock);
     Pthread_mutex_unlock(&buf_lock);
+    p_slock->local_payload = 1;
 
     pthread_mutexattr_t lkattr;
     Pthread_mutexattr_init(&lkattr);
@@ -13528,6 +13528,7 @@ int do_comdb2_legacy(void *payload, int payloadlen, struct sqlclntstate *clnt, i
     Pthread_cond_init(&(p_slock->wait_cond), NULL);
     p_slock->bigbuf = (uint8_t*) payload;
     p_slock->sb = NULL;
+    p_slock->local_payload = 1;
     p_slock->reply_state = REPLY_STATE_NA;
 
     int state;
@@ -13558,10 +13559,10 @@ int do_comdb2_legacy(void *payload, int payloadlen, struct sqlclntstate *clnt, i
     } while (state == REPLY_STATE_NA);
     Pthread_mutex_unlock(&(p_slock->req_lock));
 
-    extern void cleanup_lock_buffer(struct buf_lock_t *lock_buffer);
-    cleanup_lock_buffer(p_slock);
-
     *outlen = p_slock->len;
     *rcode = p_slock->rc;
+
+    extern void cleanup_lock_buffer(struct buf_lock_t *lock_buffer);
+    cleanup_lock_buffer(p_slock);
     return rc;
 }

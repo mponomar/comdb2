@@ -295,6 +295,8 @@ pool_t *pool_verify_init(int entry_size, int stepsize)
 
 void *pool_getablk(pool_t *p)
 {
+    return malloc(p->entsz);
+
     struct freeblk *got;
     if (p->freeb == 0) {
         pool_stepup(p);
@@ -317,6 +319,7 @@ void *pool_getablk(pool_t *p)
 
 void *pool_getzblk(pool_t *p)
 {
+    return calloc(1, p->entsz);
     void *got = pool_getablk(p);
     if (got != 0) {
         int sz = p->verify_pool ? p->entsz - sizeof(pool_t *) : p->entsz;
@@ -327,6 +330,8 @@ void *pool_getzblk(pool_t *p)
 
 int pool_relablk(pool_t *p, void *vblk)
 {
+    free(vblk);
+    return 0;
     struct freeblk *freeme;
     if (p->verify_pool) {
         char *gp = (char *)vblk;

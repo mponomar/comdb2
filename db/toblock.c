@@ -495,7 +495,9 @@ static int forward_longblock_to_master(struct ireq *iq,
         } else {
             rc = offload_comm_send_blockreq(mstr, iq->request_data,
                                             iq->p_buf_out_start, req_len);
-            free_bigbuf_nosignal(iq->p_buf_out_start);
+            // ipc_sndbak code uses a local buffer that we shouldn't free
+            if (!iq->ipc_sndbak)
+                free_bigbuf_nosignal(iq->p_buf_out_start);
         }
     } else if (comdb2_ipc_swapnpasdb_sinfo) {
         /* Don't change anything in request for socket-fstsnd. */
