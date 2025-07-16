@@ -495,6 +495,7 @@ static int forward_longblock_to_master(struct ireq *iq,
             rc = offload_comm_send_blockreq(mstr, iq->request_data,
                                             iq->p_buf_out_start, req_len);
             free_bigbuf_nosignal(iq->p_buf_out_start);
+            iq->request_data = iq->p_buf_out_start = NULL; /* THIS */
         }
     } else if (comdb2_ipc_swapnpasdb_sinfo) {
         /* Don't change anything in request for socket-fstsnd. */
@@ -572,6 +573,7 @@ static int forward_block_to_master(struct ireq *iq, block_state_t *p_blkstate,
             rc = offload_comm_send_blockreq(mstr, iq->request_data,
                                             iq->p_buf_out_start, req_len);
             free_bigbuf_nosignal(iq->p_buf_out_start);
+            iq->request_data = iq->p_buf_out_start = NULL; /* this */
         }
     } else if (comdb2_ipc_swapnpasdb_sinfo) {
         if (comdb2_ipc_setrmtdbmc) {

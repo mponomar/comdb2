@@ -782,6 +782,10 @@ void thd_req_inline(struct ireq *iq) {
         pool_free(thdinfo->ct_add_table_genid_pool);
     }
     delete_defered_index_tbl();
+    stmt_cache_delete(thdinfo->stmt_cache);
+    free(thdinfo->stmt_cache);
+    free(thdinfo);
+    Pthread_setspecific(thd_info_key, NULL);
 }
 
 /* sndbak error code &  return resources.*/
