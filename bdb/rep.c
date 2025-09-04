@@ -1019,8 +1019,15 @@ int berkdb_send_rtn(DB_ENV *dbenv, const DBT *control, const DBT *rec,
             sendflags |= NET_SEND_TRACE;
         }
 
+        struct sequence_key seq;
+        int have_lsn = lsnp && !(lsnp->file == 0 && lsnp->offset == 0);
+        if (have_lsn) {
+            seq.file = ntohl(lsnp->file);
+            seq.offset = ntohl(lsnp->offset);
+            printf("sending lsn %u:%u\n", seq.file, seq.offset);
+        }
         rc = net_send_flags(bdb_state->repinfo->netinfo, host,
-                            USER_TYPE_BERKDB_REP, buf, bufsz, sendflags);
+                            USER_TYPE_BERKDB_REP, buf, bufsz, have_lsn ? &seq : NULL, sendflags);
     }
 
     if (rc != 0) {
@@ -3681,7 +3688,7 @@ int request_copydelay(void *bdb_state_in)
     bdb_state_type *bdb_state = (bdb_state_type *)bdb_state_in;
     rc = net_send_flags(bdb_state->repinfo->netinfo,
                         bdb_state->repinfo->master_host, USER_TYPE_COMMITDELAYTIMED, NULL,
-                        0, NET_SEND_NODROP);
+                        0, NULL, NET_SEND_NODROP);
     return rc;
 }
 
@@ -5393,7 +5400,7 @@ int request_delaymore(void *bdb_state_in)
     bdb_state_type *bdb_state = (bdb_state_type *)bdb_state_in;
     rc = net_send_flags(bdb_state->repinfo->netinfo,
                         bdb_state->repinfo->master_host,
-                        USER_TYPE_COMMITDELAYMORE, NULL, 0, NET_SEND_NODROP | NET_SEND_NODELAY);
+                        USER_TYPE_COMMITDELAYMORE, NULL, 0, NULL, NET_SEND_NODROP | NET_SEND_NODELAY);
     return rc;
 }
 

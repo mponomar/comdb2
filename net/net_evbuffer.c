@@ -14,6 +14,7 @@
    limitations under the License.
 */
 
+#include <sys/queue.h>
 #ifdef __sun
 #  define BSD_COMP /* for FIONREAD */
 #endif
@@ -393,6 +394,13 @@ struct event_info {
     struct evbuffer *wr_buf;
     struct event *wr_ev;
     time_t wr_full;
+
+    // Track LSNs being sent for deduping
+    // TODO: clear on master/generation change?
+    int64_t sequence_bytes;
+    int64_t sequence_written;
+    TAILQ_HEAD(, sequence) seq_list;
+    hash_t *seqtrack;
 };
 
 #define EVENT_HASH_KEY_SZ 128
@@ -782,6 +790,9 @@ static struct event_info *event_info_new(struct net_info *n, struct host_info *h
     Pthread_mutex_init(&e->wr_lk, NULL);
     LIST_INSERT_HEAD(&h->event_list, e, host_list_entry);
     LIST_INSERT_HEAD(&n->event_list, e, net_list_entry);
+    TAILQ_INIT(&e->seq_list);
+    e->sequence_bytes = 0;
+    e->seqtrack = hash_init_o(offsetof(struct sequence, seq), sizeof(sequence_key));
     return e;
 }
 
@@ -964,6 +975,13 @@ static void do_disable_write(struct event_info *e)
     }
     if (e->flush_buf) {
         evbuffer_free(e->flush_buf);
+        struct sequence *seq;
+        while ((seq = TAILQ_FIRST(&e->seq_list)) != NULL) {
+            TAILQ_REMOVE(&e->seq_list, seq, lnk);
+            hash_del(e->seqtrack, seq);
+            free(seq);
+        }
+        hash_free(e->seqtrack);
         e->flush_buf = NULL;
     }
     if (e->wr_buf) {
@@ -1172,6 +1190,25 @@ static void writecb(int fd, short what, void *data)
             if (e->wr_full) {
                 //hprintf("RESUMING WR after:%ds\n", (int)(time(NULL) - e->wr_full));
                 e->wr_full = 0;
+            }
+        }
+        else {
+            e->sequence_written += len;
+            if (e->sequence_bytes) {
+                struct sequence *s = TAILQ_FIRST(&e->seq_list);
+                if (s)
+                    printf("chk: byteseq %"PRId64" written %"PRId64"\n", s->byteseq, e->sequence_written);
+                while (s && s->byteseq < e->sequence_written) {
+                    printf("<- written %u:%u (%"PRId64") system seq %"PRId64" written %"PRId64"\n", s->seq.file, s->seq.offset, s->byteseq, e->sequence_bytes, e->sequence_written);
+                    TAILQ_REMOVE(&e->seq_list, s, lnk);
+                    struct sequence *ref = hash_find(e->seqtrack, &s->seq);
+                    if (ref) {
+                        hash_del(e->seqtrack, ref);
+                        // TODO: assert we can't find it again (which means we added it twice to the queue)
+                    }
+                    free(s);
+                    s = TAILQ_FIRST(&e->seq_list);
+                }
             }
         }
         Pthread_mutex_unlock(&e->wr_lk);
@@ -1872,6 +1909,7 @@ static void get_stat_evbuffer(struct event_info *e, struct evbuffer *buf, net_qu
         }
     }
 }
+
 
 static ssize_t readv_plaintext(struct event_info *e)
 {
@@ -3803,11 +3841,134 @@ int write_connect_message_evbuffer(host_node_type *host_node_ptr,
     return 0;
 }
 
-int write_list_evbuffer(host_node_type *host_node_ptr, int type, const struct iovec *iov, int n, int flags)
+void dumprec(struct __db_lsn *lsn) {
+    printf(">> %u:%u\n", lsn->file, lsn->offset);
+}
+
+int walk_evbuffer(struct event_info *e, struct evbuffer *buf, void (*func)(struct __db_lsn *lsn)) {
+    if (!buf) return -1;
+    if (!e->got_hello && !e->got_hello_reply) return -1;
+    uint32_t n;
+    wire_header_type hdr;
+    net_send_message_header msg;
+    net_ack_message_payload_type ack;
+    struct evbuffer_ptr p;
+    evbuffer_ptr_set(buf, &p, 0, EVBUFFER_PTR_SET);
+    while (evbuffer_copyout_from(buf, &p, &hdr, sizeof(hdr)) == sizeof(hdr)) {
+        if (advance_evbuffer_ptr(&p, e->wirehdr_len) != 0) return -1;
+        int rc = -1;
+        int type = ntohl(hdr.type);
+        switch (type) {
+        case WIRE_HEADER_HEARTBEAT:
+            rc = 0;
+            break;
+        case WIRE_HEADER_HELLO:
+        case WIRE_HEADER_HELLO_REPLY:
+            if (evbuffer_copyout_from(buf, &p, &n, sizeof(n)) != sizeof(n)) {
+                break;
+            }
+            n = ntohl(n);
+            rc = advance_evbuffer_ptr(&p, n);
+            break;
+        case WIRE_HEADER_DECOM:
+            rc = advance_evbuffer_ptr(&p, sizeof(n));
+            break;
+        case WIRE_HEADER_USER_MSG:
+            if (evbuffer_copyout_from(buf, &p, &msg, sizeof(msg)) != sizeof(msg)) {
+                break;
+            }
+            advance_evbuffer_ptr(&p, NET_SEND_MESSAGE_HEADER_LEN);
+            msg.datalen = ntohl(msg.datalen);
+            msg.usertype = ntohl(msg.usertype);
+            if (msg.usertype != USER_TYPE_BERKDB_REP) {
+                rc = advance_evbuffer_ptr(&p, msg.datalen);
+                } else {
+                    /* seqnum */
+                    if (advance_evbuffer_ptr(&p, sizeof(uint32_t)) != 0) return -1;
+                    uint32_t n = sizeof(uint32_t);
+
+                    struct {
+                        uint32_t sz;
+                        uint32_t crc;
+                    } rep, ctrl;
+
+                    /* rep record */
+                    if (evbuffer_copyout_from(buf, &p, &rep, sizeof(rep)) != sizeof(rep)) {
+                        return -1;
+                    }
+                    rep.sz = ntohl(rep.sz);
+                    if (advance_evbuffer_ptr(&p, sizeof(rep) + rep.sz) != 0) return -1;
+                    n += (sizeof(rep) + rep.sz);
+
+                    /* control record */
+                    if (evbuffer_copyout_from(buf, &p, &ctrl, sizeof(ctrl)) != sizeof(ctrl)) {
+                        return -1;
+                    }
+                    ctrl.sz = ntohl(ctrl.sz);
+                    if (advance_evbuffer_ptr(&p, sizeof(ctrl)) != 0) return -1;
+                    n += sizeof(ctrl);
+
+                    /* rep_control */
+                    struct {
+                        uint32_t rep_version;
+                        uint32_t log_version;
+                        struct __db_lsn lsn;
+                        uint32_t rectype;
+                    } rep_ctrl;
+                    if (evbuffer_copyout_from(buf, &p, &rep_ctrl, sizeof(rep_ctrl)) != sizeof(rep_ctrl)) {
+                        return -1;
+                    }
+                    rep_ctrl.lsn.file = ntohl(rep_ctrl.lsn.file);
+                    rep_ctrl.lsn.offset = ntohl(rep_ctrl.lsn.offset);
+                    func(&rep_ctrl.lsn);
+
+                    if (advance_evbuffer_ptr(&p, ctrl.sz) != 0) return -1;
+                    n += ctrl.sz;
+                    rep_ctrl.lsn.file = ntohl(rep_ctrl.lsn.file);
+                    rep_ctrl.lsn.offset = ntohl(rep_ctrl.lsn.offset);
+                    rep_ctrl.rectype = ntohl(rep_ctrl.rectype);
+
+                    if (rep_ctrl.rectype <= 0 || rep_ctrl.rectype >= REP_MAX_TYPE) {
+                        return -1;
+                    }
+                    rc = 0;
+                }
+                break;
+        case WIRE_HEADER_ACK:
+            rc = advance_evbuffer_ptr(&p, NET_ACK_MESSAGE_TYPE_LEN);
+            break;
+        case WIRE_HEADER_DECOM_NAME:
+            if (evbuffer_copyout_from(buf, &p, &n, sizeof(n)) != sizeof(n)) {
+                break;
+            }
+            n = ntohl(n);
+            rc = advance_evbuffer_ptr(&p, sizeof(n) + n);
+            break;
+        case WIRE_HEADER_ACK_PAYLOAD:
+            if (evbuffer_copyout_from(buf, &p, &ack, sizeof(ack)) != sizeof(ack)) {
+                break;
+            }
+            n = ntohl(ack.paylen);
+            rc = advance_evbuffer_ptr(&p, NET_ACK_MESSAGE_PAYLOAD_TYPE_LEN + n);
+            break;
+        default:
+            break;
+        }
+        if (rc) {
+            hprintf_nd("got error on type:%d (%d)\n", type, ntohl(type));
+            break;
+        }
+    }
+    return 0;
+}
+
+
+int write_list_evbuffer(host_node_type *host_node_ptr, int type, const struct iovec *iov, int n, int flags, sequence_key *seq)
 {
     if (net_stop) {
         return 0;
     }
+    struct sequence *seqptr = NULL;
     int rc;
     int nodrop = flags & WRITE_MSG_NOLIMIT;
     int nodelay = flags & WRITE_MSG_NODELAY;
@@ -3815,13 +3976,41 @@ int write_list_evbuffer(host_node_type *host_node_ptr, int type, const struct io
     int total = e->wirehdr_len;
     for (int i = 0; i < n; ++i) total += iov[i].iov_len;
     Pthread_mutex_lock(&e->wr_lk);
+
+    host_node_ptr->event_info->sequence_bytes += total;
     if (!e->flush_buf) {
        rc = -3;
     } else if ((rc = skip_send(e, nodrop, 0)) == 0) {
+        // if we aren't told to send this immediately (nodrop || nodelay) and it's already in the
+        // queue for being sent, don't put it in the queue again
         if ((rc = evbuffer_expand(e->flush_buf, total)) == 0) {
             evbuffer_add(e->flush_buf, e->wirehdr[type], e->wirehdr_len);
             for (int i = 0; i < n; ++i) evbuffer_add(e->flush_buf, iov[i].iov_base, iov[i].iov_len);
             flush_evbuffer(e, nodelay);
+
+            if (seq && !(nodrop || nodelay)) {
+                sequence_key tmp = *seq;
+                seqptr = hash_find(e->seqtrack, &tmp);
+                if (seqptr) {
+                    // duplicate lsn - pretend we "sent" it
+                    printf("SKIP DUPLICATE: %u:%u %"PRId64" (currently at %"PRId64")\n", seqptr->seq.file, seqptr->seq.offset, seqptr->byteseq, host_node_ptr->event_info->sequence_bytes);
+                    // TODO: track duplicate counts? per record?
+
+                    // dump the list
+                    // walk_evbuffer(e, e->flush_buf, dumprec);
+
+                    Pthread_mutex_unlock(&e->wr_lk);
+                    return 0;
+                }
+
+                // TODO: allocate from a pool?  seems like a lot of tiny allocations.
+                seqptr = malloc(sizeof(struct sequence));
+                seqptr->seq = *seq;
+                seqptr->byteseq = host_node_ptr->event_info->sequence_bytes;
+                TAILQ_INSERT_TAIL(&e->seq_list, seqptr, lnk);
+                hash_add(e->seqtrack, seqptr);
+                // and proceed to send - we remove things when they move from the flush buffer to the write buffe
+            }
         } else {
             rc = -1;
         }
@@ -3910,7 +4099,7 @@ int net_flush_evbuffer(host_node_type *host_node_ptr)
 
 int net_send_evbuffer(netinfo_type *netinfo_ptr, const char *host,
                          int usertype, void *data, int datalen, int numtails,
-                         void **tails, int *taillens, int flags)
+                         void **tails, int *taillens, int flags, struct sequence_key *seqkey)
 {
     if (net_stop) {
         return 0;
@@ -3954,7 +4143,7 @@ int net_send_evbuffer(netinfo_type *netinfo_ptr, const char *host,
     iov[0].iov_len = sizeof(hdr);
     int write_flags = flags & NET_SEND_NODROP ? WRITE_MSG_NOLIMIT : 0;
     write_flags |= flags & NET_SEND_NODELAY ? WRITE_MSG_NODELAY : 0;
-    int rc = write_list_evbuffer(e->host_node_ptr, WIRE_HEADER_USER_MSG, iov, n, write_flags);
+    int rc = write_list_evbuffer(e->host_node_ptr, WIRE_HEADER_USER_MSG, iov, n, write_flags, seqkey);
     switch (rc) {
     case  0: return 0;
     case -1: return NET_SEND_FAIL_MALLOC_FAIL;

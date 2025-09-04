@@ -35,6 +35,7 @@
 #include "logmsg.h"
 #include "quantize.h"
 #include "perf.h"
+#include <sys/queue.h>
 
 enum {
     /* Flags for write_list() */
@@ -318,6 +319,12 @@ typedef struct dist_hbeats {
     int free_tran;
 } dist_hbeats_type;
 
+struct sequence {
+    struct sequence_key seq;
+    int64_t byteseq;
+    TAILQ_ENTRY(sequence) lnk;
+};
+
 /* Trace functions */
 void host_node_printf(loglvl lvl, host_node_type *host_node_ptr, const char *fmt, ...);
 void host_node_errf(loglvl lvl, host_node_type *host_node_ptr, const char *fmt, ...);
@@ -349,9 +356,8 @@ int write_decom(netinfo_type *, host_node_type *, const char *, int, const char 
 int write_heartbeat(netinfo_type *, host_node_type *);
 int write_hello(netinfo_type *, host_node_type *);
 int write_hello_reply(netinfo_type *, host_node_type *);
-int write_list_evbuffer(host_node_type *, int, const struct iovec *, int, int);
-int net_send_evbuffer(netinfo_type *, const char *, int, void *, int, int, void **, int *, int);
-
+int write_list_evbuffer(host_node_type *, int, const struct iovec *, int, int, struct sequence_key *seqkey);
+int net_send_evbuffer(netinfo_type *, const char *, int, void *, int, int, void **, int *, int, struct sequence_key *seqkey);
 int get_hosts_evbuffer(int n, host_node_type **);
 
 enum net_metric_type {

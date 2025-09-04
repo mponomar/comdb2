@@ -50,6 +50,10 @@ struct sanc_node_tag;
 typedef struct netinfo_struct netinfo_type;
 typedef struct host_node_tag host_node_type;
 typedef struct sanc_node_tag sanc_node_type;
+struct sequence_key {
+    uint32_t file, offset;
+};
+typedef struct sequence_key sequence_key;
 
 typedef void HELLOFP(struct netinfo_struct *netinfo, char name[]);
 
@@ -129,7 +133,7 @@ int net_send_message_payload_ack(netinfo_type *netinfo_ptr, const char *to_host,
 
 int net_send_flags(netinfo_type *netinfo,
                    const char *to_host, /* send to this node number */
-                   int usertype, void *dta, int dtalen, uint32_t flags);
+                   int usertype, void *dta, int dtalen, sequence_key *seqkey, uint32_t flags);
 
 int net_send(netinfo_type *netinfo,
              const char *to_host, /* send to this node number */

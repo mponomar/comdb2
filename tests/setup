@@ -159,6 +159,8 @@ setup_db() {
         cat lrl >> ${LRL}
     fi
 
+    cp ${CDB2_CONFIG} /opt/bb/etc/cdb2/config.d/${DBNAME}.cfg
+
     # Substitute test specific variables into lrl
     if [[ -f lrl.options ]]; then
         # lrl.options provides common options to all db ranks
@@ -365,6 +367,8 @@ copy_config_to_cluster()
         done
     fi
 }
+
+mkdir -p /opt/bb/etc/cdb2/config.d/
 
 # setup primary db for the test
 setup_db 1

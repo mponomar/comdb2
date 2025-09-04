@@ -24,6 +24,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/queue.h>
 
 #ifdef __sun
 #include <siginfo.h>
@@ -95,6 +96,13 @@ int gbl_debug_partial_write = 0;
 int subnet_blackout_timems = 5000;
 int gbl_net_maxconn = 0;
 int gbl_heartbeat_check = 5;
+
+// We want to dedup entries to make sure we don't have multiple copies of the same log record
+// in the queue.  But at the net layer, we no longer have any knowledge of sequences.  So
+// we track a monotonic byte sequence per connection.  When we add a record that has an associated
+// LSN, we remember it with the associated offset.  If we remove from the flush queue, we remove
+// all the sequence numbers up to that offset.  We can still queue things that are waiting in the
+// write queue, but we won't add duplicates to the flush queue.
 
 static int net_flush(host_node_type *host_node_ptr)
 {
@@ -372,7 +380,7 @@ static int write_list(netinfo_type *netinfo_ptr, host_node_type *host_node_ptr,
                       const wire_header_type *headptr, const struct iovec *iov,
                       int iovcount, int flags)
 {
-    return write_list_evbuffer(host_node_ptr, headptr->type, iov, iovcount, flags);
+    return write_list_evbuffer(host_node_ptr, headptr->type, iov, iovcount, flags, NULL);
 }
 
 /*
@@ -998,12 +1006,12 @@ int net_send_message(netinfo_type *netinfo_ptr, const char *to_host,
 static int net_send_int(netinfo_type *netinfo_ptr, const char *host,
                         int usertype, void *data, int datalen, int nodelay,
                         int numtails, void **tails, int *taillens, int nodrop,
-                        int inorder, int trace)
+                        int inorder, int trace, struct sequence_key *seqkey)
 {
     int f = 0;
     if (nodelay) f |= NET_SEND_NODELAY;
     if (nodrop) f |= NET_SEND_NODROP;
-    return net_send_evbuffer(netinfo_ptr, host, usertype, data, datalen, numtails, tails, taillens, f);
+    return net_send_evbuffer(netinfo_ptr, host, usertype, data, datalen, numtails, tails, taillens, f, seqkey);
 }
 
 int net_send_authcheck_all(netinfo_type *netinfo_ptr)
@@ -1028,12 +1036,12 @@ int net_send_authcheck_all(netinfo_type *netinfo_ptr)
 }
 
 int net_send_flags(netinfo_type *netinfo_ptr, const char *host, int usertype,
-                   void *data, int datalen, uint32_t flags)
+                   void *data, int datalen, sequence_key *key, uint32_t flags)
 {
     return net_send_int(netinfo_ptr, host, usertype, data, datalen,
                         (flags & NET_SEND_NODELAY), 0, NULL, 0,
                         (flags & NET_SEND_NODROP), (flags & NET_SEND_INORDER),
-                        (flags & NET_SEND_TRACE));
+                        (flags & NET_SEND_TRACE), key);
 }
 
 int net_send(netinfo_type *netinfo_ptr, const char *host, int usertype,
@@ -1041,7 +1049,7 @@ int net_send(netinfo_type *netinfo_ptr, const char *host, int usertype,
 {
 
     return net_send_int(netinfo_ptr, host, usertype, data, datalen, nodelay, 0,
-                        NULL, 0, 0, 0, 0);
+                        NULL, 0, 0, 0, 0, NULL);
 }
 
 int net_send_nodrop(netinfo_type *netinfo_ptr, const char *host, int usertype,
@@ -1049,7 +1057,7 @@ int net_send_nodrop(netinfo_type *netinfo_ptr, const char *host, int usertype,
 {
 
     return net_send_int(netinfo_ptr, host, usertype, data, datalen, nodelay, 0,
-                        NULL, 0, 1, 0, 0);
+                        NULL, 0, 1, 0, 0, NULL);
 }
 
 int net_send_tails(netinfo_type *netinfo_ptr, const char *host, int usertype,
@@ -1058,7 +1066,7 @@ int net_send_tails(netinfo_type *netinfo_ptr, const char *host, int usertype,
 {
 
     return net_send_int(netinfo_ptr, host, usertype, data, datalen, nodelay,
-                        numtails, tails, taillens, 0, 0, 0);
+                        numtails, tails, taillens, 0, 0, 0, NULL);
 }
 
 int net_send_tail(netinfo_type *netinfo_ptr, const char *host, int usertype,
@@ -1078,7 +1086,7 @@ int net_send_tail(netinfo_type *netinfo_ptr, const char *host, int usertype,
     printf("\n");
 #endif
     return net_send_int(netinfo_ptr, host, usertype, data, datalen, nodelay, 1,
-                        &tail, &tailen, 0, 0, 0);
+                        &tail, &tailen, 0, 0, 0, NULL);
 }
 
 /* returns all nodes MINUS you */
