@@ -401,8 +401,12 @@ int handle_ireq(struct ireq *iq)
     bdb_reset_thread_stats();
 
     if (iq->opcode >= 0 && iq->opcode <= MAXTYPCNT) {
+        // keyless opcodes are miscounted - we don't know usedb for these opcodes
+        // until they are fully read and processed - defer incrementing
+        // usage counters for those
         /*this should be under lock, but its just a counter?*/
-        iq->usedb->typcnt[iq->opcode]++;
+        if (iq->opcode < OP_FNDKLESS || iq->opcode > OP_RNGEXTTAGPTZ)
+            iq->usedb->typcnt[iq->opcode]++;
     }
 
     /* clear errstr */
@@ -443,6 +447,9 @@ int handle_ireq(struct ireq *iq)
             if (iq->usedb && iq->usedb->tablename) {
                 reqlog_logl(iq->reqlogger, REQL_INFO, iq->usedb->tablename);
             }
+            // TODO: move to opcode handler
+            extern void add_tag_hit(struct ireq * iq);
+            add_tag_hit(iq);
         }
     }
 

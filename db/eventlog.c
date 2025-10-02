@@ -560,6 +560,9 @@ static void populate_obj(cson_object *obj, const struct reqlogger *logger)
             cson_object_set(obj, "deadlockretries", cson_new_int(logger->iq->retries));
     }
 
+    if (logger->iq && logger->iq->identity)
+        cson_object_set(obj, "identity", cson_value_new_string(logger->iq->identity, strlen(logger->iq->identity)));
+
     cson_object_set(obj, "host", cson_value_new_string(logger->origin, strlen(logger->origin)));
 
     if (logger->have_fingerprint) {

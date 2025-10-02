@@ -1494,8 +1494,10 @@ struct ireq {
     // note: these are transient: they are valid when the ireq is being used
     // in an inline call to handle_buf
     void *authdata;
+    char *identity;
     char *argv0;
     int has_ssl;
+    void *setup_data;
     /* REVIEW COMMENTS AT BEGINING OF STRUCT BEFORE ADDING NEW VARIABLES */
 };
 
