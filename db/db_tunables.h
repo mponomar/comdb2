@@ -2583,4 +2583,8 @@ REGISTER_TUNABLE("debug_always_reload_schemas_after_recovery",
                  "(Default: off)",
                  TUNABLE_BOOLEAN, &gbl_debug_always_reload_schemas_after_recovery, 0, NULL, NULL, NULL, NULL);
 
+REGISTER_TUNABLE("verbose_decode_errors",
+                 "If set, if we fail to decode a request, dump some information (Default: on)",
+                 TUNABLE_BOOLEAN, &gbl_verbose_decode_errors, 0, NULL, NULL, NULL, NULL);
+
 #endif /* _DB_TUNABLES_H */
