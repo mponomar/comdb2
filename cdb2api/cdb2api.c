@@ -4732,10 +4732,10 @@ static int cdb2_send_query(cdb2_hndl_tp *hndl, cdb2_hndl_tp *event_hndl, COMDB2B
         features[n_features++] = CDB2_CLIENT_FEATURES__ALLOW_MASTER_EXEC;
     }
 
-    if (hndl && hndl->cnonce.len > 0) { /* Have a query id associated with each transaction/query */
+    if (hndl && hndl->cnonce[0]) { /* Have a query id associated with each transaction/query */
         sqlquery.has_cnonce = 1;
-        sqlquery.cnonce.data = (uint8_t *)hndl->cnonce.str;
-        sqlquery.cnonce.len = hndl->cnonce.len;
+        sqlquery.cnonce.data = (uint8_t *)hndl->cnonce;
+        sqlquery.cnonce.len = strlen(hndl->cnonce);
     }
 
     CDB2SQLQUERY__Snapshotinfo snapshotinfo;
@@ -4870,22 +4870,20 @@ static int is_retryable(int err_val)
 static int retry_queries_and_skip(cdb2_hndl_tp *hndl, int num_retry,
                                   int skip_nrows);
 
-#define PRINT_AND_RETURN(rcode)                                                \
-    do {                                                                       \
-        debugprint("%s: cnonce '%s' [%d][%d] "                                 \
-                   "returning %d\n",                                           \
-                   rcode == 0 ? "" : "XXX ", hndl->cnonce.str,                 \
-                   hndl->snapshot_file, hndl->snapshot_offset, rcode);         \
-        return (rcode);                                                        \
+#define PRINT_AND_RETURN(rcode)                                                                                        \
+    do {                                                                                                               \
+        debugprint("%s: cnonce '%s' [%d][%d] "                                                                         \
+                   "returning %d\n",                                                                                   \
+                   rcode == 0 ? "" : "XXX ", hndl->cnonce, hndl->snapshot_file, hndl->snapshot_offset, rcode);         \
+        return (rcode);                                                                                                \
     } while (0)
 
-#define PRINT_AND_RETURN_OK(rcode)                                             \
-    do {                                                                       \
-        debugprint("cnonce '%s' [%d][%d] "                                     \
-                   "returning %d\n",                                           \
-                   hndl->cnonce.str, hndl->snapshot_file,                      \
-                   hndl->snapshot_offset, rcode);                              \
-        return (rcode);                                                        \
+#define PRINT_AND_RETURN_OK(rcode)                                                                                     \
+    do {                                                                                                               \
+        debugprint("cnonce '%s' [%d][%d] "                                                                             \
+                   "returning %d\n",                                                                                   \
+                   hndl->cnonce, hndl->snapshot_file, hndl->snapshot_offset, rcode);                                   \
+        return (rcode);                                                                                                \
     } while (0)
 
 static int cdb2_next_record_int(cdb2_hndl_tp *hndl, int shouldretry)
@@ -5284,69 +5282,13 @@ int cdb2_close(cdb2_hndl_tp *hndl)
     return rc;
 }
 
-static int next_cnonce(cdb2_hndl_tp *hndl)
+void next_cnonce(cdb2_hndl_tp *hndl)
 {
-    /* 1. Get the current epoch in microseconds.
-       2. If the epoch is equal to the time embedded in `seq',
-          increment the sequence number. If the sequence number wraps
-          around 0, return an error.
-       3. If the epoch is greater than the time embedded in `seq',
-          3.1 If the embedded time is 0, which means this is the 1st time
-              a cnonce is generated, initialze `hostid', `pid' and `hndl'.
-          embed the epoch to `seq' and reset the sequence number to 0.
-       4. Otherwise, return an error. */
-
-    int rc;
+    do_init_once();
     struct timeval tv;
-    uint64_t cnt, seq, tm, now;
-    cnonce_t *c;
-
-    static char hex[] = "0123456789abcdef";
-    char *in, *out, *end;
-
-    rc = gettimeofday(&tv, NULL);
-    if (rc != 0)
-        return rc;
-    c = &hndl->cnonce;
-    seq = c->seq;
-    tm = (seq & TIME_MASK) >> CNT_BITS;
-    now = tv.tv_sec * 1000000 + tv.tv_usec;
-    if (now == tm) {
-        cnt = ((seq & CNT_MASK) + 1) & CNT_MASK;
-        if (cnt == 0) {
-            snprintf(hndl->errstr, sizeof(hndl->errstr),
-                     "Transaction rate too high.");
-            rc = E2BIG;
-        } else {
-            c->seq = (seq & TIME_MASK) | cnt;
-        }
-    } else if (now > tm) {
-        if (tm == 0) {
-            c->hostid = _MACHINE_ID;
-            c->pid = _PID;
-            c->hndl = hndl;
-            c->ofs = sprintf(c->str, CNONCE_STR_FMT, c->hostid, c->pid,
-                             (unsigned long long)c->hndl);
-        }
-        c->seq = (now << CNT_BITS);
-    } else {
-        rc = EINVAL;
-    }
-
-    if (rc == 0) {
-        in = (char *)&c->seq;
-        end = in + sizeof(c->seq);
-        out = c->str + c->ofs;
-
-        while (in != end) {
-            char i = *(in++);
-            *(out++) = hex[(i & 0xf0) >> 4];
-            *(out++) = hex[i & 0x0f];
-        }
-        *out = 0;
-        c->len = out - c->str;
-    }
-    return rc;
+    gettimeofday(&tv, NULL);
+    sprintf(hndl->cnonce, "%d-%d-%lld-%d", _MACHINE_ID, _PID, (long long)tv.tv_usec, cdb2_random_int());
+    return;
 }
 
 struct cdb2_stmt_types {
@@ -6186,8 +6128,7 @@ static int cdb2_run_statement_typed_int(cdb2_hndl_tp *hndl, const char *sql, int
 
     if (!hndl->in_trans) { /* only one cnonce for a transaction. */
         clear_snapshot_info(hndl, __LINE__);
-        if ((rc = next_cnonce(hndl)) != 0)
-            PRINT_AND_RETURN(rc);
+        next_cnonce(hndl);
     }
     hndl->retry_all = 1;
     int run_last = 1;
@@ -7011,7 +6952,7 @@ const char *cdb2_cnonce(cdb2_hndl_tp *hndl)
     if (hndl->fdb_hndl)
         hndl = hndl->fdb_hndl;
 
-    return hndl->cnonce.str;
+    return hndl->cnonce;
 }
 #endif
 

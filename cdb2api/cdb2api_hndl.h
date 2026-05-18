@@ -63,20 +63,6 @@ struct cdb2_event {
 #define CNONCE_STR_FMT "%lx-%x-%llx-"
 #define CNONCE_STR_SZ 60 /* 16 + 1 + 8 + 1 + 16 + 1 + 16 + 1 (NUL) */
 
-#define CNT_BITS 12
-#define TIME_MASK (-1ULL << CNT_BITS)
-#define CNT_MASK (-1ULL ^ TIME_MASK)
-
-typedef struct cnonce {
-    long hostid;
-    int pid;
-    struct cdb2_hndl *hndl;
-    uint64_t seq;
-    int ofs;
-    char str[CNONCE_STR_SZ];
-    int len;
-} cnonce_t;
-
 struct cdb2_stmt_types;
 
 struct cdb2_query {
@@ -131,7 +117,7 @@ struct cdb2_hndl {
     int connected_host;
     int flags;
     char errstr[1024];
-    cnonce_t cnonce;
+    char cnonce[CNONCE_STR_SZ];
     char *sql;
     char partial_sql[64];
     int ntypes;
