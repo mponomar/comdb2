@@ -2917,6 +2917,18 @@ __thread int64_t *txn_logbytes = NULL;
         }                                                                                                              \
     } while (0)
 
+#define ACCESS_CHECK() do {                                            \
+            {                                                          \
+                int bdberr = 0;                                        \
+                rc = access_control_check_write(iq, trans, &bdberr);   \
+                if (rc) {                                              \
+                    numerrs = 1;                                       \
+                    err.errcode = ERR_ACCESS;                          \
+                    GOTOBACKOUT;                                       \
+                }                                                      \
+            }                                                          \
+} while(0)
+
 static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, struct ireq *iq, block_state_t *p_blkstate)
 {
     int rowlocks = gbl_rowlocks;
@@ -3405,6 +3417,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             p_buf_data_end = iq->p_buf_in;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
+            ACCESS_CHECK();
 
             rc = updbykey_record(
                 iq, trans, (const uint8_t *)p_buf_tag_name,
@@ -3467,16 +3480,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             p_buf_data_end = iq->p_buf_in;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-
-            {
-                int bdberr = 0;
-                rc = access_control_check_write(iq, trans, &bdberr);
-                if (rc) {
-                    numerrs = 1;
-                    err.errcode = ERR_ACCESS;
-                    GOTOBACKOUT;
-                }
-            }
+            ACCESS_CHECK();
 
             /* if any of the following have been executed then we
              * need to perform delayed key adds.
@@ -3568,16 +3572,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             bzero(nulls, sizeof(nulls));
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-
-            {
-                int bdberr = 0;
-                rc = access_control_check_write(iq, trans, &bdberr);
-                if (rc) {
-                    numerrs = 1;
-                    err.errcode = ERR_ACCESS;
-                    GOTOBACKOUT;
-                }
-            }
+            ACCESS_CHECK();
 
             rc = add_record(iq, trans, p_buf_tag_name, p_buf_tag_name_end,
                             (uint8_t *)p_buf_data, p_buf_data_end, nulls,
@@ -3632,16 +3627,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             have_keyless_requests = 1;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-
-            {
-                int bdberr = 0;
-                rc = access_control_check_write(iq, trans, &bdberr);
-                if (rc) {
-                    numerrs = 1;
-                    err.errcode = ERR_ACCESS;
-                    GOTOBACKOUT;
-                }
-            }
+            ACCESS_CHECK();
 
             /* for some reason we get a tag and data record with this
              * request which we then don't use.  let's not waste time
@@ -3674,16 +3660,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             rrn = delete.rrn;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-
-            {
-                int bdberr = 0;
-                rc = access_control_check_write(iq, trans, &bdberr);
-                if (rc) {
-                    numerrs = 1;
-                    err.errcode = ERR_ACCESS;
-                    GOTOBACKOUT;
-                }
-            }
+            ACCESS_CHECK();
 
             rc = del_record(iq, trans, saved_fndkey, saved_rrn, 0, /*genid*/
                             -1ULL, &err.errcode, &err.ixnum, hdr.opcode, 0);
@@ -3797,16 +3774,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             have_keyless_requests = 1;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-
-            {
-                int bdberr = 0;
-                rc = access_control_check_write(iq, trans, &bdberr);
-                if (rc) {
-                    numerrs = 1;
-                    err.errcode = ERR_ACCESS;
-                    GOTOBACKOUT;
-                }
-            }
+            ACCESS_CHECK();
 
             rc = upd_record(iq, trans, NULL, /*primary key*/
                             updrrnkl.rrn, updrrnkl.genid, p_buf_tag_name,
@@ -3884,16 +3852,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             bzero(nulls, sizeof(nulls));
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-
-            {
-                int bdberr = 0;
-                rc = access_control_check_write(iq, trans, &bdberr);
-                if (rc) {
-                    numerrs = 1;
-                    err.errcode = ERR_ACCESS;
-                    GOTOBACKOUT;
-                }
-            }
+            ACCESS_CHECK();
 
             rc = upd_record(iq, trans, NULL, /*primkey - will be formed from
                                                verification data*/
@@ -3964,16 +3923,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             bzero(nulls, sizeof(nulls));
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-
-            {
-                int bdberr = 0;
-                rc = access_control_check_write(iq, trans, &bdberr);
-                if (rc) {
-                    numerrs = 1;
-                    err.errcode = ERR_ACCESS;
-                    GOTOBACKOUT;
-                }
-            }
+            ACCESS_CHECK();
 
             /* add */
             int addflags = RECFLAGS_DYNSCHEMA_NULLS_ONLY;
@@ -4059,6 +4009,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             iq->p_buf_in += ixkeylen;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
+            ACCESS_CHECK();
 
             /* convert key */
             bzero(nulls, sizeof(nulls));
@@ -4209,16 +4160,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             bzero(nulls, sizeof(nulls));
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-
-            {
-                int bdberr = 0;
-                rc = access_control_check_write(iq, trans, &bdberr);
-                if (rc) {
-                    numerrs = 1;
-                    err.errcode = ERR_ACCESS;
-                    GOTOBACKOUT;
-                }
-            }
+            ACCESS_CHECK();
 
             rc = upd_record(iq, trans, NULL, /*primkey - will be formed from
                                                verification data*/
@@ -4459,6 +4401,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             have_keyless_requests = 1;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
+            ACCESS_CHECK();
 
             rc = block2_qadd(iq, p_blkstate, trans, &qadd, blobs);
             free_blob_buffers(blobs, MAXBLOBS);
@@ -4539,6 +4482,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
                 get_size_of_schema_by_name(iq->usedb, ".ONDISK");
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
+            ACCESS_CHECK();
 
             rec = malloc(dtalen);
             rc = find_record_older_than(iq, trans, delolder.timestamp, rec,
@@ -4818,6 +4762,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
                 rc = ERR_BADREQ;
                 GOTOBACKOUT;
             }
+            ACCESS_CHECK();
 
             // if upgrade-ahead more than 1 record, start a table upgrade
             // thread.

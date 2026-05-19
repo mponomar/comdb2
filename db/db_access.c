@@ -419,7 +419,7 @@ int access_control_check_write(struct ireq *iq, tran_type *trans, int *bdberr)
 {
     int rc = 0;
 
-    if (gbl_uses_externalauth && iq->authdata && externalComdb2AuthenticateUserRead) {
+    if (gbl_uses_externalauth && iq->usedb && iq->authdata && externalComdb2AuthenticateUserRead) {
         rc = externalComdb2AuthenticateUserWrite(iq->authdata, iq->usedb->tablename, iq->corigin);
         if (rc)
             rc = ERR_ACCESS;
