@@ -156,6 +156,13 @@ static int block_state_offset_from_ptr(block_state_t *p_blkstate,
 int gbl_blockop_count_xrefs[BLOCK_MAXOPCODE];
 const char *gbl_blockop_name_xrefs[NUM_BLOCKOP_OPCODES];
 
+#define LOG_TAG_HIT()                                                                                                  \
+    do {                                                                                                               \
+        if (gbl_tagged_request_callback) {                                                                             \
+            gbl_tagged_request_callback(iq);                                                                           \
+        }                                                                                                              \
+    } while (0)
+
 static int block2_qadd(struct ireq *iq, block_state_t *p_blkstate, void *trans,
                        struct packedreq_qadd *buf, blob_buffer_t *blobs)
 {
@@ -176,34 +183,7 @@ static int block2_qadd(struct ireq *iq, block_state_t *p_blkstate, void *trans,
 
     iq->p_buf_in = buf_no_net_get(qname, buf->qnamelen, iq->p_buf_in,
                                   p_blkstate->p_buf_next_start);
-
     qname[buf->qnamelen] = '\0';
-
-    /* Must have exactly one blob, which will be the queue data. */
-    for (cblob = 0; cblob < MAXBLOBS; cblob++) {
-        if (blobs[cblob].exists && cblob >= 1) {
-            if (iq->debug)
-                reqprintf(iq, "TOO MANY BLOBS");
-            reqerrstr(iq, COMDB2_QADD_RC_NB_BLOBS, "too many blobs");
-            return ERR_BADREQ;
-        }
-        if (blobs[cblob].exists &&
-            blobs[cblob].length != blobs[cblob].collected) {
-            if (iq->debug)
-                reqprintf(iq, "GOT BAD BLOB BUFFERS FOR BLOB %d", cblob);
-            reqerrstr(iq, COMDB2_QADD_RC_BAD_BLOB_BUFF,
-                      "got bad blob buffers for blob %d", cblob);
-            return ERR_BADREQ;
-        }
-    }
-
-    if (!blobs[0].exists) {
-        if (iq->debug)
-            reqprintf(iq, "EXPECTED AT LEAST ONE BLOB");
-        reqerrstr(iq, COMDB2_QADD_RC_BAD_BLOB_BUFF,
-                  "expected one blob (internal api error)");
-        return ERR_BADREQ;
-    }
 
     qdb = getqueuebyname(qname);
     if (!qdb) {
@@ -215,6 +195,42 @@ static int block2_qadd(struct ireq *iq, block_state_t *p_blkstate, void *trans,
 
     olddb = iq->usedb;
     iq->usedb = qdb;
+    int bdberr = 0;
+    rc = access_control_check_write(iq, trans, &bdberr);
+    if (rc) {
+        iq->usedb = olddb;
+        return ERR_ACCESS;
+    }
+
+    /* Must have exactly one blob, which will be the queue data. */
+    for (cblob = 0; cblob < MAXBLOBS; cblob++) {
+        if (blobs[cblob].exists && cblob >= 1) {
+            if (iq->debug)
+                reqprintf(iq, "TOO MANY BLOBS");
+            reqerrstr(iq, COMDB2_QADD_RC_NB_BLOBS, "too many blobs");
+            iq->usedb = olddb;
+            return ERR_BADREQ;
+        }
+        if (blobs[cblob].exists &&
+            blobs[cblob].length != blobs[cblob].collected) {
+            if (iq->debug)
+                reqprintf(iq, "GOT BAD BLOB BUFFERS FOR BLOB %d", cblob);
+            reqerrstr(iq, COMDB2_QADD_RC_BAD_BLOB_BUFF,
+                      "got bad blob buffers for blob %d", cblob);
+            iq->usedb = olddb;
+            return ERR_BADREQ;
+        }
+    }
+
+    if (!blobs[0].exists) {
+        if (iq->debug)
+            reqprintf(iq, "EXPECTED AT LEAST ONE BLOB");
+        reqerrstr(iq, COMDB2_QADD_RC_BAD_BLOB_BUFF,
+                  "expected one blob (internal api error)");
+        iq->usedb = olddb;
+        return ERR_BADREQ;
+    }
+
     rc = dbq_add(iq, trans, blobs[0].data, blobs[0].length);
     iq->usedb = olddb;
     if (iq->debug) {
@@ -2910,24 +2926,19 @@ void abort_disttxn(struct ireq *iq, int rc, int outrc)
 
 __thread int64_t *txn_logbytes = NULL;
 
-#define LOG_TAG_HIT()                                                                                                  \
+#define ACCESS_CHECK()                                                                                                 \
     do {                                                                                                               \
-        if (gbl_tagged_request_callback) {                                                                             \
-            gbl_tagged_request_callback(iq);                                                                           \
+        {                                                                                                              \
+            int bdberr = 0;                                                                                            \
+            rc = access_control_check_write(iq, trans, &bdberr);                                                       \
+            if (rc) {                                                                                                  \
+                numerrs = 1;                                                                                           \
+                err.errcode = ERR_ACCESS;                                                                              \
+                LOG_TAG_HIT();                                                                                         \
+                GOTOBACKOUT;                                                                                           \
+            }                                                                                                          \
         }                                                                                                              \
     } while (0)
-
-#define ACCESS_CHECK() do {                                            \
-            {                                                          \
-                int bdberr = 0;                                        \
-                rc = access_control_check_write(iq, trans, &bdberr);   \
-                if (rc) {                                              \
-                    numerrs = 1;                                       \
-                    err.errcode = ERR_ACCESS;                          \
-                    GOTOBACKOUT;                                       \
-                }                                                      \
-            }                                                          \
-} while(0)
 
 static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, struct ireq *iq, block_state_t *p_blkstate)
 {
@@ -3114,6 +3125,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
                                   blkseq */
                     }
                 }
+                break;
             case BLOCK2_SOCK_SQL:
             case BLOCK2_RECOM:
                 got_osql = 1;
@@ -3122,6 +3134,11 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             case BLOCK2_SERIAL:
                 is_tagged = 0;
                 if (gbl_use_blkseq) {
+                    if (iq->sorese == NULL) {
+                        outrc = ERR_BADREQ;
+                        fromline = __LINE__;
+                        goto cleanup;
+                    }
                     have_blkseq = 1;
                     osql_bplog_set_blkseq(iq->sorese, iq);
                 }
@@ -3361,9 +3378,13 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
 
         switch (hdr.opcode) {
         case BLOCK2_RNGDELKL:
-            // need to mark this as keyless to have the right response length
             have_keyless_requests++;
-            goto unknown_request;
+            numerrs = 1;
+            err.errcode = ERR_BADREQ;
+            err.blockop_num = opnum;
+            reqerrstr(iq, COMDB2_BLK_RC_UNKN_OP, "bad opcode %d", hdr.opcode);
+            rc = ERR_BADREQ;
+            GOTOBACKOUT;
             break;
 
         case BLOCK2_UPDBYKEY: {
@@ -3376,6 +3397,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
 
             ++delayed;
             have_keyless_requests = 1;
+            ACCESS_CHECK();
 
             if (!(iq->p_buf_in = packedreq_updbykey_get(
                       &updbykey, iq->p_buf_in, p_blkstate->p_buf_next_start))) {
@@ -3417,7 +3439,6 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             p_buf_data_end = iq->p_buf_in;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-            ACCESS_CHECK();
 
             rc = updbykey_record(
                 iq, trans, (const uint8_t *)p_buf_tag_name,
@@ -3443,8 +3464,8 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             const uint8_t *p_buf_data;
             const uint8_t *p_buf_data_end;
             LOG_LEGACY_REQUEST();
-
             have_keyless_requests = 1;
+            ACCESS_CHECK();
 
             if (!(iq->p_buf_in = packedreq_addkl_get(
                       &addkl, iq->p_buf_in, p_blkstate->p_buf_next_start))) {
@@ -3480,7 +3501,6 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             p_buf_data_end = iq->p_buf_in;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-            ACCESS_CHECK();
 
             /* if any of the following have been executed then we
              * need to perform delayed key adds.
@@ -3545,8 +3565,9 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             const uint8_t *p_buf_tag_name;
             const uint8_t *p_buf_tag_name_end;
             LOG_LEGACY_REQUEST();
-
             ++delayed;
+
+            ACCESS_CHECK();
             if (!(iq->p_buf_in = packedreq_adddta_get(
                       &adddta, iq->p_buf_in, p_blkstate->p_buf_next_start))) {
                 if (iq->debug)
@@ -3572,7 +3593,6 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             bzero(nulls, sizeof(nulls));
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-            ACCESS_CHECK();
 
             rc = add_record(iq, trans, p_buf_tag_name, p_buf_tag_name_end,
                             (uint8_t *)p_buf_data, p_buf_data_end, nulls,
@@ -3594,6 +3614,11 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             LOG_LEGACY_REQUEST();
             ++delayed;
 
+            // NOTE: this opcode is effectively a no-op.  It doesn't write and we don't NEED
+            // to do this check here.  It exists so we can differentiate between an error due
+            // to a malformed request vs an error due to permissions. It wouldn't be an error
+            // to skip this check.
+            ACCESS_CHECK(); // see NOTE for BLOCK2_ADDKEY
             if (!(iq->p_buf_in = packedreq_addkey_get(
                       &addkey, iq->p_buf_in, p_blkstate->p_buf_next_start))) {
                 if (iq->debug)
@@ -3614,8 +3639,10 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
         case BLOCK2_DELKL: {
             struct packedreq_delkl delkl;
             LOG_LEGACY_REQUEST();
-
             ++delayed;
+            have_keyless_requests = 1;
+
+            ACCESS_CHECK();
             if (!(iq->p_buf_in = packedreq_delkl_get(
                       &delkl, iq->p_buf_in, p_blkstate->p_buf_next_start))) {
                 if (iq->debug)
@@ -3624,10 +3651,8 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
                 GOTOBACKOUT;
             }
 
-            have_keyless_requests = 1;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-            ACCESS_CHECK();
 
             /* for some reason we get a tag and data record with this
              * request which we then don't use.  let's not waste time
@@ -3647,8 +3672,9 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
         case BLOCK2_DELDTA: {
             struct packedreq_delete delete;
             LOG_LEGACY_REQUEST();
-
             ++delayed;
+
+            ACCESS_CHECK();
             if (!(iq->p_buf_in = packedreq_delete_get(
                       &delete, iq->p_buf_in, p_blkstate->p_buf_next_start))) {
                 if (iq->debug)
@@ -3660,7 +3686,6 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             rrn = delete.rrn;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-            ACCESS_CHECK();
 
             rc = del_record(iq, trans, saved_fndkey, saved_rrn, 0, /*genid*/
                             -1ULL, &err.errcode, &err.ixnum, hdr.opcode, 0);
@@ -3677,8 +3702,9 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
         case BLOCK2_DELKEY: {
             struct packedreq_delkey delkey;
             LOG_LEGACY_REQUEST();
-
             ++delayed;
+
+            ACCESS_CHECK(); // see NOTE for BLOCK2_ADDKEY
             if (!(iq->p_buf_in = packedreq_delkey_get(
                       &delkey, iq->p_buf_in, p_blkstate->p_buf_next_start))) {
                 if (iq->debug)
@@ -3751,8 +3777,10 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             const uint8_t *p_buf_data;
             const uint8_t *p_buf_data_end;
             LOG_LEGACY_REQUEST();
-
             ++delayed;
+            have_keyless_requests = 1;
+
+            ACCESS_CHECK();
             if (!(iq->p_buf_in = packedreq_updrrnkl_get(
                       &updrrnkl, iq->p_buf_in, p_blkstate->p_buf_next_start))) {
                 if (iq->debug)
@@ -3771,10 +3799,8 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             p_buf_data = p_buf_tag_name_end;
             p_buf_data_end = p_buf_data + updrrnkl.rlen;
 
-            have_keyless_requests = 1;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-            ACCESS_CHECK();
 
             rc = upd_record(iq, trans, NULL, /*primary key*/
                             updrrnkl.rrn, updrrnkl.genid, p_buf_tag_name,
@@ -3805,8 +3831,9 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             const uint8_t *p_buf_tag_name;
             const uint8_t *p_buf_tag_name_end;
             LOG_LEGACY_REQUEST();
-
             ++delayed;
+
+            ACCESS_CHECK();
             if (!(iq->p_buf_in = packedreq_updrrn_get(
                       &updrrn, iq->p_buf_in, p_blkstate->p_buf_next_start))) {
                 if (iq->debug)
@@ -3852,7 +3879,6 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             bzero(nulls, sizeof(nulls));
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-            ACCESS_CHECK();
 
             rc = upd_record(iq, trans, NULL, /*primkey - will be formed from
                                                verification data*/
@@ -3883,8 +3909,9 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             const uint8_t *p_buf_data;
             const uint8_t *p_buf_data_end;
             LOG_LEGACY_REQUEST();
-
             ++delayed;
+
+            ACCESS_CHECK();
             if (!(iq->p_buf_in =
                       packedreq_add_get(&packedreq_add, iq->p_buf_in,
                                         p_blkstate->p_buf_next_start, iq->comdbg_flags))) {
@@ -3923,7 +3950,6 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             bzero(nulls, sizeof(nulls));
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-            ACCESS_CHECK();
 
             /* add */
             int addflags = RECFLAGS_DYNSCHEMA_NULLS_ONLY;
@@ -3960,8 +3986,9 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             struct packedreq_addsec addsec;
             int ixnum;
             LOG_LEGACY_REQUEST();
-
             ++delayed;
+
+            ACCESS_CHECK(); // see NOTE for BLOCK2_ADDKEY
             if (!(iq->p_buf_in = packedreq_addsec_get(
                       &addsec, iq->p_buf_in, p_blkstate->p_buf_req_end, iq->comdbg_flags))) {
                 if (iq->debug)
@@ -3986,8 +4013,9 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             const char *p_keydat;
             char key[MAXKEYLEN];
             LOG_LEGACY_REQUEST();
-
             ++delayed;
+
+            ACCESS_CHECK();
             if (!(iq->p_buf_in = packedreq_del_get(
                       &delsc, iq->p_buf_in, p_blkstate->p_buf_req_end, iq->comdbg_flags))) {
                 if (iq->debug)
@@ -4009,7 +4037,6 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             iq->p_buf_in += ixkeylen;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-            ACCESS_CHECK();
 
             /* convert key */
             bzero(nulls, sizeof(nulls));
@@ -4038,8 +4065,9 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             int ixnum;
             int ixkeylen;
             LOG_LEGACY_REQUEST();
-
             ++delayed;
+
+            ACCESS_CHECK(); // see NOTE for BLOCK2_ADDKEY
             if (!(iq->p_buf_in = packedreq_delsec_get(
                       &delsec, iq->p_buf_in, p_blkstate->p_buf_req_end, iq->comdbg_flags))) {
                 if (iq->debug)
@@ -4081,8 +4109,9 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             int comdbg_flags = iq->comdbg_flags;
             LOG_LEGACY_REQUEST();
             GETFUNC
-
             ++delayed;
+
+            ACCESS_CHECK();
             if (!(iq->p_buf_in = packedreq_upvrrn_get(
                       &upvrrn, iq->p_buf_in, p_blkstate->p_buf_req_end, iq->comdbg_flags))) {
                 if (iq->debug)
@@ -4160,7 +4189,6 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             bzero(nulls, sizeof(nulls));
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-            ACCESS_CHECK();
 
             rc = upd_record(iq, trans, NULL, /*primkey - will be formed from
                                                verification data*/
@@ -4312,7 +4340,6 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
 
         case BLOCK2_QBLOB: {
             struct packedreq_qblob qblob;
-
             have_keyless_requests = 1;
 
             if (!(iq->p_buf_in = packedreq_qblob_get(
@@ -4388,8 +4415,8 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
 
         case BLOCK2_QADD: {
             struct packedreq_qadd qadd;
-
             ++delayed;
+
             if (!(iq->p_buf_in = packedreq_qadd_get(
                       &(qadd), iq->p_buf_in, p_blkstate->p_buf_next_start))) {
                 if (iq->debug)
@@ -4401,15 +4428,13 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             have_keyless_requests = 1;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-            ACCESS_CHECK();
 
             rc = block2_qadd(iq, p_blkstate, trans, &qadd, blobs);
             free_blob_buffers(blobs, MAXBLOBS);
-            if (rc != 0)
+            if (rc != 0) {
+                numerrs = 1;
                 GOTOBACKOUT;
-            // TODO: should we count this as a tagged hit?  This doesn't use BLOCK2_USE, so isn't attributed
-            //       to a table, but queues are treated as tables in every other regard.  Latch/set usedb, call
-            //       add_tag_hit, reset usedb?
+            }
             break;
         }
         case BLOCK_SETFLAGS: {
@@ -4440,8 +4465,12 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             /* A Java stored procedure custom operation. */
             rc = block2_custom(iq, &p_custom, iq->p_buf_in, blobs);
             free_blob_buffers(blobs, MAXBLOBS);
-            if (rc != 0)
+            if (rc != 0) {
+                numerrs = 1;
+                err.errcode = rc;
+                err.blockop_num = opnum;
                 GOTOBACKOUT;
+            }
             break;
         }
 
@@ -4458,14 +4487,15 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             int failop, failnum;
             struct packedreq_delolder delolder;
             LOG_LEGACY_REQUEST();
+            ++delayed;
 
+            ACCESS_CHECK();
             if (iq && iq->usedb && iq->usedb->odh) {
                 reqprintf(iq, "ERROR - OPCODE BLOCK2_DELOLDER FOR ODH TABLE");
                 rc = ERR_BADREQ;
                 GOTOBACKOUT;
             }
 
-            ++delayed;
             if (!(iq->p_buf_in = packedreq_delolder_get(
                       &delolder, iq->p_buf_in, p_blkstate->p_buf_next_start))) {
                 if (iq->debug)
@@ -4482,7 +4512,6 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
                 get_size_of_schema_by_name(iq->usedb, ".ONDISK");
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
-            ACCESS_CHECK();
 
             rec = malloc(dtalen);
             rc = find_record_older_than(iq, trans, delolder.timestamp, rec,
@@ -4747,6 +4776,7 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             struct packedreq_uptbl uptbl;
             int dtasz;
             LOG_LEGACY_REQUEST();
+            ACCESS_CHECK();
 
             if (!(iq->p_buf_in = packedreq_uptbl_get(
                       &uptbl, iq->p_buf_in, p_blkstate->p_buf_next_start))) {
@@ -4762,7 +4792,6 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
                 rc = ERR_BADREQ;
                 GOTOBACKOUT;
             }
-            ACCESS_CHECK();
 
             // if upgrade-ahead more than 1 record, start a table upgrade
             // thread.
@@ -4784,7 +4813,6 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
         }
 
         default:
-unknown_request:
             /*unknown operation */
             if (iq->debug)
                 reqprintf(iq, "BAD OPCODE %d", hdr.opcode);
