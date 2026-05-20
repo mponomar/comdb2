@@ -1,0 +1,41 @@
+BLOCK_ADDSL                    opcode=110  rc=220 num_completed=2 errcode=10
+BLOCK_ADDSEC                   opcode=111  rc=220 num_completed=2 errcode=10
+BLOCK_SECAFPRI                 opcode=112  rc=220 num_completed=2 errcode=10
+BLOCK_ADNOD                    opcode=113  rc=220 num_completed=2 errcode=10
+BLOCK_DELSC                    opcode=114  rc=220 num_completed=2 errcode=10
+BLOCK_DELSEC                   opcode=115  rc=220 num_completed=2 errcode=10
+BLOCK_DELNOD                   opcode=116  rc=220 num_completed=2 errcode=10
+BLOCK_UPVRRN                   opcode=117  rc=220 num_completed=2 errcode=10
+BLOCK2_ADDDTA                  opcode=130  rc=220 num_completed=2 errcode=10
+BLOCK2_ADDKEY                  opcode=131  rc=220 num_completed=2 errcode=10
+BLOCK2_DELDTA                  opcode=132  rc=220 num_completed=2 errcode=10
+BLOCK2_DELKEY                  opcode=133  rc=220 num_completed=2 errcode=10
+BLOCK2_UPDATE                  opcode=134  rc=220 num_completed=2 errcode=10
+BLOCK2_ADDKL                   opcode=135  rc=220 numerrs=1 blockop=0 errcode=10 ixnum=0 errstr=""
+BLOCK2_DELKL                   opcode=136  rc=220 numerrs=1 blockop=0 errcode=10 ixnum=0 errstr=""
+BLOCK2_UPDKL                   opcode=137  rc=220 numerrs=1 blockop=0 errcode=10 ixnum=0 errstr=""
+BLOCK2_ADDKL_POS               opcode=138  rc=220 numerrs=1 blockop=0 errcode=10 ixnum=0 errstr=""
+BLOCK2_UPDKL_POS               opcode=139  rc=220 numerrs=1 blockop=0 errcode=10 ixnum=0 errstr=""
+BLOCK2_UPDBYKEY                opcode=818  rc=220 numerrs=1 blockop=0 errcode=10 ixnum=0 errstr=""
+BLOCK_DEBUG                    opcode=777  rc=0
+BLOCK_SEQ                      opcode=800  rc=0
+BLOCK2_SEQV2                   opcode=824  rc=0
+BLOCK_USE                      opcode=801  rc=220 num_completed=2 errcode=199
+BLOCK2_USE                     opcode=802  rc=220 num_completed=2 errcode=0
+BLOCK2_TZ                      opcode=810  rc=0
+BLOCK2_QBLOB                   opcode=804  rc=0
+BLOCK2_RNGDELKL                opcode=805  rc=220 numerrs=1 blockop=2 errcode=199 ixnum=0 errstr="bad opcode 805"
+BLOCK_SETFLAGS                 opcode=806  rc=0
+BLOCK2_CUSTOM                  opcode=807  rc=0
+BLOCK2_QADD                    opcode=808  rc=220 numerrs=1 blockop=0 errcode=0 ixnum=0 errstr="unknown queue 'testq'"
+BLOCK2_TRAN                    opcode=813  rc=0
+BLOCK2_DELOLDER                opcode=812  rc=220 num_completed=2 errcode=10
+BLOCK2_SOCK_SQL                opcode=815  rc=199
+BLOCK2_RECOM                   opcode=817  rc=199
+BLOCK2_SNAPISOL                opcode=823  rc=199
+BLOCK2_SERIAL                  opcode=819  rc=199
+BLOCK2_MODNUM                  opcode=814  rc=0
+BLOCK2_SCSMSK                  opcode=816  rc=0
+BLOCK2_DBGLOG_COOKIE           opcode=821  rc=0
+BLOCK2_PRAGMA                  opcode=822  rc=0
+BLOCK2_UPTBL                   opcode=825  rc=220 num_completed=2 errcode=10
