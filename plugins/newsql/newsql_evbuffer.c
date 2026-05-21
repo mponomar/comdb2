@@ -492,10 +492,24 @@ static int dispatch_tagged(struct sqlclntstate *clnt)
     Pthread_mutex_init(&(p_slock->req_lock), 0);
     Pthread_cond_init(&(p_slock->wait_cond), NULL);
     p_slock->bigbuf = malloc(64 * 1024);
-    memcpy(p_slock->bigbuf, buf, sz);
     p_slock->sb = NULL;
     p_slock->reply_state = REPLY_STATE_NA;
 
+    // legacy opcodes do not send requests > 64k
+    if (sz <= 64 * 1024) {
+        memcpy(p_slock->bigbuf, buf, sz);
+    } else {
+        struct req_hdr hdr = {0};
+        // Generate an invalid request so the application gets an error. Returning an error here would
+        // cause the client to retry, which takes time.
+        // Tempted to do the same for the case above (unexpected bound parameters).  Slightly different
+        // case because there's no actual request.
+        hdr.opcode = 255; // invalid opcode
+        sz = sizeof(hdr);
+        memcpy(p_slock->bigbuf, &hdr, sz);
+        buf = p_slock->bigbuf;
+        // application should get a 199 (ERR_BADREQ)
+    }
     clnt->authdata = get_authdata(clnt);
 
     if (appdata->sqlquery->n_bindvars > 3 && appdata->sqlquery->bindvars[3] &&
