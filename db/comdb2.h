@@ -300,15 +300,18 @@ enum BLOCK_OPS {
     BLOCK2_SNAPISOL = 823,
     BLOCK2_SEQV2 = 824,
     BLOCK2_UPTBL = 825,
+    BLOCK2_DEBUG = 826,
     BLOCK_MAXOPCODE
 
     /* Used for some condensed blockop stats; this should be the number of
      * opcodes that there actually really are. */
     ,
-    NUM_BLOCKOP_OPCODES = 45
+    NUM_BLOCKOP_OPCODES = 46
 };
 
 enum DEBUGREQ { DEBUG_METADB_PUT = 1 };
+
+enum DEBUG_BLOCKOP { DEBUG_QADD_RECNO = 1, DEBUG_QCONSUME = 2 };
 
 enum RCODES {
     RC_OK = 0,                 /* SUCCESS */
@@ -2668,6 +2671,7 @@ int lite_get_keys_auxdb(int auxdb, struct ireq *iq, void *firstkey,
 struct bdb_queue_found;
 struct bdb_queue_cursor;
 int dbq_add(struct ireq *iq, void *trans, const void *dta, size_t dtalen);
+int dbq_add_recno(struct ireq *iq, void *trans, uint32_t recno, const void *dta, size_t dtalen);
 int dbq_consume(struct ireq *iq, void *trans, int consumer,
                 const struct bdb_queue_found *fnd);
 int dbq_consume_genid(struct ireq *, void *trans, int consumer, const genid_t);

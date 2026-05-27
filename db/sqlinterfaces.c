@@ -1257,7 +1257,8 @@ static void sql_statement_done(struct sql_thread *thd, struct reqlogger *logger,
     h->when = thd->stime;
     h->txnid = clnt->osql.rqid;
 
-    time_metric_add(thedb->service_time, h->cost.time);
+    if (clnt->pPool == NULL)
+        time_metric_add(thedb->service_time, h->cost.time);
     clnt->last_cost = (int64_t) h->cost.cost;
 
     /* request logging framework takes care of logging long sql requests */

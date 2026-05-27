@@ -469,6 +469,24 @@ enum { PACKEDREQ_QADD_LEN = (4 * 3) + 4 };
 BB_COMPILE_TIME_ASSERT(packedreq_qadd_size,
                        sizeof(struct packedreq_qadd) == PACKEDREQ_QADD_LEN);
 
+struct packedreq_debug_qadd_recno {
+    int reserved[1];
+    uint32_t recno;
+    unsigned qnamelen; /* length of queue name */
+    /* packed qname[1] */
+};
+enum { PACKEDREQ_DEBUG_QADD_RECNO_LEN = 4 + 4 + 4 };
+BB_COMPILE_TIME_ASSERT(packedreq_debug_qadd_recno_size,
+                       sizeof(struct packedreq_debug_qadd_recno) == PACKEDREQ_DEBUG_QADD_RECNO_LEN);
+
+struct packedreq_debug_qconsume {
+    unsigned qnamelen; /* length of queue name */
+    /* packed qname[1] */
+};
+enum { PACKEDREQ_DEBUG_QCONSUME_LEN = 4 };
+BB_COMPILE_TIME_ASSERT(packedreq_debug_qconsume_size,
+                       sizeof(struct packedreq_debug_qconsume) == PACKEDREQ_DEBUG_QCONSUME_LEN);
+
 struct packedreq_tran {
     int dbnum; /* db number of coordinator that originated
                 * the request */
@@ -1052,6 +1070,10 @@ uint8_t *packedreq_qadd_put(const struct packedreq_qadd *p_packedreq_qadd,
 const uint8_t *packedreq_qadd_get(struct packedreq_qadd *p_packedreq_qadd,
                                   const uint8_t *p_buf,
                                   const uint8_t *p_buf_end);
+const uint8_t *packedreq_debug_qadd_recno_get(struct packedreq_debug_qadd_recno *p_packedreq_debug_qadd_recno,
+                                              const uint8_t *p_buf, const uint8_t *p_buf_end);
+const uint8_t *packedreq_debug_qconsume_get(struct packedreq_debug_qconsume *p_packedreq_debug_qconsume,
+                                            const uint8_t *p_buf, const uint8_t *p_buf_end);
 
 uint8_t *packedreq_tran_put(const struct packedreq_tran *p_packedreq_tran,
                             uint8_t *p_buf, const uint8_t *p_buf_end);
