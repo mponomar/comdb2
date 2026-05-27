@@ -429,9 +429,8 @@ int bdb_queue_best_pagesize(int avg_item_sz)
 
 extern int gbl_rowlocks;
 
-static int bdb_queue_add_int(bdb_state_type *bdb_state, tran_type *intran,
-                             const void *dta, size_t dtalen, int *bdberr,
-                             unsigned long long *out_genid)
+static int bdb_queue_add_int(bdb_state_type *bdb_state, tran_type *intran, uint32_t recno_in, const void *dta,
+                             size_t dtalen, int *bdberr, unsigned long long *out_genid)
 {
     size_t numfragments;
     char *fragment;
@@ -455,9 +454,15 @@ static int bdb_queue_add_int(bdb_state_type *bdb_state, tran_type *intran,
 
     *bdberr = BDBERR_NOERROR;
 
+    int active_consumers = bdb_state->active_consumers;
+    if (recno_in && active_consumers == 0) {
+        active_consumers = 0;
+        bset(&active_consumers, 0);
+    }
+
     /* if no consumers are registered then don't enqueue this thing, since
      * nobody wants it. */
-    if (bdb_state->active_consumers == 0)
+    if (active_consumers == 0)
         return 0;
 
     lrl = bdb_state->queue_item_sz - sizeof(struct bdb_queue_header);
@@ -503,7 +508,7 @@ static int bdb_queue_add_int(bdb_state_type *bdb_state, tran_type *intran,
         hdr.fragment_sz = length;
 
         if (nfrag == 0)
-            hdr.consumer_mask = bdb_state->active_consumers;
+            hdr.consumer_mask = active_consumers;
 
         if (!(p_buf = queue_hdr_put(&hdr, p_buf, p_buf_end))) {
             logmsg(LOGMSG_ERROR, "%s: queue_hdr_put failed\n", __FUNCTION__);
@@ -521,6 +526,9 @@ static int bdb_queue_add_int(bdb_state_type *bdb_state, tran_type *intran,
         bzero(&dbt_key, sizeof(dbt_key));
         bzero(&dbt_data, sizeof(dbt_data));
 
+        if (recno_in)
+            recno = recno_in;
+
         dbt_key.data = &recno;
         dbt_key.size = sizeof(recno);
         dbt_key.ulen = sizeof(recno);
@@ -531,9 +539,8 @@ static int bdb_queue_add_int(bdb_state_type *bdb_state, tran_type *intran,
         dbt_data.flags = DB_DBT_USERMEM;
 
         /* Add it. */
-        rc =
-            bdb_state->dbp_data[0][0]->put(bdb_state->dbp_data[0][0], tran->tid,
-                                           &dbt_key, &dbt_data, DB_APPEND);
+        rc = bdb_state->dbp_data[0][0]->put(bdb_state->dbp_data[0][0], tran->tid, &dbt_key, &dbt_data,
+                                            recno_in == 0 ? DB_APPEND : 0);
         if (rc != 0) {
             switch (rc) {
             case DB_LOCK_DEADLOCK:
@@ -575,6 +582,24 @@ unsigned long long bdb_queue_item_genid(const struct bdb_queue_found *dta)
     return 0;
 }
 
+/* add an item somewhere in the "queue" */
+int bdb_queue_add_recno(bdb_state_type *bdb_state, tran_type *tran, uint32_t recno, const void *dta, size_t dtalen,
+                        int *bdberr, unsigned long long *out_genid)
+{
+    int rc = 0;
+
+    BDB_READLOCK("bdb_queue_add");
+    if (bdb_state->bdbtype == BDBTYPE_QUEUEDB) {
+        rc = bdb_queuedb_add(bdb_state, tran, dta, dtalen, bdberr, out_genid);
+    } else {
+        bdb_lock_table_read(bdb_state, tran);
+        rc = bdb_queue_add_int(bdb_state, tran, recno, dta, dtalen, bdberr, out_genid);
+    }
+    BDB_RELLOCK();
+
+    return rc;
+}
+
 /* add an item to the end of the queue. */
 int bdb_queue_add(bdb_state_type *bdb_state, tran_type *tran, const void *dta,
                   size_t dtalen, int *bdberr, unsigned long long *out_genid)
@@ -586,7 +611,7 @@ int bdb_queue_add(bdb_state_type *bdb_state, tran_type *tran, const void *dta,
         rc = bdb_queuedb_add(bdb_state, tran, dta, dtalen, bdberr, out_genid);
     } else {
         bdb_lock_table_read(bdb_state, tran);
-        rc = bdb_queue_add_int(bdb_state, tran, dta, dtalen, bdberr, out_genid);
+        rc = bdb_queue_add_int(bdb_state, tran, 0, dta, dtalen, bdberr, out_genid);
     }
     BDB_RELLOCK();
 
@@ -1920,7 +1945,6 @@ static int bdb_queue_consume_int(bdb_state_type *bdb_state, tran_type *intran,
                 rc = bdb_state->dbp_data[0][0]->get(bdb_state->dbp_data[0][0],
                                                     tid, &dbt_key, &dbt_data,
                                                     DB_CONSUME);
-
                 if (rc == DB_LOCK_DEADLOCK) {
                     *bdberr = BDBERR_DEADLOCK;
                     break;

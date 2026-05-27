@@ -5284,7 +5284,7 @@ int lite_del_auxdb(int auxdb, struct ireq *iq, void *trans, void *key)
 /*         QUEUE DATABASES           */
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-int dbq_add(struct ireq *iq, void *trans, const void *dta, size_t dtalen)
+int dbq_add_recno(struct ireq *iq, void *trans, uint32_t recno, const void *dta, size_t dtalen)
 {
     int bdberr;
     void *bdb_handle;
@@ -5293,7 +5293,7 @@ int dbq_add(struct ireq *iq, void *trans, const void *dta, size_t dtalen)
     if (!bdb_handle)
         return ERR_NO_AUXDB;
     iq->gluewhere = "bdb_queue_add";
-    bdb_queue_add(bdb_handle, trans, dta, dtalen, &bdberr, &genid);
+    bdb_queue_add_recno(bdb_handle, trans, recno, dta, dtalen, &bdberr, &genid);
     iq->gluewhere = "bdb_queue_add done";
 
     if (bdberr == 0) {
@@ -5327,6 +5327,11 @@ int dbq_add(struct ireq *iq, void *trans, const void *dta, size_t dtalen)
     if (bdberr == BDBERR_ADD_DUPE)
         return IX_DUP;
     return map_unhandled_bdb_wr_rcode("bdb_queue_add", bdberr);
+}
+
+int dbq_add(struct ireq *iq, void *trans, const void *dta, size_t dtalen)
+{
+    return dbq_add_recno(iq, trans, 0, dta, dtalen);
 }
 
 int dbq_consume(struct ireq *iq, void *trans, int consumer, const struct bdb_queue_found *fnd)

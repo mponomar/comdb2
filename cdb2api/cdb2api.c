@@ -790,9 +790,9 @@ static void process_env_vars(void)
     process_env_var_int("COMDB2_CONFIG_MAX_LOCAL_CONNECTION_CACHE_AGE", &max_local_connection_cache_age,
                         &max_local_connection_cache_age_envvar);
     process_env_var_str_on_off("COMDB2_CONFIG_LOCAL_CONNECTION_CACHE_USE_SBUF", &local_connection_cache_use_sbuf,
-                              &local_connection_cache_use_sbuf_envvar);
+                               &local_connection_cache_use_sbuf_envvar);
     process_env_var_str_on_off("COMDB2_CONFIG_LOCAL_CONNECTION_CACHE_CHECK_PID", &local_connection_cache_check_pid,
-                              &local_connection_cache_check_pid_envvar);
+                               &local_connection_cache_check_pid_envvar);
     process_env_var_str_on_off("COMDB2_CONFIG_USE_ENV_VARS", &cdb2_use_env_vars, 0);
 
     if (cdb2_use_env_vars) {

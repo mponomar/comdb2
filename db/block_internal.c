@@ -1335,6 +1335,34 @@ const uint8_t *packedreq_qadd_get(struct packedreq_qadd *p_packedreq_qadd,
     return p_buf;
 }
 
+const uint8_t *packedreq_debug_qadd_recno_get(struct packedreq_debug_qadd_recno *p_packedreq_debug_qadd_recno,
+                                              const uint8_t *p_buf, const uint8_t *p_buf_end)
+{
+    if (p_buf_end < p_buf || PACKEDREQ_DEBUG_QADD_RECNO_LEN > (p_buf_end - p_buf))
+        return NULL;
+
+    p_buf = buf_get(&(p_packedreq_debug_qadd_recno->reserved), sizeof(p_packedreq_debug_qadd_recno->reserved), p_buf,
+                    p_buf_end);
+    p_buf =
+        buf_get(&(p_packedreq_debug_qadd_recno->recno), sizeof(p_packedreq_debug_qadd_recno->recno), p_buf, p_buf_end);
+    p_buf = buf_get(&(p_packedreq_debug_qadd_recno->qnamelen), sizeof(p_packedreq_debug_qadd_recno->qnamelen), p_buf,
+                    p_buf_end);
+
+    return p_buf;
+}
+
+const uint8_t *packedreq_debug_qconsume_get(struct packedreq_debug_qconsume *p_packedreq_debug_qconsume,
+                                            const uint8_t *p_buf, const uint8_t *p_buf_end)
+{
+    if (p_buf_end < p_buf || PACKEDREQ_DEBUG_QCONSUME_LEN > (p_buf_end - p_buf))
+        return NULL;
+
+    p_buf = buf_get(&(p_packedreq_debug_qconsume->qnamelen), sizeof(p_packedreq_debug_qconsume->qnamelen), p_buf,
+                    p_buf_end);
+
+    return p_buf;
+}
+
 uint8_t *packedreq_tran_put(const struct packedreq_tran *p_packedreq_tran,
                             uint8_t *p_buf, const uint8_t *p_buf_end)
 {

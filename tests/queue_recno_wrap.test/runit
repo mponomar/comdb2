@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+bash -n "$0" | exit 1
+set -e
+dbnm=$1
+${CDB2SQL_EXE} ${CDB2_OPTIONS} ${DBNAME} default "create table t(a int)"
+master=$(${CDB2SQL_EXE} ${CDB2_OPTIONS} --tabs ${DBNAME} default "select host from comdb2_cluster where is_master='Y'")
+${TESTSBUILDDIR}/debug_queueops $dbnm $master

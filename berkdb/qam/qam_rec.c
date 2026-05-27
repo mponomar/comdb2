@@ -517,6 +517,8 @@ __qam_add_recover(dbenv, dbtp, lsnp, op, info)
 		if (argp->recno == meta->cur_recno ||
 		   QAM_AFTER_CURRENT(meta, argp->recno)) {
 			meta->cur_recno = argp->recno + 1;
+			if (meta->cur_recno == RECNO_OOB)
+				meta->cur_recno = 1;
 			meta_dirty = 1;
 		}
 		if ((ret = __memp_fput(mpf,
