@@ -65,6 +65,7 @@
 #include <endian_core.h>
 #include "bdb_access.h"
 #include "bdb_int.h"
+#include "bdb_queue.h"
 #include "osqlblkseq.h"
 #include "localrep.h"
 #include "util.h"
@@ -163,8 +164,8 @@ const char *gbl_blockop_name_xrefs[NUM_BLOCKOP_OPCODES];
         }                                                                                                              \
     } while (0)
 
-static int block2_qadd(struct ireq *iq, block_state_t *p_blkstate, void *trans,
-                       struct packedreq_qadd *buf, blob_buffer_t *blobs)
+static int block2_qadd(struct ireq *iq, block_state_t *p_blkstate, void *trans, struct packedreq_debug_qadd_recno *buf,
+                       blob_buffer_t *blobs)
 {
     int cblob;
     int rc;
@@ -231,7 +232,7 @@ static int block2_qadd(struct ireq *iq, block_state_t *p_blkstate, void *trans,
         return ERR_BADREQ;
     }
 
-    rc = dbq_add(iq, trans, blobs[0].data, blobs[0].length);
+    rc = dbq_add_recno(iq, trans, buf->recno, blobs[0].data, blobs[0].length);
     iq->usedb = olddb;
     if (iq->debug) {
         reqprintf(iq, "dbq_add:%s:rcode %d length %u dat ", qname, rc,
@@ -358,6 +359,9 @@ void toblock_init(void)
     add_blockop(BLOCK2_PRAGMA);
     add_blockop(BLOCK2_SEQV2);
     add_blockop(BLOCK2_UPTBL);
+#ifdef COMDB2_TEST
+    add_blockop(BLOCK2_DEBUG);
+#endif
 #undef add_blockop
     /* a runtime assert to make sure we have the right size of blockop count
      * array */
@@ -458,6 +462,10 @@ const char *breq2a(int req)
         return "BLOCK2_SEQV2";
     case BLOCK2_UPTBL:
         return "BLOCK2_UPTBL";
+#ifdef COMDB2_TEST
+    case BLOCK2_DEBUG:
+        return "BLOCK2_DEBUG";
+#endif
     default:
         return "??";
     }
@@ -4413,8 +4421,154 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             break;
         }
 
+#ifdef COMDB2_TEST
+        case BLOCK2_DEBUG: {
+            uint32_t debug_op;
+            if (!(iq->p_buf_in = buf_get(&debug_op, sizeof(debug_op), iq->p_buf_in, p_blkstate->p_buf_next_start))) {
+                if (iq->debug)
+                    reqprintf(iq, "FAILED TO UNPACK DEBUG OP");
+                rc = ERR_BADREQ;
+                GOTOBACKOUT;
+            }
+
+            switch (debug_op) {
+            case DEBUG_QADD_RECNO: {
+                struct packedreq_debug_qadd_recno qadd;
+                ++delayed;
+
+                if (!(iq->p_buf_in =
+                          packedreq_debug_qadd_recno_get(&(qadd), iq->p_buf_in, p_blkstate->p_buf_next_start))) {
+                    if (iq->debug)
+                        reqprintf(iq, "FAILED TO UNPACK");
+                    rc = ERR_BADREQ;
+                    GOTOBACKOUT;
+                }
+
+                have_keyless_requests = 1;
+
+                MIXED_SQL_DYNTAGS(trans, parent_trans);
+
+                rc = block2_qadd(iq, p_blkstate, trans, &qadd, blobs);
+                free_blob_buffers(blobs, MAXBLOBS);
+                if (rc != 0) {
+                    numerrs = 1;
+                    GOTOBACKOUT;
+                }
+                break;
+            }
+            case DEBUG_QCONSUME: {
+                struct packedreq_debug_qconsume qcon;
+                char qname[MAXTABLELEN];
+                ++delayed;
+
+                if (!(iq->p_buf_in =
+                          packedreq_debug_qconsume_get(&(qcon), iq->p_buf_in, p_blkstate->p_buf_next_start))) {
+                    if (iq->debug)
+                        reqprintf(iq, "FAILED TO UNPACK");
+                    rc = ERR_BADREQ;
+                    GOTOBACKOUT;
+                }
+
+                if (qcon.qnamelen > sizeof(qname) - 1) {
+                    if (iq->debug)
+                        reqprintf(iq, "NAME TOO LONG %u>%zu", qcon.qnamelen, sizeof(qname) - 1);
+                    rc = ERR_BADREQ;
+                    GOTOBACKOUT;
+                }
+
+                iq->p_buf_in = buf_no_net_get(qname, qcon.qnamelen, iq->p_buf_in, p_blkstate->p_buf_next_start);
+                qname[qcon.qnamelen] = '\0';
+
+                struct dbtable *qdb = getqueuebyname(qname);
+                if (!qdb) {
+                    if (iq->debug)
+                        reqprintf(iq, "UNKNOWN QUEUE '%s'", qname);
+                    rc = ERR_BADREQ;
+                    GOTOBACKOUT;
+                }
+
+                struct dbtable *olddb = iq->usedb;
+                iq->usedb = qdb;
+
+                have_keyless_requests = 1;
+                MIXED_SQL_DYNTAGS(trans, parent_trans);
+
+                /* Get the first record (queue head) using the block
+                 * processor's transaction, extract genid and recno,
+                 * then consume it. */
+                bdb_state_type *qbdb = qdb->handle;
+                db_recno_t qrecno = 0;
+                uint8_t hdrbuf[QUEUE_HDR_LEN];
+                DBT qkey = {0}, qdata = {0};
+                qkey.data = &qrecno;
+                qkey.size = sizeof(qrecno);
+                qkey.ulen = sizeof(qrecno);
+                qkey.flags = DB_DBT_USERMEM;
+                qdata.data = hdrbuf;
+                qdata.ulen = QUEUE_HDR_LEN;
+                qdata.doff = 0;
+                qdata.dlen = QUEUE_HDR_LEN;
+                qdata.flags = DB_DBT_USERMEM | DB_DBT_PARTIAL;
+
+                DBC *dbcp = NULL;
+                rc = qbdb->dbp_data[0][0]->cursor(qbdb->dbp_data[0][0], ((tran_type *)trans)->tid, &dbcp, 0);
+                if (rc != 0) {
+                    if (iq->debug)
+                        reqprintf(iq, "dbq_consume:%s:cursor rcode %d", qname, rc);
+                    iq->usedb = olddb;
+                    rc = ERR_BADREQ;
+                    GOTOBACKOUT;
+                }
+                rc = dbcp->c_get(dbcp, &qkey, &qdata, DB_FIRST);
+                dbcp->c_close(dbcp);
+                if (rc != 0) {
+                    if (iq->debug)
+                        reqprintf(iq, "dbq_consume:%s:get first rcode %d", qname, rc);
+                    iq->usedb = olddb;
+                    rc = ERR_BADREQ;
+                    GOTOBACKOUT;
+                }
+
+                /* Extract genid from the on-disk header. */
+                uint32_t g[2];
+                memcpy(&g[0], hdrbuf + 4, 4);
+                memcpy(&g[1], hdrbuf + 8, 4);
+                g[0] = ntohl(g[0]);
+                g[1] = ntohl(g[1]);
+
+                uint8_t fndbuf[sizeof(struct bdb_queue_found) + sizeof(uint32_t)];
+                uint8_t *p = fndbuf;
+                uint8_t *p_end = fndbuf + sizeof(fndbuf);
+                struct bdb_queue_found fnd = {0};
+                memcpy(&fnd.genid, g, sizeof(fnd.genid));
+                fnd.trans.num_fragments = 1;
+                p = queue_found_put(&fnd, p, p_end);
+                p = buf_put(&qrecno, sizeof(qrecno), p, p_end);
+
+                rc = dbq_consume(iq, trans, 0, (const struct bdb_queue_found *)fndbuf);
+                iq->usedb = olddb;
+                if (iq->debug)
+                    reqprintf(iq, "dbq_consume:%s:recno %u:rcode %d", qname, qrecno, rc);
+                if (rc != 0) {
+                    numerrs = 1;
+                    GOTOBACKOUT;
+                }
+                break;
+            }
+            default:
+                if (iq->debug)
+                    reqprintf(iq, "UNKNOWN DEBUG OP %u", debug_op);
+                rc = ERR_BADREQ;
+                GOTOBACKOUT;
+            }
+            break;
+        }
+#endif
+
         case BLOCK2_QADD: {
             struct packedreq_qadd qadd;
+            struct packedreq_debug_qadd_recno qadd_recno;
+            qadd_recno.recno = 0;
             ++delayed;
 
             if (!(iq->p_buf_in = packedreq_qadd_get(
@@ -4424,12 +4578,13 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
                 rc = ERR_BADREQ;
                 GOTOBACKOUT;
             }
+            qadd_recno.qnamelen = qadd.qnamelen;
 
             have_keyless_requests = 1;
 
             MIXED_SQL_DYNTAGS(trans, parent_trans);
 
-            rc = block2_qadd(iq, p_blkstate, trans, &qadd, blobs);
+            rc = block2_qadd(iq, p_blkstate, trans, &qadd_recno, blobs);
             free_blob_buffers(blobs, MAXBLOBS);
             if (rc != 0) {
                 numerrs = 1;

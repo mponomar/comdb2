@@ -916,6 +916,8 @@ int bdb_queue_consumer(bdb_state_type *bdb_state, int consumer, int active,
 /* add an item to the end of the queue. */
 int bdb_queue_add(bdb_state_type *bdb_state, tran_type *tran, const void *dta,
                   size_t dtalen, int *bdberr, unsigned long long *out_genid);
+int bdb_queue_add_recno(bdb_state_type *bdb_state, tran_type *tran, uint32_t recno, const void *dta, size_t dtalen,
+                        int *bdberr, unsigned long long *out_genid);
 
 /* add/consume dummy records to aid extent reclaimation.  winner of the
  * May 2006 "Most Absurd Hack" award. */

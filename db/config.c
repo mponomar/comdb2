@@ -1077,7 +1077,37 @@ static int read_lrl_option(struct dbenv *dbenv, char *line,
         parse_lua_funcs(s);
     } else if (tokcmp(tok, ltok, "afuncs") == 0) {
         parse_lua_funcs(a);
-    } else if (tokcmp(tok, ltok, "queuedb") == 0) {
+    }
+#ifdef COMDB2_TEST
+    else if (tokcmp(tok, ltok, "debugqueue") == 0) {
+        int nqdbs = thedb->num_qdbs;
+        thedb->qdbs = realloc(thedb->qdbs, (nqdbs + 1) * sizeof(dbtable *));
+        if (thedb->qdbs == NULL) {
+            logmsgperror("realloc");
+            return -1;
+        }
+        tok = segtok(line, len, &st, &ltok);
+        if (ltok == 0) {
+            logmsg(LOGMSG_ERROR, "Malformed \"debugqueue\" directive\n");
+            return -1;
+        }
+        char *name = tokdup(tok, ltok);
+        tok = segtok(line, len, &st, &ltok);
+        int item_size = ltok > 0 ? toknum(tok, ltok) : 1024;
+        dbtable *qdb = newqdb(dbenv, name, item_size, 0, 0);
+        if (qdb == NULL) {
+            logmsg(LOGMSG_ERROR, "newqdb failed for:%s\n", name);
+            free(name);
+            return -1;
+        }
+        free(name);
+        qdb->consumers[0] = (struct consumer *)calloc(1, sizeof(struct consumer_base));
+        thedb->qdbs[nqdbs] = qdb;
+        ++thedb->num_qdbs;
+        hash_add(thedb->qdb_hash, qdb);
+    }
+#endif
+    else if (tokcmp(tok, ltok, "queuedb") == 0) {
         int nqdbs = thedb->num_qdbs;
         thedb->qdbs = realloc(thedb->qdbs, (nqdbs + 1) * sizeof(dbtable *));
         if (thedb->qdbs == NULL) {
@@ -1174,10 +1204,8 @@ static int read_lrl_option(struct dbenv *dbenv, char *line,
             logmsg(LOGMSG_ERROR, "Invalid table option\n");
             return -1;
         }
-    } else if (tokcmp(tok, ltok, "allow") == 0 ||
-               tokcmp(tok, ltok, "disallow") == 0 ||
-               tokcmp(tok, ltok, "clrpol") == 0 ||
-               tokcmp(tok, ltok, "setclass") == 0) {
+    } else if (tokcmp(tok, ltok, "allow") == 0 || tokcmp(tok, ltok, "disallow") == 0 ||
+               tokcmp(tok, ltok, "clrpol") == 0 || tokcmp(tok, ltok, "setclass") == 0) {
         if (dbenv->num_allow_lines >= dbenv->max_allow_lines) {
             dbenv->max_allow_lines += 1;
             dbenv->allow_lines = realloc(

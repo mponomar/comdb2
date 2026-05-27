@@ -1,0 +1,3 @@
+debugqueue testq 1024
+enable_tagged_api
+disable_tagged_api_writes 0
