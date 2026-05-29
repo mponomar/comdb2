@@ -330,9 +330,8 @@ function test_bad_inputs_without_werror() {
 		err=$(query_dst_db "replace table $dst_tbl with LOCAL_$SRC_DBNAME.'"$src_tbl"'" 2>&1)
 
 		# Then
-			# Import will be attempted but fail because the source table doesn't exist
 		(( $? != 0 ))
-		echo $err | grep "Source table does not exist"
+		echo $err | grep "bulk import inputs have invalid characters"
 	)
 }
 
