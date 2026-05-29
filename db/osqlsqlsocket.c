@@ -305,6 +305,12 @@ int osqlcomm_req_socket(COMDB2BUF *sb, char **sql, char tzname[DB_MAX_TZNAMEDB],
         goto done;
     }
 
+    if (sqlqlen < 0 || sqlqlen > MAXQUERYLEN) {
+        logmsg(LOGMSG_ERROR, "%s: sqlqlen %d exceeds maximum %d\n", __func__, sqlqlen, MAXQUERYLEN);
+        rc = -1;
+        goto done;
+    }
+
     *sql = malloc(sqlqlen + 1);
     if (!*sql) {
         rc = ENOMEM;
@@ -340,6 +346,12 @@ int osqlcomm_bplog_socket(COMDB2BUF *sb, osql_sess_t *sess)
         GDATA(buflen);
         buflen = htonl(buflen);
         if (buflen <= 0) {
+            rc = -1;
+            goto done;
+        }
+
+        if (buflen < 0 || buflen > MAXQUERYLEN) {
+            logmsg(LOGMSG_ERROR, "%s: buflen %d exceeds maximum %d\n", __func__, buflen, MAXQUERYLEN);
             rc = -1;
             goto done;
         }
