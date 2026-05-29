@@ -1881,7 +1881,6 @@ int do_import(struct ireq *iq, struct schema_change_type *sc, tran_type *tran)
     }
 
     char *tmp_db_dir = NULL;
-    char *command = NULL;
     char *exe = NULL;
 
     pthread_mutex_lock(&import_id_mutex);
@@ -1909,30 +1908,42 @@ int do_import(struct ireq *iq, struct schema_change_type *sc, tran_type *tran)
     }
 
     const char *my_tier = get_my_mach_class_str();
-    const int cmd_size = snprintf(NULL, 0,
-        "%s --import --lrl %s/import.lrl --dir %s --tables '%s' --src %s --my-tier %s",
-        exe, tmp_db_dir, tmp_db_dir, src_tablename, srcdb, my_tier)
-        + 1;
-    command = malloc(cmd_size);
-    if (command == NULL) {
+
+    const int lrl_size = snprintf(NULL, 0, "%s/import.lrl", tmp_db_dir) + 1;
+    char *lrl_arg = malloc(lrl_size);
+    if (lrl_arg == NULL) {
         rc = COMDB2_IMPORT_RC_INTERNAL;
         __import_logmsg(LOGMSG_ERROR, "Could not allocate memory\n");
         goto err;
     }
+    sprintf(lrl_arg, "%s/import.lrl", tmp_db_dir);
 
-    sprintf(command,
-        "%s --import --lrl %s/import.lrl --dir %s --tables '%s' --src %s --my-tier %s",
-         exe, tmp_db_dir, tmp_db_dir, src_tablename, srcdb, my_tier);
+    char *argv[] = {
+        exe,     "--import",    "--lrl",     lrl_arg,         "--dir", tmp_db_dir, "--tables", (char *)src_tablename,
+        "--src", (char *)srcdb, "--my-tier", (char *)my_tier, NULL};
 
-    rc = system(command);
-    if (rc != 0) {
-        rc = WIFEXITED(rc)
-            ? get_import_rcode_from_tmpdb_rcode(WEXITSTATUS(rc))
-            : COMDB2_IMPORT_RC_INTERNAL; 
+    pid_t pid = fork();
+    if (pid < 0) {
+        rc = COMDB2_IMPORT_RC_INTERNAL;
+        __import_logmsg(LOGMSG_ERROR, "fork() failed\n");
+        free(lrl_arg);
+        goto err;
+    } else if (pid == 0) {
+        execv(exe, argv);
+        _exit(127);
+    }
+
+    int status = 0;
+    waitpid(pid, &status, 0);
+    free(lrl_arg);
+
+    rc = 0;
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        rc = WIFEXITED(status) ? get_import_rcode_from_tmpdb_rcode(WEXITSTATUS(status)) : COMDB2_IMPORT_RC_INTERNAL;
         __import_logmsg(LOGMSG_ERROR, "Import process failed.\n");
         goto err;
     }
-    
+
     rc = bulk_import_data_unpack_from_file(&sc->import_src_table_data, import_id);
     if (rc != 0) {
         assert(rc == COMDB2_IMPORT_RC_INTERNAL);
@@ -1946,10 +1957,6 @@ int do_import(struct ireq *iq, struct schema_change_type *sc, tran_type *tran)
     }
 
 err:
-    if (command) {
-        free(command);
-    }
-
     if (exe) {
         free(exe);
     }

@@ -11,9 +11,9 @@ enum bulk_import_validation_rc validate_bulk_import_inputs(const char * const de
     enum bulk_import_validation_rc rc = BULK_IMPORT_VALIDATION_OK;
 
     if (!str_is_alphanumeric(dest_tablename, NON_ALPHANUM_CHARS_ALLOWED_IN_TABLENAME)) {
-        logmsg(LOGMSG_WARN, "%s: Bulk import destination table name '%s' has illegal characters\n",
-                __func__, dest_tablename);
-        rc = BULK_IMPORT_VALIDATION_WARN;
+        logmsg(LOGMSG_ERROR, "%s: Bulk import destination table name '%s' has illegal characters\n", __func__,
+               dest_tablename);
+        rc = BULK_IMPORT_VALIDATION_FATAL;
     }
     if (!str_is_alphanumeric(bulk_import_src_dbname, NON_ALPHANUM_CHARS_ALLOWED_IN_DBNAME)) {
         logmsg(LOGMSG_WARN, "%s: Bulk import source db name '%s' has illegal characters\n",
@@ -21,9 +21,9 @@ enum bulk_import_validation_rc validate_bulk_import_inputs(const char * const de
         rc = BULK_IMPORT_VALIDATION_FATAL;
     }
     if (bulk_import_src_tablename && !str_is_alphanumeric(bulk_import_src_tablename, NON_ALPHANUM_CHARS_ALLOWED_IN_TABLENAME)) {
-        logmsg(LOGMSG_WARN, "%s: Bulk import source table name '%s' has illegal characters\n",
-               __func__, bulk_import_src_tablename);
-        rc = BULK_IMPORT_VALIDATION_WARN;
+        logmsg(LOGMSG_ERROR, "%s: Bulk import source table name '%s' has illegal characters\n", __func__,
+               bulk_import_src_tablename);
+        rc = BULK_IMPORT_VALIDATION_FATAL;
     }
     if (bulk_import_src_mach && !str_is_alphanumeric(bulk_import_src_mach, NON_ALPHANUM_CHARS_ALLOWED_IN_MACHINENAME)) {
         logmsg(LOGMSG_WARN, "%s: Bulk import source machine '%s' has illegal characters\n",
