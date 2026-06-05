@@ -1209,6 +1209,8 @@ REGISTER_TUNABLE("test_tunable_int64_signed_limit", NULL, TUNABLE_INT64, &gbl_te
                  SIGNED, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("test_blob_race", NULL, TUNABLE_INTEGER, &gbl_test_blob_race,
                  READONLY, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("test_trigger_deadlock", "Simulate deadlock in save_old_blobs for trigger testing", TUNABLE_INTEGER,
+                 &gbl_test_trigger_deadlock, INTERNAL | EXPERIMENTAL, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("test_scindex_deadlock",
                  "Test index on expressions schema change deadlock",
                  TUNABLE_BOOLEAN, &gbl_test_scindex_deadlock, READONLY, NULL,

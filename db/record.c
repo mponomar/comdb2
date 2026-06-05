@@ -58,6 +58,7 @@
 
 extern int gbl_partial_indexes;
 extern int gbl_expressions_indexes;
+extern int gbl_test_trigger_deadlock;
 
 static int check_blob_buffers(struct ireq *iq, blob_buffer_t *blobs, size_t maxblobs, struct schema *sc, void *record,
                               const void *nulls);
@@ -1631,8 +1632,20 @@ int upd_record(struct ireq *iq, void *trans, void *primkey, int rrn,
         /* we also need to pass down blobs.  not all of them are necessarily
            specified in the 'blobs' variable (eg: static tag that omits a blob)
            */
-        save_old_blobs(iq, trans, ".ONDISK", od_dta, rrn, *genid,
-                       &new_rec_blobs);
+        if (gbl_test_trigger_deadlock && ATOMIC_ADD32(gbl_test_trigger_deadlock, -1) >= 0)
+            rc = RC_INTERNAL_RETRY;
+        else
+            rc = save_old_blobs(iq, trans, ".ONDISK", od_dta, rrn, *genid, &new_rec_blobs);
+        if (rc != 0) {
+            javasp_dealloc_rec(joldrec);
+            javasp_dealloc_rec(jnewrec);
+            *opfailcode = OP_FAILED_INTERNAL + ERR_SAVE_BLOBS;
+            if (rc == RC_INTERNAL_RETRY)
+                retrc = rc;
+            else
+                retrc = ERR_INTERNAL;
+            ERR("save_old_blobs (new rec for trigger) rc %d", rc);
+        }
         javasp_rec_set_blobs(jnewrec, &new_rec_blobs);
         javasp_rec_set_trans(jnewrec, iq->jsph, rrn, vgenid);
         rc =
