@@ -2039,7 +2039,7 @@ static void lua_end_step(struct sqlclntstate *clnt, SP sp,
             put_ref(&sql_ref);
             if (clnt->rawnodestats) {
                 add_fingerprint_to_rawstats(clnt->rawnodestats, fingerprint, cost, pVdbe->luaRows, timeMs);
-                update_api_history(clnt);
+                update_api_history(clnt->rawnodestats, clnt->api_driver_name, clnt->api_driver_version);
             }
 
             clnt->spcost.cost += cost;

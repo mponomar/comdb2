@@ -1509,6 +1509,8 @@ struct ireq {
     int has_ssl;
     void *setup_data;
     char *identity;
+    char *api_driver_name;
+    char *api_driver_version;
     /* REVIEW COMMENTS AT BEGINING OF STRUCT BEFORE ADDING NEW VARIABLES */
 };
 

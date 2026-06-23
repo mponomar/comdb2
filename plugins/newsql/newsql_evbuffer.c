@@ -467,6 +467,8 @@ static void legacy_iq_setup(struct ireq *iq, void *setup_data)
     iq->has_ssl = clnt->plugin.has_ssl(clnt);
     iq->identity = clnt->plugin.get_identity(clnt);
     iq->origin_argv0 = clnt->origin_argv0;
+    iq->api_driver_name = clnt->api_driver_name;
+    iq->api_driver_version = clnt->api_driver_version;
     get_client_origin(iq->corigin, sizeof(iq->corigin), clnt);
 }
 

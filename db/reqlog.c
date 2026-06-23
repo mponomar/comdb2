@@ -2381,6 +2381,10 @@ void reqlog_end_request(struct reqlogger *logger, int rc, const char *callfunc,
         norm_reqs++;
     }
 
+    if (logger->iq && !logger->clnt) {
+        update_api_history(logger->iq->rawnodestats, logger->iq->api_driver_name, logger->iq->api_driver_version);
+    }
+
     if (logger->iq && logger->iq->sorese) {
         if (gbl_time_osql)
             osql_bplog_time_done(&logger->iq->timings);

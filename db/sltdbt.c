@@ -595,7 +595,7 @@ int handle_ireq(struct ireq *iq)
         /* Free the sorese transaction buffer */
         free(iq->p_buf_out_start);
     } else {
-        release_node_stats(NULL, NULL, iq->frommach);
+        release_node_stats(iq->origin_argv0 ? iq->origin_argv0 : NULL, NULL, iq->frommach);
     }
     reqlog_end_request(iq->reqlogger, rc, __func__, __LINE__);
     if (gbl_print_deadlock_cycles)
