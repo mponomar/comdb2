@@ -34,6 +34,6 @@ struct rawnodestats;
 api_history_t *init_api_history();
 void free_api_history(api_history_t *);
 int get_num_api_history_entries(struct rawnodestats *);
-int update_api_history(struct sqlclntstate *);
+int update_api_history(struct rawnodestats *stats, const char *api_driver_name, const char *api_driver_version);
 
 #endif

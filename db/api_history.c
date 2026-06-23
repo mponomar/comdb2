@@ -51,7 +51,7 @@ static char *toLower(char *str)
     return str;
 }
 
-static api_driver_t *create_entry(char *api_driver_name, char *api_driver_version)
+static api_driver_t *create_entry(const char *api_driver_name, const char *api_driver_version)
 {
     const char default_value[] = "unknown";
     api_driver_t *entry = malloc(sizeof(api_driver_t));
@@ -97,13 +97,12 @@ int get_num_api_history_entries(struct rawnodestats *stats)
     return num;
 }
 
-int update_api_history(struct sqlclntstate *clnt)
+int update_api_history(struct rawnodestats *stats, const char *api_driver_name, const char *api_driver_version)
 {
-    assert(clnt && clnt->rawnodestats);
-    struct rawnodestats *stats = clnt->rawnodestats;
+    assert(stats);
 
     Pthread_mutex_lock(&stats->lk);
-    api_driver_t *search_entry = create_entry(clnt->api_driver_name, clnt->api_driver_version);
+    api_driver_t *search_entry = create_entry(api_driver_name, api_driver_version);
     api_driver_t *found_entry = hash_find(stats->api_history, search_entry);
 
     if (found_entry) {
