@@ -1363,7 +1363,7 @@ elect_again:
                         (!done) ? " (nop)" : "");
                 if (rc != 0) {
                     logmsg(LOGMSG_FATAL, "bdb_upgrade returned bad rcode %d\n", rc);
-                    exit(1);
+                    _exit(1);
                 }
                 Pthread_mutex_lock(&(bdb_state->repinfo->elect_mutex));
                 bdb_state->repinfo->in_election = 0;
