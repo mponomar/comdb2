@@ -3248,6 +3248,11 @@ static inline int sqlite3VdbeCompareRecordPacked(KeyInfo *pKeyInfo, int k1len,
 }
 
 unsigned long long release_locks_on_si_lockwait_cnt = 0;
+
+int gbl_check_waiters_on_move = 1;
+int gbl_curtran_waiters = 0;
+int gbl_check_waiters_calls = 0;
+
 /* Release pagelocks if the replicant is waiting on this sql thread */
 static int cursor_move_postop(BtCursor *pCur)
 {
@@ -3256,6 +3261,16 @@ static int cursor_move_postop(BtCursor *pCur)
     extern int gbl_sql_release_locks_on_si_lockwait;
     extern int gbl_locks_check_waiters;
     int rc = 0;
+
+    if (gbl_check_waiters_on_move) {
+        gbl_check_waiters_calls++;
+        if (!clnt->dbtran.cursor_tran) {
+            fprintf(stderr, "no curtran? how possible?\n");
+        }
+        if (bdb_curtran_has_waiters(thedb->bdb_env, clnt->dbtran.cursor_tran)) {
+            gbl_curtran_waiters++;
+        }
+    }
 
     /* FIXME modsnap does not handle repositioning correctly? */
     if (gbl_locks_check_waiters && gbl_sql_release_locks_on_si_lockwait && clnt->dbtran.mode == TRANLEVEL_SERIAL) {

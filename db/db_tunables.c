@@ -665,6 +665,11 @@ extern int gbl_clear_ufid_on_db_close;
 extern int gbl_get_peer_fqdn;
 extern int gbl_rep_verify_peer_hostname;
 
+extern int gbl_check_waiters_on_move;
+extern int gbl_curtran_waiters;
+extern int gbl_check_waiters_calls;
+
+
 int parse_int64(const char *value, int64_t *num);
 
 /*

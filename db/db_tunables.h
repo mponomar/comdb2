@@ -17,6 +17,7 @@
 #ifndef _DB_TUNABLES_H
 #define _DB_TUNABLES_H
 
+#include "tunables.h"
 #include <sc_version.h>
 #define STR(x) #x
 /*
@@ -2772,4 +2773,9 @@ REGISTER_TUNABLE("rep_verify_peer_hostname",
                  "only in environments without reliable reverse DNS. "
                  "(Default: off)",
                  TUNABLE_BOOLEAN, &gbl_rep_verify_peer_hostname, 0, NULL, NULL, NULL, NULL);
+
+REGISTER_TUNABLE("check_waiters_on_move", "Call bdb_curtran_has_waiters on every cursor move", TUNABLE_BOOLEAN, &gbl_check_waiters_on_move, 0, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("check_curtran_waiters", "Total count of waits", TUNABLE_INTEGER, &gbl_check_waiters_on_move, READONLY, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("check_waiters_calls", "Total count of waiter calls", TUNABLE_INTEGER, &gbl_check_waiters_calls, READONLY, NULL, NULL, NULL, NULL);
+
 #endif /* _DB_TUNABLES_H */
