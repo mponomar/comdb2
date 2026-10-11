@@ -172,6 +172,7 @@ static int bdb_watchdog_test_io_dir(bdb_state_type *bdb_state, char *dir);
 
 int __txn_commit_map_delete_logfile_txns(DB_ENV *, int);
 int __txn_commit_map_enabled(void);
+void __txn_commit_map_maintain(DB_ENV *);
 
 void berkdb_set_recovery(DB_ENV *dbenv);
 void watchdog_set_alarm(int seconds);
@@ -4092,6 +4093,8 @@ void delete_log_files(bdb_state_type *bdb_state)
     logdelete_lock(__func__, __LINE__);
     if (!gbl_truncating_log) {
         delete_log_files_int(bdb_state);
+        if (__txn_commit_map_enabled())
+            __txn_commit_map_maintain(bdb_state->dbenv);
         bdb_calc_min_truncate(bdb_state);
     }
     logdelete_unlock(__func__, __LINE__);

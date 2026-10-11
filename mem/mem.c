@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/mman.h>
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -1104,6 +1105,56 @@ int comdb2_malloc_stats(comdb2ma cm, int verbose, int hr, int toctrc)
         rc = COMDB2MA_UNLOCK(cm);
     }
     return rc;
+}
+
+/*
+** dlmalloc is built without mmap, so an allocator gets its segments from
+** morecore functions.  These map them directly.  dlmalloc releases a segment
+** by its address alone, so the length of each mapping is kept in the page in
+** front of the memory handed out.
+*/
+#define MA_MMAP_HDR 4096
+
+static void *ma_mmap(size_t size)
+{
+    size_t len = size + MA_MMAP_HDR;
+    char *p;
+    if (len < size)
+        return NULL;
+    p = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (p == MAP_FAILED)
+        return NULL;
+    *(size_t *)p = len;
+    return p + MA_MMAP_HDR;
+}
+
+static void *ma_mmap0(size_t n, size_t size)
+{
+    if (size != 0 && n > SIZE_MAX / size)
+        return NULL;
+    return ma_mmap(n * size); /* fresh mappings are zeroed */
+}
+
+static void ma_munmap(void *ptr)
+{
+    char *p = (char *)ptr - MA_MMAP_HDR;
+    munmap(p, *(size_t *)p);
+}
+
+comdb2ma comdb2ma_create_mmapped(const char *name, int lock)
+{
+    comdb2ma cm = comdb2ma_create_with_callback(NULL, 0, COMDB2MA_UNLIMITED, name, NULL, lock, NULL, NULL,
+                                                __FILE__, __func__, __LINE__);
+    if (cm != NULL) {
+        /* Switch before anything is allocated from it, so that every segment
+           it ever releases came from ma_mmap: the hooks are not per segment */
+        mspace_setmorecore(cm->m, ma_mmap);
+        mspace_setmorecore0(cm->m, ma_mmap0);
+        mspace_setdestcore(cm->m, ma_munmap);
+        /* no in-place resizing of a mapping */
+        mspace_setrecore(cm->m, NULL);
+    }
+    return cm;
 }
 
 int comdb2_malloc_trim(comdb2ma cm, size_t pad)

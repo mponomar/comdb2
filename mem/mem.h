@@ -478,6 +478,19 @@ int comdb2_malloc_stats(comdb2ma ma, int verbose, int human_readable,
 */
 int comdb2_malloc_trim(comdb2ma ma, size_t pad);
 
+/*
+** Create an unlimited allocator that maps its memory itself rather than take
+** it from the system malloc, so that what it releases goes back to the system.
+**
+** PARAMETERS
+** name - name of the allocator
+** lock - COMDB2MA_MT_SAFE or COMDB2MA_MT_UNSAFE
+**
+** RETURN VALUE
+** the allocator, or NULL (errno set)
+*/
+comdb2ma comdb2ma_create_mmapped(const char *name, int lock);
+
 #endif /* COMDB2MA_OMIT_DYNAMIC */
 
 #ifndef COMDB2MA_OMIT_STATIC

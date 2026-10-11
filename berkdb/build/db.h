@@ -2980,21 +2980,36 @@ struct __utxnid {
 	LINKC_T(struct __utxnid) lnk;
 };
 
+struct __utxnid_slab;
+
 struct __logfile_txn_list {
 	u_int32_t file_num;
-	hash_t *commit_utxnids;
+	u_int32_t nlive;			/* its transactions still in the map */
+	struct __utxnid_slab *slabs;	/* where they are kept, newest first */
+	UTXNID_TRACK *free_slots;	/* removed slots, chained through next */
 };
 
 struct __utxnid_track {
-	u_int64_t utxnid;
+	u_int64_t utxnid;		/* 0 once removed */
 	DB_LSN commit_lsn;
+	struct __utxnid_track *next;	/* next in its hash bucket */
 };
 
 struct __txn_commit_map {
 	pthread_mutex_t txmap_mutexp;
 	int64_t highest_logfile;
 	int64_t smallest_logfile;
-	hash_t *transactions;
+	int64_t nentries;
+	int64_t peak_entries;
+	int64_t nresizes;
+	int64_t nslabs;
+	int64_t nslots;			/* slots in all slabs, used or not */
+	/* utxnid hash; while it is being resized, from buckets[0] to buckets[1] */
+	UTXNID_TRACK **buckets[2];
+	u_int32_t bits[2];
+	u_int64_t rehash_pos;		/* next bucket of buckets[0] to move */
+	u_int64_t purge_step;		/* buckets a purge moves while resizing */
+	int64_t rebuild_max;		/* shrink at once, from the slabs, below this */
 	hash_t *logfile_lists;
 };
 
