@@ -903,6 +903,7 @@ void __txn_commit_map_print_info(DB_ENV *dbenv, loglvl lvl, int should_lock) {
 					"Entries: %"PRId64"; "
 					"Peak entries: %"PRId64"; "
 					"Buckets: %"PRIu64"; "
+					"Resizing to buckets: %"PRIu64"; "
 					"Resizes: %"PRId64"; "
 					"Bucket bytes: %"PRIu64"; "
 					"Slabs: %"PRId64"; "
@@ -913,6 +914,7 @@ void __txn_commit_map_print_info(DB_ENV *dbenv, loglvl lvl, int should_lock) {
 					txmap->nentries,
 					txmap->peak_entries,
 					(u_int64_t) 1 << txmap->bits[0],
+					txmap->buckets[1] ? (u_int64_t) 1 << txmap->bits[1] : 0,
 					txmap->nresizes,
 					(((u_int64_t) 1 << txmap->bits[0]) + (txmap->buckets[1] ? (u_int64_t) 1 << txmap->bits[1] : 0)) * sizeof(UTXNID_TRACK *),
 					txmap->nslabs,
@@ -1185,6 +1187,7 @@ int64_t __txn_commit_map_nentries_nolock(DB_ENV *dbenv)
 	return dbenv->txmap->nentries;
 }
 
+#ifdef COMDB2_TEST
 struct __txn_commit_map_check {
 	DB_TXN_COMMIT_MAP *txmap;
 	int64_t ntxns;
@@ -1734,6 +1737,7 @@ done:
 	free(dbenv);
 	return ret;
 }
+#endif /* COMDB2_TEST */
 
 static inline void __free_prepared_children(DB_ENV *dbenv, DB_TXN_PREPARED *p)
 {

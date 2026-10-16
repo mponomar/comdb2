@@ -208,6 +208,11 @@ function test_selftest
 	# logfiles, and removing the head, middle, tail and only transaction of one
 	local out
 	out=$(cdb2sql ${CDB2_OPTIONS} --host $master $dbnm "exec procedure sys.cmd.send('clm_selftest')")
+	if [[ "$out" != *"Commit LSN map selftest"* ]]; then
+		# clm_selftest is compiled in only under COMDB2_TEST
+		echo "Skipping commit LSN map selftest: server was not built with COMDB2_TEST"
+		return
+	fi
 	if [[ "$out" != *"selftest passed"* ]]; then
 		echo "FAIL: commit LSN map selftest: $out"
 		exit 1
