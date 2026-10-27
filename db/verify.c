@@ -630,7 +630,10 @@ int verify_table_opts(const char *table, const verify_opts_t *opts, verify_peer_
             logmsg(LOGMSG_WARN, "%s: client connection closed, stopped verify\n", __func__);
             par.client_dropped_connection = 1;
         }
-        sleep(1);
+        struct timespec sleepamt;
+        sleepamt.tv_sec = 0;
+        sleepamt.tv_nsec = 10000000;  /* 10 ms */
+        nanosleep(&sleepamt, NULL);
     }
     if (par.target_ix == VERIFY_ALL_IXNUM &&
         (mode == VERIFY_SERIAL || mode == VERIFY_PARALLEL || mode == VERIFY_DATA)) {
