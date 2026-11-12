@@ -1,0 +1,12 @@
+mono K=1   M=1    txns=2000   secs=   4.58 txn/s=      437 rows/s=      437 ms/txn=  2.29 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=16.4 master=node3 cpu(cores) master=0.52 replicants=0.87,0.47
+     master-events n=2000 avg-ms total=1.0 queue=0.0 processing=0.9 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+mono K=8   M=1    txns=16000  secs=   5.89 txn/s=     2714 rows/s=     2714 ms/txn=  2.95 | commits=16000 deadlocks=46 retries=46 lockwaits=3686 lockwait_ms=182 lockreq/row=18.0 master=node3 cpu(cores) master=3.84 replicants=3.03,4.40
+     master-events n=16000 avg-ms total=1.6 queue=0.1 processing=1.5 lockwait=0.0 | avg-concurrent queued=0.3 processing=4.2 lockwaiting=0.03
+mono K=32  M=1    txns=64000  secs=  13.96 txn/s=     4585 rows/s=     4585 ms/txn=  6.98 | commits=64000 deadlocks=111 retries=111 lockwaits=13724 lockwait_ms=1587 lockreq/row=23.6 master=node3 cpu(cores) master=10.86 replicants=5.56,6.12
+     master-events n=64000 avg-ms total=5.2 queue=0.2 processing=5.0 lockwait=0.0 | avg-concurrent queued=0.9 processing=22.8 lockwaiting=0.11
+mono K=1   M=100  txns=60     secs=   2.10 txn/s=       29 rows/s=     2858 ms/txn= 34.99 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=21.4 master=node3 cpu(cores) master=0.63 replicants=1.02,0.90
+     master-events n=60 avg-ms total=29.1 queue=0.0 processing=29.0 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.8 lockwaiting=0.00
+mono K=8   M=100  txns=480    secs=   5.95 txn/s=       81 rows/s=     8069 ms/txn= 99.14 | commits=480 deadlocks=8 retries=8 lockwaits=4072 lockwait_ms=159 lockreq/row=23.5 master=node3 cpu(cores) master=3.22 replicants=2.31,2.85
+     master-events n=480 avg-ms total=86.7 queue=9.6 processing=77.1 lockwait=0.3 | avg-concurrent queued=0.8 processing=6.2 lockwaiting=0.03
+mono K=32  M=100  txns=1920   secs=  24.42 txn/s=       79 rows/s=     7862 ms/txn=407.05 | commits=1920 deadlocks=143 retries=142 lockwaits=28646 lockwait_ms=1659 lockreq/row=24.3 master=node3 cpu(cores) master=4.74 replicants=2.92,3.45
+     master-events n=1920 avg-ms total=278.4 queue=40.0 processing=238.4 lockwait=0.9 | avg-concurrent queued=3.1 processing=18.7 lockwaiting=0.07

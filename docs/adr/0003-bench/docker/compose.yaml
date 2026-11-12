@@ -1,0 +1,67 @@
+# Isolated copy of contrib/docker/compose.yaml for the rowlock benchmark (project name: rlbench).
+x-comdb2: &comdb2
+  image: rlbench-comdb2:latest
+  build:
+    context: /tmp/rlbench/src
+    dockerfile: contrib/docker/Dockerfile.prof
+  cap_add:
+    - ALL
+
+x-node-healthcheck: &node-healthcheck
+  test: ["CMD", "cdb2sql", "testdb", "local", "select 1"]
+  interval: 1s
+  timeout: 1s
+  retries: 30
+
+services:
+  init:
+    <<: *comdb2
+    entrypoint: ["/bin/bash", "/cluster-init.sh"]
+    environment:
+      EXTRA_LRL: "${EXTRA_LRL:-}"
+      EXTRA_RUN_LRL: "${EXTRA_RUN_LRL:-}"
+    volumes:
+      - ./cluster-init.sh:/cluster-init.sh:ro
+      - /tmp/rlbench/vol/node1:/nodes/node1
+      - /tmp/rlbench/vol/node2:/nodes/node2
+      - /tmp/rlbench/vol/node3:/nodes/node3
+
+  node1: &node
+    <<: *comdb2
+    entrypoint: ["/bin/bash", "/cluster-entrypoint.sh"]
+    volumes:
+      - ./cluster-entrypoint.sh:/cluster-entrypoint.sh:ro
+      - /tmp/rlbench/vol/node1:/db
+    expose: [5105]
+    healthcheck: *node-healthcheck
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+  node2:
+    <<: *node
+    volumes:
+      - ./cluster-entrypoint.sh:/cluster-entrypoint.sh:ro
+      - /tmp/rlbench/vol/node2:/db
+
+  node3:
+    <<: *node
+    volumes:
+      - ./cluster-entrypoint.sh:/cluster-entrypoint.sh:ro
+      - /tmp/rlbench/vol/node3:/db
+
+  dev:
+    <<: *comdb2
+    entrypoint: ["/bin/bash", "/client-entrypoint.sh"]
+    volumes:
+      - ./client-entrypoint.sh:/client-entrypoint.sh:ro
+      - ./testdb.cfg:/opt/bb/etc/cdb2/config.d/testdb.cfg:ro
+      - /tmp/rlbench/scripts:/scripts:ro
+    depends_on:
+      node1:
+        condition: service_healthy
+      node2:
+        condition: service_healthy
+      node3:
+        condition: service_healthy
+
