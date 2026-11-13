@@ -323,6 +323,11 @@ struct tran_tag {
      * recorded instead of done.  Set on the transaction the operations run
      * under; the turn is noted on the top-level transaction. */
     struct bdb_plan *plan;
+    /* A plan left for a commit unit: set on the parent when the child that
+     * recorded it commits, and applied by bdb_tran_plan_unit_commit().
+     * unit_lsn is then the commit LSN of the unit it went into. */
+    struct bdb_plan *unit_plan;
+    DB_LSN unit_lsn;
     int plan_turn_held;
     DB_LOCK plan_turn_lock;
     uint64_t plan_turn_start_us;

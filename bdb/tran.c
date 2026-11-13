@@ -1526,7 +1526,7 @@ int bdb_tran_commit_with_seqnum_int(bdb_state_type *bdb_state, tran_type *tran,
     uint32_t generation = 0;
     uint32_t commit_gen = 0;
     tran_type *physical_tran = NULL;
-    DB_LSN lsn;
+    DB_LSN lsn = {0};
     DB_LSN old_lsn;
     int logical_commit = 0;
     int repo_locked = 0;
@@ -1683,6 +1683,11 @@ int bdb_tran_commit_with_seqnum_int(bdb_state_type *bdb_state, tran_type *tran,
             outrc = -1;
             goto cleanup;
         } else {
+            /* Ordered apply: this transaction's writes were committed in a
+             * unit, by another transaction.  Its commit is that one's. */
+            if (tran->unit_lsn.file != 0 && log_compare(&tran->unit_lsn, &lsn) > 0)
+                lsn = tran->unit_lsn;
+
             /* successful physical commit, lets increment our seqnum */
             struct hostinfo *h = retrieve_hostinfo(bdb_state->repinfo->myhost_interned);
             Pthread_mutex_lock(&(bdb_state->seqnum_info->lock));
@@ -2696,7 +2701,7 @@ int bdb_add_rep_blob(bdb_state_type *bdb_state, tran_type *tran, int session,
                      int seqno, void *blob, int sz, int *bdberr)
 {
     int rc;
-    DB_LSN lsn;
+    DB_LSN lsn = {0};
     DB_ENV *dbenv;
     dbenv = (DB_ENV *)bdb_state->dbenv;
     DBT dbt = {0};

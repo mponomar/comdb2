@@ -2258,6 +2258,8 @@ int trans_commit_logical(struct ireq *iq, void *trans, char *source_host,
                          void *blkkey, int blkkeylen);
 int trans_abort(struct ireq *iq, void *trans);
 int trans_plan_apply(struct ireq *iq, void *trans);
+int trans_plan_unit_commit(struct ireq *iq, void *trans, void *bskey, int bskeylen, void *bsdata, int bsdatalen,
+                           void **replay_data, int *replay_len);
 extern int gbl_ordered_apply;
 int trans_abort_priority(struct ireq *iq, void *trans, int *priority);
 int trans_abort_logical(struct ireq *iq, void *trans, void *blkseq, int blklen,

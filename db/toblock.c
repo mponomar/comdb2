@@ -5930,6 +5930,13 @@ add_blkseq:
         if (!rowlocks) {
             // if VERIFY-ERROR && replicant_is_able_to_retry don't add to blkseq
             if ((outrc == ERR_NOTSERIAL || (outrc == ERR_BLOCK_FAILED && err.errcode == ERR_VERIFY)) && can_retry) {
+            } else if (bdb_tran_plan_pending(parent_trans)) {
+                /* Ordered apply: the plan and this blkseq record go into a
+                 * commit unit together.  Nothing is written under
+                 * parent_trans, whose commit below takes the unit's LSN. */
+                thrman_wheref(thr_self, "%s [commit unit]", req2a(iq->opcode));
+                rc = trans_plan_unit_commit(iq, parent_trans, bskey, bskeylen, buf_fstblk,
+                                            p_buf_fstblk - buf_fstblk + sizeof(int), &replay_data, &replay_len);
             } else {
                 rc = bdb_blkseq_insert(thedb->bdb_env, parent_trans, bskey, bskeylen, buf_fstblk,
                                        p_buf_fstblk - buf_fstblk + sizeof(int), &replay_data, &replay_len, 0);

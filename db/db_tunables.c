@@ -546,6 +546,8 @@ extern int gbl_async_dist_commit_max_outstanding_trans;
 extern int gbl_ordered_apply;
 extern int gbl_ordered_apply_threads;
 extern int gbl_ordered_apply_turn_detect;
+extern int gbl_ordered_apply_unit;
+extern int gbl_ordered_apply_unit_max_ops;
 extern int gbl_ordered_apply_serial_commit;
 extern int gbl_ordered_apply_parallel_min_ops;
 extern int gbl_debug_systable_locks;

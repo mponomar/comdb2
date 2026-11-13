@@ -4,8 +4,8 @@
 
 Proposed — 2026-11-11
 
-Stage 0 and the first step of stage 1.1 are implemented and measured on the
-`rowlocks-ideas` branch, behind tunables; see
+Stage 0, the first step of stage 1.1 and a first form of commit units are
+implemented and measured on the `rowlocks-ideas` branch, behind tunables; see
 [Implementation status](#implementation-status) for what exists, what it
 measured and where to resume. The measurements under Context describe the
 system before that work, and the numbers under
@@ -541,7 +541,7 @@ These are estimates from the measurements above, not results.
 
 ## Implementation status
 
-As of 2026-11-12. Everything below is on the `rowlocks-ideas` branch. PR 6144
+As of 2026-11-13. Everything below is on the `rowlocks-ideas` branch. PR 6144
 is merged there as a local merge commit, and the ordered-apply work is
 committed on top of it. Nothing has been pushed. Do not push this work to
 public GitHub; pushing to xeon is fine.
@@ -576,8 +576,9 @@ Tunables, all experimental: `ordered_apply` (off by default),
 `ordered_apply_threads` (3), `ordered_apply_parallel_min_ops` (64),
 `ordered_apply_serial_commit` (on), `ordered_apply_turn_detect` (on; off is
 for measurement only, see
-[One node, and what the turn costs](#one-node-and-what-the-turn-costs)). The
-code is `bdb/plan.c`, with hooks in
+[One node, and what the turn costs](#one-node-and-what-the-turn-costs)),
+`ordered_apply_unit` (off) and `ordered_apply_unit_max_ops` (4096), for
+[Commit units](#commit-units). The code is `bdb/plan.c`, with hooks in
 `bdb/ll.c`, `bdb/tran.c`, `db/toblock.c`, `db/sltdbt.c` and `db/record.c`.
 
 What it does:
@@ -734,36 +735,136 @@ measured in large plans that is 70–100 µs for a row with three keys, or
 10,000 to 14,000 single-row transactions per second on one core. A thread
 per file, as the proposal describes, is what would go well past page locks.
 
+### Commit units
+
+`ordered_apply_unit` on. This is the second direction of the earlier resume
+list, taken as far as it goes without ordering commits per page.
+
+What it does:
+
+- **Prepare** is unchanged. At the point where a transaction used to take
+  the turn it does nothing, and its plan moves to its parent transaction
+  when the child commits.
+- **A unit.** Where the block processor would write the request's blkseq
+  record, it hands the plan and the record to one thread and sleeps. That
+  thread takes every plan that is waiting, up to
+  `ordered_apply_unit_max_ops` operations, begins one Berkeley transaction,
+  writes each member's blkseq record and applies each member's plan under
+  it, and commits once. A member whose blkseq key is already there is a
+  replay: none of its plan is applied and it gets the stored reply.
+- **The members' own commits** write nothing. Each takes the unit's commit
+  LSN as its own and waits for acks on it as before (stage 0).
+- **A file per thread.** A unit with `ordered_apply_parallel_min_ops` or more
+  operations is split by btree file and applied as large plans were, under
+  child transactions of the unit.
+- **Deadlocks.** All page locks in a unit belong to one transaction, so its
+  members cannot wait for each other. If the unit is the victim of a
+  deadlock with a transaction outside it, it aborts, which also takes its
+  blkseq records back out, and the same members are applied again.
+
+To the log, to replicants and to recovery a unit is one ordinary transaction,
+so none of the three properties under
+[What page locks are needed for](#what-page-locks-are-needed-for) is in
+question. What is given up is that members share fate: a unit commits or
+aborts as a whole.
+
+What differs from the proposal: there is one queue, not one per file; the
+applier is a dedicated thread; members are joined into one transaction, where
+the proposal has child transactions under one commit record; and page locks
+are held to the unit's commit.
+
+Checked: `tests/ordered_apply.test` has a commit-unit section and passes on a
+single node on macOS; two kill -9 rounds under commit-unit load recovered to
+whole transactions with verify clean; 64 writers into a table with twelve
+indexes and a blob; after each benchmark phase the nodes held identical
+tables and verify succeeded. Not checked: the replay path, which no test
+reaches, and the wider test suite.
+
+A bug found on the way: Berkeley allows a thread ten open transactions, and
+applying a file per thread begins one child for each file. Single-row inserts
+from many clients touch eight data stripes and three indexes, and the master
+aborted. Files are now put in at most seven groups. Plans applied in turn
+had the same exposure for a table with many indexes.
+
+#### Results
+
+`results/stage1-commit-units.results`. "Early" is parallel apply with the
+turn released after apply, the best earlier variant. "Unit" applies a file
+per thread from 64 operations; "one thread" never does.
+
+| One node                         | Page locks   | Early  | Unit   | Unit, one thread |
+|----------------------------------|-------------:|-------:|-------:|-----------------:|
+| Ascending, 1 row, 1 client       | 1,026 txn/s  |    995 |    870 |              904 |
+| Ascending, 1 row, 32 clients     | 8,932 txn/s  |  3,932 | 10,353 |           10,399 |
+| Random, 1 row, 32 clients        | 9,399 txn/s  |  3,966 | 10,415 |           10,840 |
+| Random, 1 row, 64 clients        | 9,449 txn/s  |  3,815 | 10,425 |           10,800 |
+| Ascending, 100 rows, 1 client    | 9,265 rows/s | 13,077 | 11,410 |           10,305 |
+| Ascending, 100 rows, 32 clients  | 7,293 rows/s | 34,742 | 49,059 |           32,734 |
+| Random, 100 rows, 32 clients     | 6,539 rows/s | 33,031 | 35,137 |           24,728 |
+
+| Three nodes                      | Page locks   | Early  | Unit   | Unit, one thread |
+|----------------------------------|-------------:|-------:|-------:|-----------------:|
+| Ascending, 1 row, 1 client       | 563 txn/s    |    479 |    490 |              520 |
+| Ascending, 1 row, 32 clients     | 7,425 txn/s  |  3,416 |  9,101 |            9,487 |
+| Random, 1 row, 32 clients        | 8,707 txn/s  |  3,553 |  8,322 |            8,389 |
+| Random, 1 row, 64 clients        | 9,554 txn/s  |  3,623 |  9,863 |            9,887 |
+| Ascending, 100 rows, 1 client    | 6,280 rows/s |  7,478 |  6,864 |            6,347 |
+| Ascending, 100 rows, 32 clients  | 6,387 rows/s | 27,468 | 25,648 |           18,366 |
+| Random, 100 rows, 32 clients     | 6,328 rows/s | 28,781 | 24,228 |           15,014 |
+
+- **Single-row transactions are back at the page-lock rate or above it.** On
+  one node 10,400 to 10,800 a second against 8,900 to 9,400. On three nodes
+  between 4% below and 28% above, with the master using 5.6 to 6.8 cores
+  where page locks use 7.8 to 10.7. The applier spends 63 to 77 µs on a
+  transaction on one node and 83 to 94 µs on three, against 190 to 240 µs
+  when the turn is handed from thread to thread.
+- **The applier is not saturated.** With 32 clients on one node it is busy
+  73 to 85% of the time and a unit holds 1.6 to 2.4 transactions. On three
+  nodes a unit holds 5 to 15. The single-row rate is now set by what is
+  outside the applier.
+- **A lone client loses 9 to 13% on one node** against early release on
+  ascending keys, for one row or a hundred: it now waits for another thread
+  to be woken and then to wake it. On three nodes there is no clear
+  difference.
+- **Large transactions.** On one node units are ahead of early release, by
+  41% on ascending keys and 6% on random ones. On three nodes they are 7 to
+  16% behind it.
+  Not looked into; master and replicant CPU are both lower in the unit runs.
+- **Applying a file per thread** matters for 100-row transactions and not for
+  single rows, where a unit rarely reaches 64 operations.
+- **Deadlocks and unit retries:** none in any run.
+
 ### Where to resume
 
-1. **Choose between the two directions.** The measurements above bear on the
-   second one.
-   - Names and stamps, which is the rest of stage 1.1: unique keys, updates
-     and deletes in plan mode, with reads laid over the plan and the lossy
-     stamp array. This needs a decision on how writers outside plan mode take
-     part once names exist. The working idea is that such a writer takes the
-     turn for its whole transaction and bumps a generation that makes every
-     prepare in flight run again.
-   - Single-row throughput: threads that keep the turn and apply queued
-     plans for other transactions, one for all files or one per file. The
-     transaction's own thread then waits for its plan to be applied instead
-     of for the turn. Applying on another thread before the owner commits
-     needs commit ordered per page (stage 1.3) or commit units (stage 2);
-     with serial commit the applier would have to wait for each owner's
-     commit, which brings the hand-off back.
-2. **Replace the turn's lock.** Whichever direction comes first, the turn
-   should stop costing a detector run per transaction. Options: keep the
-   lock and have a wait for the turn run the detector only when a transaction
-   outside plan mode holds or waits for a lock; or take the turn out of the
-   lock manager, which per-file queues do anyway, and give the detector the
-   one edge it needs some other way. `ordered_apply_turn_detect` goes away
-   with either.
-3. **Open items in what exists:** no prefetch; parallel apply is off when
-   logical logging (`llog`) or a logical live schema change is on, because
-   those records are chained through the top-level transaction; a request
-   that cannot be planned pays one aborted attempt each time; the default for
-   `ordered_apply_serial_commit` is not settled.
-4. **Not yet run:** the wider test suite with `ordered_apply` on, any test on
+1. **A lone transaction applies its own plan.** When a request reaches the
+   point of handing its plan over and finds nothing queued and the applier
+   idle, it applies the plan on its own thread, as a unit of one, and others
+   queue behind it. This is the proposal's rule that whichever thread finds
+   the queue unattended drains it, and it should give back the single-client
+   loss. Running such a request under page locks from its first write, with
+   no plan at all, is the further step if a gap remains.
+2. **Names and stamps**, the rest of stage 1.1: unique keys, updates and
+   deletes in plan mode, with reads laid over the plan and the lossy stamp
+   array. This needs a decision on how writers outside plan mode take part
+   once names exist. The working idea is that such a writer bumps a
+   generation that makes every prepare in flight run again.
+3. **A wait the deadlock detector cannot see.** A member keeps its table
+   locks while it sleeps on a condition variable waiting for its unit. A
+   transaction that held a page the unit wants while waiting for one of those
+   table locks in write mode would hang with it. Nothing in the tests or
+   benchmarks does this. The member's wait needs to be a lock the detector
+   knows, or the unit needs the table locks and the members none.
+4. **Retire the turn.** With units on, the turn is used only by plans that
+   need logical log records. Once those go through units too, the turn, its
+   lock, `ordered_apply_serial_commit` and `ordered_apply_turn_detect` can
+   go.
+5. **Three nodes, large transactions:** find why units are behind early
+   release there.
+6. **Open items in what exists:** no prefetch; the replay path through a
+   unit is untested; a failed member fails its whole unit; a request that
+   cannot be planned pays one aborted attempt each time; units are not used
+   when logical logging (`llog`) or a logical live schema change is on.
+7. **Not yet run:** the wider test suite with `ordered_apply` on, any test on
    a real disk, and the Jepsen suite.
 
 ## Risks and open questions
@@ -979,6 +1080,9 @@ Notes:
   [Implementation status](#implementation-status); its output and the two
   earlier runs are in `results/stage*.results`. `setup-host.sh` copies it to
   `/tmp/rlbench` with the other scripts.
+- `VARIANTS` in the environment picks what `ordered-apply-variants.sh` runs;
+  the commit-unit results are `VARIANTS="pg par-early unit unit-1t"`, on one
+  node and on three. The script stops if the master stops answering.
 - `NODES=1` in the environment makes `newcluster.sh` and
   `ordered-apply-variants.sh` use one standalone node, with no `cluster` line
   in its lrl, in place of the three-node cluster. The other scripts work

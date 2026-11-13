@@ -720,6 +720,14 @@ int bdb_tran_plan_active(tran_type *tran);
 int bdb_tran_plan_unsupported(tran_type *tran);
 void bdb_tran_plan_set_unsupported(tran_type *tran);
 int bdb_tran_plan_apply(bdb_state_type *bdb_state, tran_type *tran, int *bdberr);
+/* Commit units (ordered_apply_unit).  bdb_tran_plan_apply() leaves the plan
+ * unapplied, and it moves to the parent when the child commits.  The parent
+ * then hands the plan and its blkseq record to the unit thread and waits for
+ * the unit they went into to commit.  Returns 0, IX_DUP if the blkseq key was
+ * already there (nothing of this plan was applied), or -1 with bdberr set. */
+int bdb_tran_plan_pending(tran_type *tran);
+int bdb_tran_plan_unit_commit(bdb_state_type *bdb_state, tran_type *tran, void *bskey, int bskeylen, void *bsdata,
+                              int bsdatalen, void **replay_data, int *replay_len, int *bdberr);
 
 /* english doesn't have curses vile enough */
 int bdb_tran_abort_logical(bdb_state_type *bdb_handle, tran_type *tran,

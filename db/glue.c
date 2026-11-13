@@ -1047,6 +1047,27 @@ int trans_plan_apply(struct ireq *iq, void *trans)
     return ERR_INTERNAL;
 }
 
+/* Ordered apply with commit units: hand this request's plan and its blkseq
+ * record to the unit thread and wait for the unit to commit.  Stands in for
+ * bdb_blkseq_insert(), and returns what that would: 0, or IX_DUP with the
+ * stored reply if this request was already run. */
+int trans_plan_unit_commit(struct ireq *iq, void *trans, void *bskey, int bskeylen, void *bsdata, int bsdatalen,
+                           void **replay_data, int *replay_len)
+{
+    int bdberr = 0;
+    iq->gluewhere = "bdb_tran_plan_unit_commit";
+    int rc = bdb_tran_plan_unit_commit(thedb->bdb_env, trans, bskey, bskeylen, bsdata, bsdatalen, replay_data,
+                                       replay_len, &bdberr);
+    iq->gluewhere = "bdb_tran_plan_unit_commit done";
+    if (rc != -1)
+        return rc;
+    if (bdberr == BDBERR_DEADLOCK)
+        return RC_INTERNAL_RETRY;
+    if (bdberr == BDBERR_READONLY)
+        return ERR_NOMASTER;
+    return ERR_INTERNAL;
+}
+
 int get_context(struct ireq *iq, unsigned long long *context)
 {
     struct dbtable *db = iq->usedb;

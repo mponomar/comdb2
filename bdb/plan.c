@@ -84,6 +84,7 @@ struct bdb_plan {
     int nops;
     int applying;    /* replaying: ll_* routines write for real */
     int unsupported; /* refused an operation: run the request without a plan */
+    int deferred;    /* to be applied in a commit unit, not by this transaction */
     int turn_held;
 };
 
@@ -105,6 +106,18 @@ int64_t gbl_ordered_apply_wait_us;   /* time spent waiting for the turn */
 int64_t gbl_ordered_apply_held_us;   /* time the turn was held */
 int64_t gbl_ordered_apply_parallel;  /* plans applied a file per thread */
 int64_t gbl_ordered_apply_apply_us;  /* time spent writing plans to the btrees */
+int64_t gbl_ordered_apply_units;        /* commit units committed */
+int64_t gbl_ordered_apply_unit_retries; /* commit units aborted and applied again */
+
+/* On: plans are not applied by the transactions that made them.  One thread
+ * takes the plans that are waiting, applies them all under one transaction of
+ * its own together with their blkseq records, and commits them as a unit.
+ * The transactions that made the plans then commit with nothing of their own
+ * to write, at the unit's LSN.  There is no turn to hand from thread to
+ * thread, and a unit costs one commit record however many plans are in it. */
+int gbl_ordered_apply_unit = 0;
+/* A unit stops taking plans once it has this many btree operations. */
+int gbl_ordered_apply_unit_max_ops = 4096;
 
 /* On: the next plan does not start applying until this one's transaction has
  * committed, which is serial apply as the ADR describes it.  Off: the next
@@ -319,8 +332,15 @@ static int apply_op(struct plan_op *op, tran_type *tran)
  * thread that owns the plan, and a child's commit writes the __txn_child
  * record that joins its chain to the parent's.  Replicants and recovery
  * already collect a transaction's children this way.
+ *
+ * Berkeley lets a thread have ten transactions open (TXN_TD_MAX), and the
+ * children are all begun on one thread, which has up to two open already.
+ * So there are at most PLAN_MAX_GROUPS children.  A plan that touches more
+ * files than that, such as single-row inserts into several data stripes,
+ * puts the extra files in the first group, to be applied one after another
+ * on one thread.
  */
-enum { PLAN_MAX_FILES = 32 };
+enum { PLAN_MAX_FILES = 64, PLAN_MAX_GROUPS = 7 };
 
 struct plan_file {
     DB *db;
@@ -397,31 +417,50 @@ static DB *op_file(struct plan_op *op)
     return op->type == PLAN_DTA_ADD ? op->dbp : op->bdb_state->dbp_ix[op->ixnum];
 }
 
+static int plan_needs_one_chain(struct bdb_plan *plan)
+{
+    /* logical log records are chained through the top-level transaction */
+    for (struct plan_op *op = plan->first; op; op = op->next) {
+        if (op->bdb_state->attr->llog || op->bdb_state->logical_live_sc)
+            return 1;
+    }
+    return 0;
+}
+
 /* Sets *done if it applied the plan, and returns the rc of that.  Otherwise
  * the plan is to be applied on this thread alone. */
 static int apply_parallel(bdb_state_type *bdb_state, tran_type *tran, struct bdb_plan *plan, int *done)
 {
-    struct plan_file files[PLAN_MAX_FILES];
+    struct plan_file files[PLAN_MAX_GROUPS];
+    DB *dbs[PLAN_MAX_FILES];
+    int group[PLAN_MAX_FILES];
+    int ndbs = 0;
     int nfiles = 0;
 
     if (gbl_ordered_apply_threads <= 0 || plan->nops < gbl_ordered_apply_parallel_min_ops)
         return 0;
+    if (plan_needs_one_chain(plan))
+        return 0;
 
     for (struct plan_op *op = plan->first; op; op = op->next) {
-        /* logical log records are chained through the top-level transaction */
-        if (op->bdb_state->attr->llog || op->bdb_state->logical_live_sc)
-            return 0;
         DB *db = op_file(op);
-        int i;
-        for (i = 0; i < nfiles && files[i].db != db; i++)
+        int d;
+        for (d = 0; d < ndbs && dbs[d] != db; d++)
             ;
-        if (i == nfiles) {
-            if (nfiles == PLAN_MAX_FILES)
+        if (d == ndbs) {
+            if (ndbs == PLAN_MAX_FILES)
                 return 0;
-            memset(&files[i], 0, sizeof(files[i]));
-            files[i].db = db;
-            nfiles++;
+            dbs[ndbs] = db;
+            if (nfiles < PLAN_MAX_GROUPS) {
+                memset(&files[nfiles], 0, sizeof(files[nfiles]));
+                files[nfiles].db = db;
+                group[ndbs] = nfiles++;
+            } else {
+                group[ndbs] = 0;
+            }
+            ndbs++;
         }
+        int i = group[d];
         op->gnext = NULL;
         if (files[i].last)
             files[i].last->gnext = op;
@@ -539,6 +578,16 @@ int bdb_tran_plan_apply(bdb_state_type *bdb_state, tran_type *tran, int *bdberr)
         return -1;
     }
 
+    /* Commit units: leave the plan as it is.  It goes to the parent when
+     * this transaction commits, and from there into a unit.  Logical log
+     * records need the transaction that owns them, so those plans take the
+     * turn as before. */
+    if (gbl_ordered_apply_unit && tran->parent && !plan_needs_one_chain(plan)) {
+        plan->applying = 0;
+        plan->deferred = 1;
+        return 0;
+    }
+
     tran_type *top = tran;
     while (top->parent)
         top = top->parent;
@@ -580,6 +629,15 @@ int bdb_tran_plan_apply(bdb_state_type *bdb_state, tran_type *tran, int *bdberr)
  * would be lost with no error. */
 void bdb_plan_check_commit(tran_type *tran)
 {
+    if (tran->plan && tran->plan->deferred && tran->parent && tran->parent->unit_plan == NULL) {
+        tran->parent->unit_plan = tran->plan;
+        tran->plan = NULL;
+    }
+    if (tran->unit_plan) {
+        logmsg(LOGMSG_FATAL, "%s: committing a transaction whose plan of %d operations is in no unit\n", __func__,
+               tran->unit_plan->nops);
+        abort();
+    }
     if (tran->plan && !tran->plan->applying && tran->plan->nops > 0) {
         logmsg(LOGMSG_FATAL, "%s: committing a transaction with %d planned operations not applied\n", __func__,
                tran->plan->nops);
@@ -597,9 +655,278 @@ void bdb_plan_tran_done(tran_type *tran)
         plan_free(tran->plan);
         tran->plan = NULL;
     }
+    if (tran->unit_plan) {
+        /* aborted before its plan reached a unit */
+        plan_free(tran->unit_plan);
+        tran->unit_plan = NULL;
+    }
     if (tran->plan_turn_held) {
         /* the turn went with the rest of the transaction's locks */
         tran->plan_turn_held = 0;
         ATOMIC_ADD64(gbl_ordered_apply_held_us, now_us() - tran->plan_turn_start_us);
     }
+}
+
+/*
+ * Commit units.
+ *
+ * A transaction whose plan was left for a unit queues here as a member and
+ * sleeps.  The unit thread takes the members that are waiting, begins a
+ * transaction, and for each member writes its blkseq record and applies its
+ * plan.  It commits once and wakes the members with the commit LSN.  A member
+ * whose blkseq key is already there is a replay: none of its plan is applied
+ * and it is told so.
+ *
+ * Every page lock a unit takes belongs to the one transaction, so plans in a
+ * unit never wait for each other, and the log holds one ordinary transaction.
+ * If the unit is picked as a deadlock victim against a transaction outside
+ * it, it aborts, which also takes its blkseq records back out, and the same
+ * members are applied again.
+ *
+ * The members keep their table locks while they wait, so the handles in
+ * their plans stay valid.  They hold no page locks: bdb_tran_plan_apply()
+ * checked that before leaving the plan for a unit.
+ */
+struct unit_member {
+    struct unit_member *next;
+    struct bdb_plan *plan;
+    void *bskey;
+    int bskeylen;
+    void *bsdata;
+    int bsdatalen;
+    void **replay_data;
+    int *replay_len;
+    int rc;
+    int bdberr;
+    int dup;
+    DB_LSN lsn;
+    int done;
+    pthread_cond_t cond;
+};
+
+static pthread_mutex_t unit_lk = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t unit_work = PTHREAD_COND_INITIALIZER;
+static struct unit_member *unit_first;
+static struct unit_member *unit_last;
+static int unit_thread_started;
+
+enum { UNIT_MAX_RETRIES = 100 };
+
+static void unit_fail(struct unit_member *batch, int bdberr)
+{
+    for (struct unit_member *m = batch; m; m = m->next) {
+        m->rc = -1;
+        m->bdberr = bdberr;
+    }
+}
+
+static void unit_drop_replays(struct unit_member *batch)
+{
+    for (struct unit_member *m = batch; m; m = m->next) {
+        if (m->dup && m->replay_data) {
+            free(*m->replay_data);
+            *m->replay_data = NULL;
+        }
+        m->dup = 0;
+    }
+}
+
+static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch)
+{
+    int retries = 0;
+
+    for (;;) {
+        int bdberr = 0;
+        int rc = 0;
+        int nplans = 0;
+        struct bdb_plan all = {0};
+        uint64_t start = now_us();
+
+        tran_type *tran = bdb_tran_begin(bdb_state, NULL, &bdberr);
+        if (tran == NULL) {
+            unit_fail(batch, bdberr ? bdberr : BDBERR_MISC);
+            return;
+        }
+
+        /* blkseq records first: they say which members are replays.  The
+         * plans of the rest are joined into one list of operations. */
+        for (struct unit_member *m = batch; m && rc == 0; m = m->next) {
+            if (m->bskey) {
+                rc = bdb_blkseq_insert(bdb_state, tran, m->bskey, m->bskeylen, m->bsdata, m->bsdatalen, m->replay_data,
+                                       m->replay_len, 0);
+                if (rc == IX_DUP) {
+                    m->dup = 1;
+                    rc = 0;
+                    continue;
+                }
+                if (rc != 0)
+                    break;
+            }
+            m->plan->last->next = NULL;
+            if (all.last)
+                all.last->next = m->plan->first;
+            else
+                all.first = m->plan->first;
+            all.last = m->plan->last;
+            all.nops += m->plan->nops;
+            nplans++;
+        }
+
+        if (rc == 0 && all.nops > 0) {
+            int done = 0;
+            rc = apply_parallel(bdb_state, tran, &all, &done);
+            if (!done) {
+                for (struct plan_op *op = all.first; op && rc == 0; op = op->next)
+                    rc = apply_op(op, tran);
+            }
+        }
+        uint64_t applied = now_us();
+
+        if (rc != 0) {
+            bdb_tran_abort(bdb_state, tran, &bdberr);
+            unit_drop_replays(batch);
+            if ((rc == DB_LOCK_DEADLOCK || rc == BDBERR_DEADLOCK || rc == DB_REP_HANDLE_DEAD) &&
+                ++retries < UNIT_MAX_RETRIES) {
+                ATOMIC_ADD64(gbl_ordered_apply_unit_retries, 1);
+                continue;
+            }
+            if (rc != DB_LOCK_DEADLOCK && rc != BDBERR_DEADLOCK && rc != DB_REP_HANDLE_DEAD)
+                logmsg(LOGMSG_ERROR, "%s: applying a unit failed rc %d\n", __func__, rc);
+            unit_fail(batch, (rc == DB_LOCK_DEADLOCK || rc == BDBERR_DEADLOCK || rc == DB_REP_HANDLE_DEAD)
+                                 ? BDBERR_DEADLOCK
+                                 : BDBERR_MISC);
+            return;
+        }
+
+        seqnum_type seqnum;
+        uint64_t size = 0;
+        memset(&seqnum, 0, sizeof(seqnum));
+        rc = bdb_tran_commit_with_seqnum_size(bdb_state, tran, &seqnum, &size, &bdberr);
+        if (rc != 0) {
+            logmsg(LOGMSG_ERROR, "%s: committing a unit failed rc %d bdberr %d\n", __func__, rc, bdberr);
+            unit_drop_replays(batch);
+            unit_fail(batch, bdberr ? bdberr : BDBERR_MISC);
+            return;
+        }
+
+        uint64_t end = now_us();
+        for (struct unit_member *m = batch; m; m = m->next) {
+            m->rc = m->dup ? IX_DUP : 0;
+            memcpy(&m->lsn, &seqnum, sizeof(DB_LSN));
+        }
+        ATOMIC_ADD64(gbl_ordered_apply_units, 1);
+        ATOMIC_ADD64(gbl_ordered_apply_txns, nplans);
+        ATOMIC_ADD64(gbl_ordered_apply_ops, all.nops);
+        ATOMIC_ADD64(gbl_ordered_apply_apply_us, applied - start);
+        ATOMIC_ADD64(gbl_ordered_apply_held_us, end - start);
+        return;
+    }
+}
+
+static void *unit_thread(void *arg)
+{
+    bdb_state_type *bdb_state = arg;
+    thread_started("ordered apply unit");
+    bdb_thread_event(bdb_state, BDBTHR_EVENT_START);
+    Pthread_mutex_lock(&unit_lk);
+    for (;;) {
+        if (unit_first == NULL) {
+            Pthread_cond_wait(&unit_work, &unit_lk);
+            continue;
+        }
+        /* take members until the unit is large enough; always at least one */
+        struct unit_member *batch = unit_first;
+        struct unit_member *tail = batch;
+        int nops = batch->plan->nops;
+        while (tail->next && nops < gbl_ordered_apply_unit_max_ops) {
+            tail = tail->next;
+            nops += tail->plan->nops;
+        }
+        unit_first = tail->next;
+        if (unit_first == NULL)
+            unit_last = NULL;
+        tail->next = NULL;
+        Pthread_mutex_unlock(&unit_lk);
+
+        unit_run(bdb_state, batch);
+
+        Pthread_mutex_lock(&unit_lk);
+        while (batch) {
+            /* a member is on its thread's stack, gone once that thread runs */
+            struct unit_member *next = batch->next;
+            batch->done = 1;
+            Pthread_cond_signal(&batch->cond);
+            batch = next;
+        }
+    }
+    return NULL;
+}
+
+int bdb_tran_plan_pending(tran_type *tran)
+{
+    return tran && tran->unit_plan != NULL;
+}
+
+int bdb_tran_plan_unit_commit(bdb_state_type *bdb_state, tran_type *tran, void *bskey, int bskeylen, void *bsdata,
+                              int bsdatalen, void **replay_data, int *replay_len, int *bdberr)
+{
+    struct unit_member m = {0};
+
+    *bdberr = BDBERR_NOERROR;
+    if (tran == NULL || tran->unit_plan == NULL)
+        return 0;
+    if (bdb_state->parent)
+        bdb_state = bdb_state->parent;
+
+    m.plan = tran->unit_plan;
+    m.bskey = bskey;
+    m.bskeylen = bskeylen;
+    m.bsdata = bsdata;
+    m.bsdatalen = bsdatalen;
+    m.replay_data = replay_data;
+    m.replay_len = replay_len;
+    Pthread_cond_init(&m.cond, NULL);
+
+    uint64_t start = now_us();
+    Pthread_mutex_lock(&unit_lk);
+    if (!unit_thread_started) {
+        pthread_t tid;
+        pthread_attr_t attr;
+        Pthread_attr_init(&attr);
+        Pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        Pthread_attr_setstacksize(&attr, 1024 * 1024);
+        int rc = pthread_create(&tid, &attr, unit_thread, bdb_state);
+        Pthread_attr_destroy(&attr);
+        if (rc != 0) {
+            Pthread_mutex_unlock(&unit_lk);
+            Pthread_cond_destroy(&m.cond);
+            *bdberr = BDBERR_MISC;
+            return -1;
+        }
+        unit_thread_started = 1;
+    }
+    if (unit_last)
+        unit_last->next = &m;
+    else
+        unit_first = &m;
+    unit_last = &m;
+    Pthread_cond_signal(&unit_work);
+    while (!m.done)
+        Pthread_cond_wait(&m.cond, &unit_lk);
+    Pthread_mutex_unlock(&unit_lk);
+    Pthread_cond_destroy(&m.cond);
+
+    ATOMIC_ADD64(gbl_ordered_apply_waits, 1);
+    ATOMIC_ADD64(gbl_ordered_apply_wait_us, now_us() - start);
+
+    /* applied or not, the plan is finished with */
+    plan_free(tran->unit_plan);
+    tran->unit_plan = NULL;
+
+    if (m.rc == -1) {
+        *bdberr = m.bdberr;
+        return -1;
+    }
+    tran->unit_lsn = m.lsn;
+    return m.rc;
 }

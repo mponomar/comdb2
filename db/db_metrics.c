@@ -205,6 +205,8 @@ struct comdb2_metrics_store {
     int64_t ordered_apply_held_us;
     int64_t ordered_apply_parallel;
     int64_t ordered_apply_apply_us;
+    int64_t ordered_apply_units;
+    int64_t ordered_apply_unit_retries;
 };
 
 static struct comdb2_metrics_store stats;
@@ -548,6 +550,10 @@ comdb2_metric gbl_metrics[] = {
      STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_parallel, NULL},
     {"ordered_apply_apply_us", "Microseconds spent writing plans to the btrees", STATISTIC_INTEGER,
      STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_apply_us, NULL},
+    {"ordered_apply_units", "Commit units of planned transactions committed", STATISTIC_INTEGER,
+     STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_units, NULL},
+    {"ordered_apply_unit_retries", "Commit units aborted on a deadlock and applied again", STATISTIC_INTEGER,
+     STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_unit_retries, NULL},
 };
 
 const char *metric_collection_type_string(comdb2_collection_type t) {
@@ -574,6 +580,8 @@ extern int64_t gbl_ordered_apply_wait_us;
 extern int64_t gbl_ordered_apply_held_us;
 extern int64_t gbl_ordered_apply_parallel;
 extern int64_t gbl_ordered_apply_apply_us;
+extern int64_t gbl_ordered_apply_units;
+extern int64_t gbl_ordered_apply_unit_retries;
 
 /* Legacy request metrics */
 int64_t gbl_fastsql_execute_inline_params;
@@ -771,6 +779,8 @@ int refresh_metrics(void)
     stats.ordered_apply_held_us = gbl_ordered_apply_held_us;
     stats.ordered_apply_parallel = gbl_ordered_apply_parallel;
     stats.ordered_apply_apply_us = gbl_ordered_apply_apply_us;
+    stats.ordered_apply_units = gbl_ordered_apply_units;
+    stats.ordered_apply_unit_retries = gbl_ordered_apply_unit_retries;
     stats.fstraps = n_fstrap;
     stats.nonsql = n_fstrap                  /* legacy protocol over socketrequest */
                    + n_qtrap                 /* legacy protocol */

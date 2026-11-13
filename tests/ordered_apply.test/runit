@@ -135,6 +135,59 @@ set_tunable ordered_apply_serial_commit 1
 set_tunable ordered_apply_parallel_min_ops 64
 
 ################################################################
+# 5b. Commit units: one thread applies the waiting plans under one
+#     transaction.  Same rows, same index entries, same errors, and
+#     fewer commits than transactions.
+################################################################
+set_tunable ordered_apply_unit 1
+for minops in 64 1; do
+    set_tunable ordered_apply_parallel_min_ops $minops
+    units_before=$(counter units)
+    txns_before=$(counter txns)
+    base=$(sql 'select count(*) from t')
+    blbase=$(sql 'select count(*) from bl')
+    for w in $(seq 1 16); do
+        (
+            for i in $(seq 1 100); do
+                echo "insert into t values(5000000 + $minops * 1000000 + $i * 100 + $w, $w, $i, 'u$w')"
+            done
+            echo "insert into t select 7000000 + $minops * 1000000 + $w * 1000 + value, $w, 0, 'm$w' from generate_series(1, 200)"
+            echo "insert into bl values(1000 + $w, randomblob(20000))"
+        ) | cdb2sql ${CDB2_OPTIONS} $dbname default - >/dev/null &
+    done
+    wait
+    [ "$(sql 'select count(*) from t')" = "$((base + 4800))" ] || fail "commit units lost rows (min ops $minops)"
+    [ "$(sql "select count(*) from t where a >= 5000000 + $minops * 1000000 and a < 6000000 + $minops * 1000000")" = "1600" ] || fail "index ta is wrong after commit units"
+    [ "$(sql "select count(*) from t where b between 1 and 16 and a >= 7000000 + $minops * 1000000 and a < 8000000 + $minops * 1000000")" = "3200" ] || fail "index tb is wrong after commit units"
+    [ "$(sql 'select count(*) from bl')" = "$((blbase + 16))" ] || fail "blobs are wrong after commit units"
+    txns=$(($(counter txns) - txns_before))
+    units=$(($(counter units) - units_before))
+    [ "$txns" = "1632" ] || fail "expected 1632 planned transactions in units, got $txns"
+    [ "$units" -gt 0 ] && [ "$units" -lt "$txns" ] || fail "expected fewer units than transactions, got $units for $txns"
+done
+set_tunable ordered_apply_parallel_min_ops 64
+
+# what a plan cannot hold still runs as before, alone or mixed in a transaction
+sql "insert into u values(10, 1)" >/dev/null
+out=$(sql "insert into u values(10, 2)" 2>&1) && fail "duplicate key was accepted with commit units"
+cdb2sql --tabs ${CDB2_OPTIONS} $dbname default - >/dev/null 2>&1 <<SQL || true
+begin
+insert into t values(9500001, 1, 1, 'rolled back')
+insert into u values(10, 3)
+commit
+SQL
+cdb2sql --tabs ${CDB2_OPTIONS} $dbname default - >/dev/null <<SQL
+begin
+insert into t values(9500002, 1, 1, 'two inserts')
+insert into t values(9500003, 1, 1, 'two inserts')
+commit
+SQL
+[ "$(sql 'select count(*) from t where a between 9500001 and 9500003')" = "2" ] || fail "transactions left the wrong rows with commit units"
+[ "$(sql 'select count(*) from u where a = 10')" = "1" ] || fail "table u is wrong with commit units"
+[ "$(counter unit_retries)" = "0" ] || echo "note: $(counter unit_retries) units were retried"
+set_tunable ordered_apply_unit 0
+
+################################################################
 # 6. Every node has the same table, and it verifies.
 ################################################################
 want=$(master_sql "select count(*), sum(a), sum(b), sum(c) from t")

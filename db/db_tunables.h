@@ -3017,5 +3017,14 @@ REGISTER_TUNABLE("ordered_apply_turn_detect",
                  "turn to apply. Off is for measurement only: a deadlock that a wait for the turn "
                  "completes may go unnoticed. (Default: on)",
                  TUNABLE_BOOLEAN, &gbl_ordered_apply_turn_detect, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("ordered_apply_unit",
+                 "With ordered_apply, one thread applies the plans that are waiting under a single "
+                 "transaction and commits them as a unit; the transactions that made them wait for "
+                 "that commit. Off, each transaction applies its own plan in turn. (Default: off)",
+                 TUNABLE_BOOLEAN, &gbl_ordered_apply_unit, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("ordered_apply_unit_max_ops",
+                 "An ordered_apply commit unit takes no more plans once it has this many btree "
+                 "operations. (Default: 4096)",
+                 TUNABLE_INTEGER, &gbl_ordered_apply_unit_max_ops, EXPERIMENTAL, NULL, NULL, NULL, NULL);
 
 #endif /* _DB_TUNABLES_H */
