@@ -1,0 +1,95 @@
+master=node3
+(name='maxwt', value='32')
+(name='cachekb', value='4194304')
+(out='rowlocks is             disabled')
+## functional test (PR runit sections 1-5)
+sections 1-5 passed
+## async_dist_commit=0
+mono K=1   M=1    txns=2000   secs=   3.93 txn/s=      509 rows/s=      509 ms/txn=  1.97 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=15.4 master=node3 cpu(cores) master=1.03 replicants=1.56,1.16
+     master-events n=2000 avg-ms total=0.8 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+mono K=32  M=1    txns=64000  secs=   9.10 txn/s=     7035 rows/s=     7035 ms/txn=  4.55 | commits=64000 deadlocks=619 retries=619 lockwaits=47175 lockwait_ms=20418 lockreq/row=21.0 master=node3 cpu(cores) master=9.89 replicants=7.21,5.72
+     master-events n=64000 avg-ms total=2.8 queue=0.4 processing=2.3 lockwait=0.3 | avg-concurrent queued=2.9 processing=16.4 lockwaiting=2.25
+mono K=1   M=100  txns=60     secs=   1.02 txn/s=       59 rows/s=     5856 ms/txn= 17.08 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=20.4 master=node3 cpu(cores) master=0.97 replicants=0.62,0.84
+     master-events n=60 avg-ms total=12.9 queue=0.0 processing=12.9 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.8 lockwaiting=0.00
+mono K=32  M=100  txns=1920   secs=  34.15 txn/s=       56 rows/s=     5623 ms/txn=569.11 | commits=1920 deadlocks=1214 retries=1214 lockwaits=3976 lockwait_ms=14454 lockreq/row=24.2 master=node3 cpu(cores) master=0.98 replicants=0.80,0.84
+     master-events n=1920 avg-ms total=193.4 queue=176.1 processing=17.3 lockwait=7.6 | avg-concurrent queued=9.9 processing=1.0 lockwaiting=0.43
+async_dist_commit_enqueued	24 async_dist_commit_inline	2 
+## async_dist_commit=1
+mono K=1   M=1    txns=2000   secs=   3.86 txn/s=      519 rows/s=      519 ms/txn=  1.93 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=21.5 master=node3 cpu(cores) master=1.24 replicants=1.29,1.22
+     master-events n=2000 avg-ms total=0.8 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+mono K=32  M=1    txns=64000  secs=   8.49 txn/s=     7535 rows/s=     7535 ms/txn=  4.25 | commits=64000 deadlocks=664 retries=664 lockwaits=47730 lockwait_ms=25210 lockreq/row=23.4 master=node3 cpu(cores) master=7.67 replicants=7.33,7.30
+     master-events n=64000 avg-ms total=2.7 queue=0.4 processing=2.4 lockwait=0.4 | avg-concurrent queued=2.7 processing=17.9 lockwaiting=2.98
+mono K=1   M=100  txns=60     secs=   0.97 txn/s=       62 rows/s=     6186 ms/txn= 16.17 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=20.5 master=node3 cpu(cores) master=0.84 replicants=1.03,0.77
+     master-events n=60 avg-ms total=11.8 queue=0.0 processing=11.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.7 lockwaiting=0.00
+mono K=32  M=100  txns=1920   secs=  28.36 txn/s=       68 rows/s=     6770 ms/txn=472.65 | commits=1920 deadlocks=1164 retries=1164 lockwaits=4047 lockwait_ms=16031 lockreq/row=25.0 master=node3 cpu(cores) master=1.28 replicants=0.97,1.08
+     master-events n=1920 avg-ms total=161.4 queue=143.7 processing=17.7 lockwait=8.4 | avg-concurrent queued=9.7 processing=1.2 lockwaiting=0.57
+async_dist_commit_enqueued	68004 async_dist_commit_inline	2 
+## async_dist_commit=0
+mono K=1   M=1    txns=2000   secs=   3.97 txn/s=      503 rows/s=      503 ms/txn=  1.99 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=21.4 master=node3 cpu(cores) master=1.22 replicants=1.08,1.45
+     master-events n=2000 avg-ms total=0.8 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+mono K=32  M=1    txns=64000  secs=   8.91 txn/s=     7181 rows/s=     7181 ms/txn=  4.46 | commits=64000 deadlocks=650 retries=650 lockwaits=46691 lockwait_ms=21448 lockreq/row=23.3 master=node3 cpu(cores) master=9.51 replicants=7.21,6.05
+     master-events n=64000 avg-ms total=2.6 queue=0.4 processing=2.2 lockwait=0.3 | avg-concurrent queued=3.2 processing=15.6 lockwaiting=2.41
+mono K=1   M=100  txns=60     secs=   0.98 txn/s=       61 rows/s=     6126 ms/txn= 16.32 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=20.4 master=node3 cpu(cores) master=1.41 replicants=0.90,0.95
+     master-events n=60 avg-ms total=12.1 queue=0.0 processing=12.1 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.7 lockwaiting=0.00
+mono K=32  M=100  txns=1920   secs=  35.44 txn/s=       54 rows/s=     5418 ms/txn=590.62 | commits=1920 deadlocks=1220 retries=1220 lockwaits=4205 lockwait_ms=17488 lockreq/row=25.5 master=node3 cpu(cores) master=1.11 replicants=0.78,0.95
+     master-events n=1920 avg-ms total=205.4 queue=186.7 processing=18.7 lockwait=9.1 | avg-concurrent queued=10.1 processing=1.0 lockwaiting=0.50
+async_dist_commit_enqueued	68004 async_dist_commit_inline	2 
+## async_dist_commit=1
+mono K=1   M=1    txns=2000   secs=   3.84 txn/s=      521 rows/s=      521 ms/txn=  1.92 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=21.4 master=node3 cpu(cores) master=1.25 replicants=1.25,1.60
+     master-events n=2000 avg-ms total=0.8 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+mono K=32  M=1    txns=64000  secs=  10.12 txn/s=     6326 rows/s=     6326 ms/txn=  5.06 | commits=64000 deadlocks=1354 retries=1354 lockwaits=58489 lockwait_ms=39252 lockreq/row=23.4 master=node3 cpu(cores) master=6.46 replicants=5.59,6.74
+     master-events n=64000 avg-ms total=3.0 queue=0.8 processing=2.2 lockwait=0.6 | avg-concurrent queued=4.9 processing=14.2 lockwaiting=3.90
+mono K=1   M=100  txns=60     secs=   0.89 txn/s=       67 rows/s=     6711 ms/txn= 14.90 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=20.4 master=node3 cpu(cores) master=0.88 replicants=0.84,0.94
+     master-events n=60 avg-ms total=10.9 queue=0.0 processing=10.9 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.7 lockwaiting=0.00
+mono K=32  M=100  txns=1920   secs=  28.28 txn/s=       68 rows/s=     6788 ms/txn=471.39 | commits=1920 deadlocks=1133 retries=1133 lockwaits=4135 lockwait_ms=17519 lockreq/row=25.6 master=node3 cpu(cores) master=1.38 replicants=1.05,1.11
+     master-events n=1920 avg-ms total=163.8 queue=145.3 processing=18.5 lockwait=9.2 | avg-concurrent queued=9.9 processing=1.3 lockwaiting=0.62
+async_dist_commit_enqueued	135984 async_dist_commit_inline	2 
+## preload random rows
+## async_dist_commit=1
+rand K=16  M=500  txns=6000   secs= 366.80 txn/s=       16 rows/s=     8179 ms/txn=978.14 | commits=6000 deadlocks=7858 retries=7858 lockwaits=22897 lockwait_ms=215309 lockreq/row=29.5 master=node3 cpu(cores) master=1.69 replicants=1.19,1.25
+     master-events n=6000 avg-ms total=617.9 queue=542.4 processing=75.5 lockwait=36.0 | avg-concurrent queued=8.9 processing=1.2 lockwaiting=0.59
+## async_dist_commit=0
+rand K=32  M=1    txns=64000  secs=   7.13 txn/s=     8970 rows/s=     8970 ms/txn=  3.57 | commits=64000 deadlocks=73 retries=73 lockwaits=16436 lockwait_ms=3860 lockreq/row=29.1 master=node3 cpu(cores) master=12.97 replicants=7.84,7.59
+     master-events n=64000 avg-ms total=2.5 queue=0.1 processing=2.5 lockwait=0.1 | avg-concurrent queued=0.5 processing=22.3 lockwaiting=0.54
+rand K=64  M=1    txns=128000 secs=  15.52 txn/s=     8246 rows/s=     8246 ms/txn=  7.76 | commits=128000 deadlocks=43 retries=43 lockwaits=14693 lockwait_ms=2871 lockreq/row=29.2 master=node3 cpu(cores) master=13.17 replicants=7.06,7.30
+     master-events n=127999 avg-ms total=3.7 queue=0.0 processing=3.7 lockwait=0.0 | avg-concurrent queued=0.2 processing=30.1 lockwaiting=0.19
+rand K=128 M=1    txns=128000 secs=  15.64 txn/s=     8187 rows/s=     8187 ms/txn= 15.64 | commits=128000 deadlocks=33 retries=33 lockwaits=13529 lockwait_ms=4051 lockreq/row=29.3 master=node3 cpu(cores) master=13.16 replicants=6.94,6.81
+     master-events n=128000 avg-ms total=3.7 queue=0.0 processing=3.7 lockwait=0.0 | avg-concurrent queued=0.2 processing=30.3 lockwaiting=0.26
+async_dist_commit_enqueued	141984 async_dist_commit_inline	2 
+## async_dist_commit=1
+rand K=32  M=1    txns=64000  secs=   7.18 txn/s=     8908 rows/s=     8908 ms/txn=  3.59 | commits=64000 deadlocks=15 retries=15 lockwaits=8658 lockwait_ms=2076 lockreq/row=28.9 master=node3 cpu(cores) master=8.65 replicants=8.20,8.54
+     master-events n=64000 avg-ms total=2.5 queue=0.0 processing=2.5 lockwait=0.0 | avg-concurrent queued=0.2 processing=21.8 lockwaiting=0.29
+rand K=64  M=1    txns=128000 secs=  14.04 txn/s=     9117 rows/s=     9117 ms/txn=  7.02 | commits=128000 deadlocks=93 retries=93 lockwaits=23232 lockwait_ms=7834 lockreq/row=28.9 master=node3 cpu(cores) master=8.93 replicants=8.67,8.29
+     master-events n=128000 avg-ms total=5.8 queue=0.0 processing=5.8 lockwait=0.1 | avg-concurrent queued=0.4 processing=52.6 lockwaiting=0.56
+rand K=128 M=1    txns=128000 secs=  13.78 txn/s=     9291 rows/s=     9291 ms/txn= 13.78 | commits=128000 deadlocks=105 retries=105 lockwaits=22329 lockwait_ms=7570 lockreq/row=29.0 master=node3 cpu(cores) master=9.50 replicants=8.25,8.37
+     master-events n=128000 avg-ms total=10.2 queue=0.0 processing=10.2 lockwait=0.1 | avg-concurrent queued=0.4 processing=94.4 lockwaiting=0.55
+async_dist_commit_enqueued	461984 async_dist_commit_inline	2 
+## async_dist_commit=0
+rand K=32  M=1    txns=64000  secs=   7.05 txn/s=     9083 rows/s=     9083 ms/txn=  3.52 | commits=64000 deadlocks=66 retries=66 lockwaits=16542 lockwait_ms=4039 lockreq/row=29.1 master=node3 cpu(cores) master=13.00 replicants=7.52,7.89
+     master-events n=64000 avg-ms total=2.5 queue=0.1 processing=2.4 lockwait=0.1 | avg-concurrent queued=0.5 processing=22.2 lockwaiting=0.57
+rand K=64  M=1    txns=128000 secs=  14.67 txn/s=     8725 rows/s=     8725 ms/txn=  7.33 | commits=128000 deadlocks=46 retries=46 lockwaits=16280 lockwait_ms=3471 lockreq/row=29.2 master=node3 cpu(cores) master=14.11 replicants=7.20,7.54
+     master-events n=128000 avg-ms total=3.5 queue=0.0 processing=3.5 lockwait=0.0 | avg-concurrent queued=0.2 processing=30.1 lockwaiting=0.24
+rand K=128 M=1    txns=128000 secs=  12.90 txn/s=     9922 rows/s=     9922 ms/txn= 12.90 | commits=128000 deadlocks=52 retries=52 lockwaits=16743 lockwait_ms=3064 lockreq/row=29.3 master=node3 cpu(cores) master=14.53 replicants=7.34,7.37
+     master-events n=127998 avg-ms total=3.0 queue=0.0 processing=3.0 lockwait=0.0 | avg-concurrent queued=0.2 processing=29.9 lockwaiting=0.24
+async_dist_commit_enqueued	461984 async_dist_commit_inline	2 
+## async_dist_commit=1
+rand K=32  M=1    txns=64000  secs=   7.60 txn/s=     8419 rows/s=     8419 ms/txn=  3.80 | commits=64000 deadlocks=17 retries=17 lockwaits=10133 lockwait_ms=6311 lockreq/row=28.9 master=node3 cpu(cores) master=8.22 replicants=6.95,8.96
+     master-events n=64000 avg-ms total=2.6 queue=0.0 processing=2.6 lockwait=0.1 | avg-concurrent queued=0.2 processing=21.9 lockwaiting=0.83
+rand K=64  M=1    txns=128000 secs=  13.91 txn/s=     9202 rows/s=     9202 ms/txn=  6.95 | commits=128000 deadlocks=69 retries=69 lockwaits=22692 lockwait_ms=6548 lockreq/row=28.9 master=node3 cpu(cores) master=8.93 replicants=9.47,7.94
+     master-events n=128000 avg-ms total=5.7 queue=0.0 processing=5.7 lockwait=0.1 | avg-concurrent queued=0.3 processing=52.5 lockwaiting=0.47
+rand K=128 M=1    txns=128000 secs=  13.76 txn/s=     9299 rows/s=     9299 ms/txn= 13.76 | commits=128000 deadlocks=145 retries=145 lockwaits=25437 lockwait_ms=9305 lockreq/row=28.9 master=node3 cpu(cores) master=9.25 replicants=8.95,8.09
+     master-events n=128000 avg-ms total=8.8 queue=0.0 processing=8.8 lockwait=0.1 | avg-concurrent queued=0.5 processing=81.4 lockwaiting=0.68
+async_dist_commit_enqueued	781984 async_dist_commit_inline	2 
+## disruption: pause one replicant 8s under load, async on
+## async_dist_commit=1
+rand K=32  M=1    txns=96000  secs=  23.66 txn/s=     4058 rows/s=     4058 ms/txn=  7.89 | commits=96000 deadlocks=71 retries=71 lockwaits=21027 lockwait_ms=5816 lockreq/row=28.9 master=node3 cpu(cores) master=3.73 replicants=2.05,5.58
+     master-events n=96000 avg-ms total=6.2 queue=0.0 processing=6.2 lockwait=0.1 | avg-concurrent queued=0.1 processing=25.2 lockwaiting=0.25
+node1 rows=5432000
+node2 rows=5432000
+node3 rows=5432000
+node2	N	coherent
+node1	N	coherent
+node3	Y	coherent
+async_dist_commit_enqueued	877984 async_dist_commit_inline	2 
+ALLDONE
+exit=0

@@ -2994,4 +2994,23 @@ REGISTER_TUNABLE("async_dist_commit_max_outstanding_trans",
                  "commit at once; beyond this, commits wait inline. (Default: 1024)",
                  TUNABLE_INTEGER, &gbl_async_dist_commit_max_outstanding_trans, 0, NULL, NULL, NULL, NULL);
 
+REGISTER_TUNABLE("ordered_apply",
+                 "Plan a write request's btree operations without touching pages, then apply "
+                 "the plans one transaction at a time, so writers do not hold page locks while "
+                 "they run. Requests a plan cannot hold yet run as before. (Default: off)",
+                 TUNABLE_BOOLEAN, &gbl_ordered_apply, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("ordered_apply_serial_commit",
+                 "With ordered_apply, do not start applying the next plan until the transaction "
+                 "being applied has committed. Off starts the next one as soon as this one is "
+                 "applied; it then waits for any page lock this one still holds. (Default: on)",
+                 TUNABLE_BOOLEAN, &gbl_ordered_apply_serial_commit, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("ordered_apply_threads",
+                 "Threads that help apply an ordered_apply plan, one btree file each; 0 applies "
+                 "each plan on the thread that owns it. (Default: 3)",
+                 TUNABLE_INTEGER, &gbl_ordered_apply_threads, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("ordered_apply_parallel_min_ops",
+                 "An ordered_apply plan with fewer btree operations than this is applied on the "
+                 "thread that owns it. (Default: 64)",
+                 TUNABLE_INTEGER, &gbl_ordered_apply_parallel_min_ops, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+
 #endif /* _DB_TUNABLES_H */

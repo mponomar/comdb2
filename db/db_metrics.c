@@ -197,6 +197,14 @@ struct comdb2_metrics_store {
     int64_t blob_cache_shrunk_bytes;
     int64_t async_dist_commit_enqueued;
     int64_t async_dist_commit_inline;
+    int64_t ordered_apply_txns;
+    int64_t ordered_apply_ops;
+    int64_t ordered_apply_fallbacks;
+    int64_t ordered_apply_waits;
+    int64_t ordered_apply_wait_us;
+    int64_t ordered_apply_held_us;
+    int64_t ordered_apply_parallel;
+    int64_t ordered_apply_apply_us;
 };
 
 static struct comdb2_metrics_store stats;
@@ -524,6 +532,22 @@ comdb2_metric gbl_metrics[] = {
      STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.async_dist_commit_enqueued, NULL},
     {"async_dist_commit_inline", "Commits that waited for replicants inline because that thread was full",
      STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.async_dist_commit_inline, NULL},
+    {"ordered_apply_txns", "Transactions whose writes were planned and applied in turn", STATISTIC_INTEGER,
+     STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_txns, NULL},
+    {"ordered_apply_ops", "Btree operations applied from plans", STATISTIC_INTEGER,
+     STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_ops, NULL},
+    {"ordered_apply_fallbacks", "Requests a plan could not hold, run with page locks held to commit",
+     STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_fallbacks, NULL},
+    {"ordered_apply_waits", "Planned transactions that waited for the apply turn", STATISTIC_INTEGER,
+     STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_waits, NULL},
+    {"ordered_apply_wait_us", "Microseconds planned transactions waited for the apply turn", STATISTIC_INTEGER,
+     STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_wait_us, NULL},
+    {"ordered_apply_held_us", "Microseconds the apply turn was held", STATISTIC_INTEGER,
+     STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_held_us, NULL},
+    {"ordered_apply_parallel", "Plans applied a btree file per thread", STATISTIC_INTEGER,
+     STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_parallel, NULL},
+    {"ordered_apply_apply_us", "Microseconds spent writing plans to the btrees", STATISTIC_INTEGER,
+     STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_apply_us, NULL},
 };
 
 const char *metric_collection_type_string(comdb2_collection_type t) {
@@ -542,6 +566,14 @@ extern int n_commits;
 extern long n_fstrap;
 extern int64_t gbl_async_dist_commit_enqueued;
 extern int64_t gbl_async_dist_commit_inline;
+extern int64_t gbl_ordered_apply_txns;
+extern int64_t gbl_ordered_apply_ops;
+extern int64_t gbl_ordered_apply_fallbacks;
+extern int64_t gbl_ordered_apply_waits;
+extern int64_t gbl_ordered_apply_wait_us;
+extern int64_t gbl_ordered_apply_held_us;
+extern int64_t gbl_ordered_apply_parallel;
+extern int64_t gbl_ordered_apply_apply_us;
 
 /* Legacy request metrics */
 int64_t gbl_fastsql_execute_inline_params;
@@ -731,6 +763,14 @@ int refresh_metrics(void)
     stats.blob_cache_shrunk_bytes = gbl_blob_cache_shrunk_bytes;
     stats.async_dist_commit_enqueued = gbl_async_dist_commit_enqueued;
     stats.async_dist_commit_inline = gbl_async_dist_commit_inline;
+    stats.ordered_apply_txns = gbl_ordered_apply_txns;
+    stats.ordered_apply_ops = gbl_ordered_apply_ops;
+    stats.ordered_apply_fallbacks = gbl_ordered_apply_fallbacks;
+    stats.ordered_apply_waits = gbl_ordered_apply_waits;
+    stats.ordered_apply_wait_us = gbl_ordered_apply_wait_us;
+    stats.ordered_apply_held_us = gbl_ordered_apply_held_us;
+    stats.ordered_apply_parallel = gbl_ordered_apply_parallel;
+    stats.ordered_apply_apply_us = gbl_ordered_apply_apply_us;
     stats.fstraps = n_fstrap;
     stats.nonsql = n_fstrap                  /* legacy protocol over socketrequest */
                    + n_qtrap                 /* legacy protocol */

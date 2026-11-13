@@ -318,6 +318,14 @@ struct tran_tag {
 
     u_int32_t flags;
     int is_prepared;
+
+    /* Ordered apply (bdb/plan.c): the btree operations this transaction has
+     * recorded instead of done.  Set on the transaction the operations run
+     * under; the turn is noted on the top-level transaction. */
+    struct bdb_plan *plan;
+    int plan_turn_held;
+    DB_LOCK plan_turn_lock;
+    uint64_t plan_turn_start_us;
 };
 
 struct seqnum_t {
@@ -1196,6 +1204,17 @@ int rep_caught_up(bdb_state_type *bdb_state);
 void call_for_election(bdb_state_type *bdb_state, const char *func, int line);
 
 int bdb_next_dtafile(bdb_state_type *bdb_state);
+
+/* ordered apply: bdb/plan.c */
+struct bdb_plan;
+int bdb_plan_recording(tran_type *tran);
+int bdb_plan_refuse(tran_type *tran);
+int bdb_plan_dta_add(bdb_state_type *bdb_state, unsigned long long genid, DB *dbp, tran_type *tran, int dtafile,
+                     int dtastripe, DBT *dbt_key, DBT *dbt_data, int flags, int odhready);
+int bdb_plan_key_add(bdb_state_type *bdb_state, unsigned long long genid, tran_type *tran, int ixnum, DBT *dbt_key,
+                     DBT *dbt_data);
+void bdb_plan_tran_done(tran_type *tran);
+void bdb_plan_check_commit(tran_type *tran);
 
 int ll_key_add(bdb_state_type *bdb_state, unsigned long long genid,
                tran_type *tran, int ixnum, DBT *dbt_key, DBT *dbt_data);

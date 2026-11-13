@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# Tests ordered_apply (docs/adr/0003): the master records a write request's
+# btree operations in a plan and applies the plans one transaction at a time.
+# Turning it on must not change what clients see.  Requests a plan cannot hold
+# (unique keys, foreign keys, updates, deletes) must run as before.
+bash -n "$0" || exit 1
+
+set -e
+
+dbname=$1
+[ -z "$dbname" ] && { echo "usage: runit <dbname>" >&2; exit 1; }
+
+sql() { cdb2sql --tabs ${CDB2_OPTIONS} $dbname default "$1"; }
+
+master=$(sql "select host from comdb2_cluster where is_master='Y'")
+[ -z "$master" ] && { echo "could not find the master" >&2; exit 1; }
+master_sql() { cdb2sql --tabs ${CDB2_OPTIONS} $dbname --host $master "$1"; }
+counter() { master_sql "select cast(value as int) from comdb2_metrics where name='ordered_apply_$1'"; }
+set_tunable() {
+    cdb2sql ${CDB2_OPTIONS} $dbname --host $master "exec procedure sys.cmd.send('$1 $2')" >/dev/null
+}
+fail() { echo "FAILED: $1" >&2; exit 1; }
+
+sql "create table t(a bigint, b bigint, c bigint, pad varchar(64))" >/dev/null
+sql "create index ta on t(a)" >/dev/null
+sql "create index tb on t(b)" >/dev/null
+sql "create table u(a int unique, b int)" >/dev/null
+sql "create table p(a int primary key)" >/dev/null
+sql "create table ch(a int, constraint fk foreign key(a) references p(a))" >/dev/null
+sql "create table bl(a int, b blob)" >/dev/null
+
+################################################################
+# 1. Off by default: nothing is planned.
+################################################################
+[ "$(master_sql "select value from comdb2_tunables where name='ordered_apply'")" = "OFF" ] \
+    || fail "ordered_apply should default to OFF"
+sql "insert into t values(1, 1, 1, 'off')" >/dev/null
+[ "$(counter txns)" = "0" ] || fail "nothing should be planned while the feature is off"
+
+################################################################
+# 2. On: inserts into a table with no unique key are planned, and
+#    the rows and their index entries are all there.
+################################################################
+set_tunable ordered_apply 1
+sql "insert into t select value, value * 7, value * 13, 'on' from generate_series(2, 1001)" >/dev/null
+[ "$(counter txns)" = "1" ] || fail "the insert was not planned"
+[ "$(counter ops)" = "3000" ] || fail "expected 3000 planned btree operations, got $(counter ops)"
+[ "$(sql 'select count(*) from t')" = "1001" ] || fail "rows missing from the data file"
+[ "$(sql 'select count(*) from t where a >= 0')" = "1001" ] || fail "rows missing from index ta"
+[ "$(sql 'select count(*) from t where b >= 0')" = "1001" ] || fail "rows missing from index tb"
+
+# blobs are planned too
+sql "insert into bl values(1, x'$(printf 'ab%.0s' $(seq 1 3000))')" >/dev/null
+[ "$(sql 'select length(b) from bl where a = 1')" = "3000" ] || fail "blob did not survive a planned insert"
+
+################################################################
+# 3. What a plan cannot hold runs as before, with the same results.
+################################################################
+before=$(counter fallbacks)
+sql "insert into u values(1, 1)" >/dev/null
+out=$(sql "insert into u values(1, 2)" 2>&1) && fail "duplicate key was accepted"
+echo "$out" | grep -qi "duplicate" || fail "duplicate key gave the wrong error: $out"
+sql "update t set b = b + 1 where a = 2" >/dev/null
+sql "delete from t where a = 3" >/dev/null
+sql "insert into p values(1)" >/dev/null
+sql "insert into ch values(1)" >/dev/null
+out=$(sql "insert into ch values(2)" 2>&1) && fail "foreign key violation was accepted"
+[ "$(counter fallbacks)" -gt "$before" ] || fail "nothing fell back"
+[ "$(sql 'select b from t where a = 2')" = "15" ] || fail "update was lost"
+[ "$(sql 'select count(*) from t where a = 3')" = "0" ] || fail "delete was lost"
+[ "$(sql 'select count(*) from u')" = "1" ] || fail "table u is wrong"
+[ "$(sql 'select count(*) from ch')" = "1" ] || fail "table ch is wrong"
+
+# one transaction that mixes both kinds; and one that fails and rolls back
+cdb2sql --tabs ${CDB2_OPTIONS} $dbname default - >/dev/null <<SQL
+begin
+insert into t values(5000, 1, 1, 'mixed')
+insert into u values(2, 2)
+commit
+SQL
+cdb2sql --tabs ${CDB2_OPTIONS} $dbname default - >/dev/null 2>&1 <<SQL || true
+begin
+insert into t values(5001, 1, 1, 'rolled back')
+insert into u values(2, 3)
+commit
+SQL
+[ "$(sql 'select count(*) from t where a in (5000, 5001)')" = "1" ] || fail "mixed transactions left the wrong rows"
+[ "$(sql 'select count(*) from u')" = "2" ] || fail "mixed transactions left the wrong keys"
+
+################################################################
+# 4. Many writers on the same pages: no deadlocks, nothing lost.
+################################################################
+dl_before=$(master_sql "select cast(value as int) from comdb2_metrics where name='deadlocks'")
+txns_before=$(counter txns)
+base=$(sql 'select count(*) from t')
+for w in $(seq 1 8); do
+    (
+        for i in $(seq 1 100); do
+            echo "insert into t select 1000000 + $i * 1000 + value, $w, $i, 'w$w' from generate_series(1, 20)"
+        done | cdb2sql ${CDB2_OPTIONS} $dbname default - >/dev/null
+    ) &
+done
+wait
+[ "$(sql 'select count(*) from t')" = "$((base + 16000))" ] || fail "concurrent inserts lost rows"
+[ "$(sql 'select count(*) from t where b between 1 and 8 and a >= 1000000')" = "16000" ] || fail "index tb is wrong after concurrent inserts"
+[ "$(($(counter txns) - txns_before))" = "800" ] || fail "expected 800 planned transactions"
+dl_after=$(master_sql "select cast(value as int) from comdb2_metrics where name='deadlocks'")
+[ "$dl_after" = "$dl_before" ] || fail "planned inserts deadlocked ($((dl_after - dl_before)) times)"
+
+################################################################
+# 5. A btree file per thread, and the next plan starting before the
+#    last one commits: same rows, same index entries.
+################################################################
+set_tunable ordered_apply_parallel_min_ops 1
+par_before=$(counter parallel)
+base=$(sql 'select count(*) from t')
+for mode in 1 0; do
+    set_tunable ordered_apply_serial_commit $mode
+    for w in $(seq 1 8); do
+        (
+            for i in $(seq 1 50); do
+                echo "insert into t select 2000000 + $mode * 1000000 + $i * 1000 + value, $w, $i, 'p$w' from generate_series(1, 20)"
+                echo "insert into bl values($i, randomblob(20000))"
+            done | cdb2sql ${CDB2_OPTIONS} $dbname default - >/dev/null
+        ) &
+    done
+    wait
+done
+[ "$(sql 'select count(*) from t')" = "$((base + 16000))" ] || fail "parallel apply lost rows"
+[ "$(sql 'select count(*) from t where a >= 2000000 and a < 4000000')" = "16000" ] || fail "index ta is wrong after parallel apply"
+[ "$(sql 'select count(*) from t where b between 1 and 8 and a >= 2000000 and a < 4000000')" = "16000" ] || fail "index tb is wrong after parallel apply"
+[ "$(sql 'select count(*) from bl where length(b) = 20000')" = "800" ] || fail "blobs are wrong after parallel apply"
+[ "$(($(counter parallel) - par_before))" = "1600" ] || fail "expected 1600 plans applied in parallel, got $(($(counter parallel) - par_before))"
+set_tunable ordered_apply_serial_commit 1
+set_tunable ordered_apply_parallel_min_ops 64
+
+################################################################
+# 6. Every node has the same table, and it verifies.
+################################################################
+want=$(master_sql "select count(*), sum(a), sum(b), sum(c) from t")
+for node in ${CLUSTER:-$master}; do
+    for i in $(seq 1 30); do
+        got=$(cdb2sql --tabs ${CDB2_OPTIONS} $dbname --host $node "select count(*), sum(a), sum(b), sum(c) from t")
+        [ "$got" = "$want" ] && break
+        sleep 1
+    done
+    [ "$got" = "$want" ] || fail "$node has a different table t: $got, master has $want"
+done
+master_sql "exec procedure sys.cmd.verify('t')" | grep -q "Verify succeeded" || fail "verify failed"
+
+################################################################
+# 7. Off again: back to page locks held to commit.
+################################################################
+set_tunable ordered_apply 0
+before=$(counter txns)
+sql "insert into t values(9000, 1, 1, 'off again')" >/dev/null
+[ "$(counter txns)" = "$before" ] || fail "still planning after being turned off"
+
+echo "Testcase passed."

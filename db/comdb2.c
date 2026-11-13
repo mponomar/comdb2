@@ -836,6 +836,10 @@ int gbl_async_dist_commit_max_outstanding_trans = 1024;
 int64_t gbl_async_dist_commit_enqueued = 0;
 int64_t gbl_async_dist_commit_inline = 0;
 
+/* Ordered apply (docs/adr/0003, bdb/plan.c): plan a write request's btree
+ * operations first, then apply them one transaction at a time. */
+int gbl_ordered_apply = 0;
+
 int gbl_is_physical_replicant;
 int gbl_server_admin_mode = 0;
 int gbl_debug_always_reload_schemas_after_recovery = 0;

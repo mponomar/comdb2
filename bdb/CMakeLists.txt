@@ -44,6 +44,7 @@ add_library(bdb
   log_trigger.c
   odh.c
   phys.c
+  plan.c
   phys_rep_lsn.c
   queue.c
   queuedb.c

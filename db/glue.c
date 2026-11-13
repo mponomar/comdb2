@@ -1030,6 +1030,23 @@ int trans_discard_prepared(struct ireq *iq, void *trans)
     return trans_abort_int(iq, trans, NULL, 1);
 }
 
+/* Ordered apply: all of this request's operations have run and are in the
+ * transaction's plan.  Wait for the apply turn and write them. */
+int trans_plan_apply(struct ireq *iq, void *trans)
+{
+    int bdberr = 0;
+    iq->gluewhere = "bdb_tran_plan_apply";
+    int rc = bdb_tran_plan_apply(thedb->bdb_env, trans, &bdberr);
+    iq->gluewhere = "bdb_tran_plan_apply done";
+    if (rc == 0)
+        return 0;
+    if (bdberr == BDBERR_DEADLOCK)
+        return RC_INTERNAL_RETRY;
+    if (bdberr == BDBERR_READONLY)
+        return ERR_NOMASTER;
+    return ERR_INTERNAL;
+}
+
 int get_context(struct ireq *iq, unsigned long long *context)
 {
     struct dbtable *db = iq->usedb;

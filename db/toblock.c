@@ -944,6 +944,7 @@ int dist_txn_abort_write_blkseq(void *in_bdb_state, void *bskey, int bskeylen)
 }
 
 extern int gbl_debug_force_non_durable;
+extern int gbl_2pc;
 
 int durable_change_rcode(struct ireq *iq)
 {
@@ -3281,6 +3282,15 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
         }
 
         irc = create_child_transaction(iq, parent_trans, &trans);
+
+        /* Ordered apply: record this request's btree writes in a plan and
+         * apply them in one go just before the child commits.  Only plain
+         * SQL write requests; one that turns out to need more than a plan
+         * can hold comes back here with plan_disabled set. */
+        if (irc == 0 && gbl_ordered_apply && parent_trans && trans && iq->sorese && !iq->plan_disabled &&
+            !iq->tranddl && !iq->sc_pending && !gbl_2pc && !iq->sorese->is_participant &&
+            !iq->sorese->is_coordinator && !iq->sorese->dist_txnid)
+            bdb_tran_plan_start(trans);
     } else {
         /* we dont have nested transaction support here.  we play games with
            writing the blkseq record differently in rowlocks mode */
@@ -5328,6 +5338,17 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
      * so that javasp_reqprint() can be called successfully. */
     javasp_trans_set_trans(javasp_trans_handle, iq, trans, NULL);
 
+    /* Ordered apply: every operation has run and nothing can fail logically
+     * from here.  Take the apply turn and write the plan. */
+    if (trans && bdb_tran_plan_active(trans)) {
+        thrman_wheref(thr_self, "%s [apply plan]", req2a(iq->opcode));
+        rc = trans_plan_apply(iq, trans);
+        if (rc != 0) {
+            numerrs = 1;
+            GOTOBACKOUT;
+        }
+    }
+
     /* COMMIT CHILD TRANSACTION */
     thrman_wheref(thr_self, "%s [child commit]", req2a(iq->opcode));
 
@@ -5578,6 +5599,11 @@ backout:
                     trans = NULL;
                     backout_schema_changes(iq, parent_trans);
                 }
+            }
+            if (trans && bdb_tran_plan_unsupported(trans)) {
+                /* not a deadlock: run it again without a plan */
+                iq->plan_disabled = 1;
+                iq->plan_fallback = 1;
             }
             if (trans) {
                 irc = trans_abort_priority(iq, trans, &priority);

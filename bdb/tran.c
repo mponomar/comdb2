@@ -1586,6 +1586,7 @@ int bdb_tran_commit_with_seqnum_int(bdb_state_type *bdb_state, tran_type *tran,
 
     case TRANCLASS_PHYSICAL:
     case TRANCLASS_BERK:
+        bdb_plan_check_commit(tran);
 
         /* XXX it's rumoured that berk screws up and does sync
            despite telling it to open the env with nosync,
@@ -2094,6 +2095,7 @@ cleanup:
     if (tran->bkfill_txn_list)
         free(tran->bkfill_txn_list);
 
+    bdb_plan_tran_done(tran);
     free(tran);
 
     return outrc;
@@ -2380,6 +2382,7 @@ cleanup:
     if (tran->bkfill_txn_list)
         free(tran->bkfill_txn_list);
 
+    bdb_plan_tran_done(tran);
     free(tran);
     return outrc;
 }

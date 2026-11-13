@@ -710,6 +710,17 @@ int bdb_tran_commit_with_seqnum_size(bdb_state_type *bdb_state, tran_type *tran,
 int bdb_tran_abort(bdb_state_type *bdb_handle, tran_type *tran, int *bdberr);
 int bdb_tran_abort_priority(bdb_state_type *bdb_handle, tran_type *tran, int *bdberr, int *priority, int discard);
 
+/* Ordered apply (bdb/plan.c, docs/adr/0003): a transaction in plan mode
+ * records its btree writes instead of doing them, and bdb_tran_plan_apply()
+ * does them all when its turn comes.  A plan-mode transaction that meets
+ * something it cannot plan fails with a deadlock rc and reports
+ * bdb_tran_plan_unsupported(); the request is then run without a plan. */
+int bdb_tran_plan_start(tran_type *tran);
+int bdb_tran_plan_active(tran_type *tran);
+int bdb_tran_plan_unsupported(tran_type *tran);
+void bdb_tran_plan_set_unsupported(tran_type *tran);
+int bdb_tran_plan_apply(bdb_state_type *bdb_state, tran_type *tran, int *bdberr);
+
 /* english doesn't have curses vile enough */
 int bdb_tran_abort_logical(bdb_state_type *bdb_handle, tran_type *tran,
                            int *bdberr, void *blkseq, int blklen, void *blkkey,

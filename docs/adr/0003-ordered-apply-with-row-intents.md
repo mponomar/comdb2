@@ -4,8 +4,12 @@
 
 Proposed — 2026-11-11
 
-Nothing here is implemented. The measurements describe the current system;
-the numbers given for the proposal are estimates built from them.
+Stage 0 and the first step of stage 1.1 are implemented on the
+`rowlocks-ideas` branch, behind tunables; see
+[Implementation status](#implementation-status) for what exists, what it
+measured and where to resume. The measurements under Context describe the
+system before that work, and the numbers under
+[Expected effect](#expected-effect) are estimates built from them.
 
 ## Context
 
@@ -172,8 +176,9 @@ commit, which happens before the row locks are released
 Three pieces of the system depend on page locks being held to commit, and all
 three depend on the same property:
 
-> On every page, log records appear in commit order, and the records of
-> uncommitted transactions are the most recent ones.
+> For any one page, the log records that modify it appear in the log in the
+> commit order of their transactions, and records of uncommitted transactions
+> come after all committed ones.
 
 - **Replicant apply.** A replicant applies whole transactions in commit-record
   order, after taking the page locks listed in the commit record. A page
@@ -191,12 +196,40 @@ commits is another, and it does not require any writer to wait for a page.
 
 ## Proposal
 
-The master has a transaction's complete operation list before it starts. That
-lets it settle every logical conflict before it touches a page, so the part
-that modifies pages can no longer fail and never needs to be undone in normal
-operation.
+The master can work out a transaction's complete set of btree operations
+before it modifies any page. The operation list it receives is not complete by
+itself, because foreign key checks and cascades add to it as it runs, but all
+of that is done by reading. So the master can settle every logical conflict
+before it touches a page, and the part that modifies pages can no longer fail
+and never needs to be undone in normal operation.
 
-A transaction goes through four stages.
+A transaction goes through four stages. The first two are logical and touch
+only memory. The last two are physical: they modify pages and write the log.
+
+### Names and stamps
+
+Conflicts are detected on **names**. A name identifies something two
+transactions can conflict over:
+
+| What                    | Name                              | Written by                   |
+|-------------------------|-----------------------------------|------------------------------|
+| A row                   | (table, genid)                    | update, delete               |
+| A unique key            | (index, key)                      | insert, delete, key change   |
+| A foreign key reference | (child index, parent key prefix)  | child insert, delete, update |
+
+Entries in non-unique indexes need no name of their own; they belong to the
+row. An insert into a table with no unique keys and no foreign keys writes no
+names at all.
+
+Assume for now a table with unlimited room, the **stamp table**, that maps
+every name to the sequence number of the last transaction that wrote it. That
+number is the name's **stamp**. A name that was never written has stamp 0.
+[A stamp table that fits in memory](#a-stamp-table-that-fits-in-memory)
+replaces this with something that can be built.
+
+A stamp is not a lock. It has no owner, it is never released and nothing
+queues on it; it records only which transaction wrote the name last. The names
+a transaction stamps are its **intents**.
 
 ### 1. Prepare: parallel, nothing held
 
@@ -210,66 +243,150 @@ diverts to `bdb/phys.c` today (`bdb/ll.c:246`).
   list of btree operations with their keys and payloads.
 - Reads go to the btree for the latest state, with the transaction's own plan
   laid over the result, so a transaction sees its own earlier operations.
-- Each read of a row or key that another transaction could change records a
-  **version**: the sequence number of the last transaction that wrote it,
-  taken from a fixed-size in-memory array indexed by a hash of the row or key.
+- Each read of a row or key that another transaction could change also notes
+  the stamp of its name. If that stamp belongs to a transaction that has not
+  finished applying to the file being read, the read first waits until it has,
+  so that the stamp noted and the data read agree.
+- Foreign key checks and cascades run here, and add operations to the plan
+  from what they read.
 
 Verify errors, duplicate keys, constraint failures and cascades are all found
 here. Nothing has been written, so a failure has nothing to roll back, and a
-verify error goes back to the replicant as it does today. The page reads also
-bring the pages the apply stage will need into the buffer pool.
+verify error goes back to the replicant as it does today.
+
+Prepare also **prefetches**: it searches for every page the plan will write,
+so those pages are in the buffer pool before the transaction is sequenced. The
+reads above do not cover this by themselves. An insert into a non-unique index
+needs no read, so without the prefetch its leaf page is first touched in
+apply. A second prefetcher walks each file's queue ahead of the apply thread
+and brings back pages evicted since prepare.
 
 ### 2. Sequence: a short critical section
 
 Under one mutex:
 
-1. Check that every version recorded during prepare is unchanged.
+1. Check that every name read during prepare still has the stamp that was
+   noted.
 2. Take the next sequence number. It exists only in memory and is never
    logged.
-3. Write that number into the version slot of every row and key the
-   transaction changes. These are its **intents**.
-4. Append the plan to the queue of each btree it touches.
+3. Write that number as the stamp of every name the transaction changes.
+4. Append the plan to the queue of each file it touches.
 
-Intents take the place of row locks:
+A transaction **conflicts** when a name it read has a different stamp by the
+time it reaches the mutex. Another transaction was sequenced with a change to
+that name after the read, so what was read may be stale. Every write is
+preceded by a read of the same name (a delete reads the row; an insert reads
+the unique key to check for a duplicate), so two writers of one name are
+caught the same way.
 
-| What                    | Intent on                         | Taken by                     |
-|-------------------------|-----------------------------------|------------------------------|
-| A row                   | (table, genid)                    | update, delete               |
-| A unique key            | (index, key)                      | insert, delete, key change   |
-| A foreign key reference | (child index, parent key prefix)  | child insert, delete, update |
+The first transaction to reach the mutex wins. The other waits for it to
+finish applying, repeats the reads that were stale, and either tries the mutex
+again or returns the verify or duplicate error. Repeating a read can change
+the plan as well as the verdict: a cascade may find a child row that was not
+there before.
 
-Entries in non-unique indexes need no intent of their own; they belong to the
-row. An insert into a table with no unique keys and no foreign keys takes no
-intents at all.
+The transaction being waited on is past the point where it can fail and never
+waits for an unsequenced transaction, and the waiter holds nothing. These
+waits cannot form a cycle, and there is no deadlock detector involved.
 
-If a version has changed, another transaction sequenced a change to that row
-or key first. The transaction waits for that one to finish applying, reads
-again, and either carries on or returns the verify or duplicate error. The
-transaction being waited on is past the point where it can fail and never
-waits for an unsequenced transaction, so these waits cannot form a cycle.
-There is no deadlock detector involved.
+### A stamp table that fits in memory
 
-A hash collision makes two keys share a slot. The effect is a spurious re-read,
-never a missed conflict.
+The stamp table as described cannot be built: it would hold every row and key
+ever written. It can be made finite because most stamps are dead.
 
-### 3. Apply: one thread at a time per btree, in sequence order
+A stamp matters only to a transaction that noted it during prepare and has not
+yet been sequenced. Once the transaction that wrote a stamp has been applied,
+and every prepare still running started after it was sequenced, nothing can
+tell that stamp from 0. With no transactions running and the queues empty, the
+whole table could be emptied.
 
-Each btree file has a queue of plans. Whichever thread finds the queue
-unattended drains it, so under light load a transaction's own thread applies
-its operations and under load one thread applies a batch for many
-transactions. Operations use the ordinary btree code and write the ordinary
-log records under the owning transaction's id.
+That allows two constructions:
+
+- **Exact, with eviction.** A hash table keyed by name. An entry is removed
+  once it is dead by the rule above, and a missing entry reads as 0. Each
+  prepare notes the sequence counter when it starts and treats every stamp at
+  or below that as 0, so an eviction during the prepare is not mistaken for a
+  change. There are no false conflicts. The cost is allocation and eviction,
+  some of it under the sequence mutex.
+- **Lossy, fixed size.** An array of sequence numbers indexed by a hash of the
+  name. The name is not stored and nothing is evicted; a slot is simply
+  overwritten. Two names that hash to the same slot share a stamp, so a write
+  to one looks like a write to the other. The effect is a read repeated for
+  nothing, never a missed conflict.
+
+The array is a lossy compression of the exact table. Everything else in the
+design is the same for both, and the rest of this document says "stamp table"
+for either.
+
+The size of the array sets the rate of false conflicts. As a rough guide,
+using assumed figures: a transaction reads 100 names during a 5 ms prepare
+while the system stamps 200,000 names per second, so about 1,000 stamps land
+during its prepare. The chance that one of them hits a slot the transaction
+read is about 100 × 1,000 ÷ slots: 10% with a million slots (8 MB), 0.6% with
+16 million (128 MB). Large transactions are affected most.
+
+Either way the table exists only in memory on the master. A new master starts
+with an empty one, so a prepare that is running across a change of master is
+discarded and run again.
+
+### 3. Apply: one thread at a time per file, in sequence order
+
+A **file** here is one table's data, one index or one blob. Some of these are
+several files on disk, such as data stripes; whether each of those gets its
+own queue is left open.
+
+Each file has a queue of plans. Whichever thread finds the queue unattended
+drains it, so under light load a transaction's own thread applies its
+operations and under load one thread applies a batch for many transactions.
+Operations use the ordinary btree code and write the ordinary log records
+under the owning transaction's id.
 
 - A page lock is held for one operation and then released. The page is
   remembered for the commit record's lock list, which replicants still need.
-- Data stripes, indexes and blob files are separate btrees and are applied in
-  parallel.
-- With one writer per btree there are no writer-against-writer page deadlocks.
+- Separate files are applied in parallel.
+- With one writer per file there are no writer-against-writer page deadlocks.
   A reader can still deadlock with a split; readers always lose and retry
   their lookup.
 
 A hot leaf is now held for one operation, about 12 µs today, instead of for
 the rest of a transaction.
+
+#### Transaction boundaries
+
+The queues are per file; the transaction is not. Each sequenced transaction
+has one Berkeley transaction, and every apply thread that executes one of its
+operations logs under that transaction's id. An apply thread moving from one
+plan in its queue to the next switches transaction; it begins and commits
+nothing itself.
+
+A transaction is **applied** when the last queue holding any of its operations
+has finished them. Only then, and only when its dependencies have committed,
+is its one commit record written, with the pages collected by all the apply
+threads.
+
+Replicants see no difference. A replicant does nothing with a transaction's
+records until the commit record arrives. It then collects all of them, takes
+the page locks listed in the commit record, applies the records in LSN order
+and releases the locks. It cannot apply a transaction's index write and
+release locks before the data write, because it applies neither until the
+commit record, and that is written after both.
+
+One thing does change on the master. A transaction's log records are chained
+through their previous-LSN field, which replicants follow back from the commit
+record to collect the transaction (`berkdb/rep/rep_record.c:6708`) and which
+undo follows too. Each log write reads and updates the transaction's last LSN
+with no lock, because today one thread writes all of a transaction's records.
+With one apply thread per file, several threads write them at once. Two ways
+to keep the chain intact:
+
+- A latch around each log write. Log writes are serialized already, by the log
+  region mutex, so this may need no new latch: the record's previous LSN would
+  be filled in and the transaction's last LSN updated while that mutex is
+  held, where today the record is built before taking it.
+- A child transaction for each file the transaction touches, each with its own
+  chain, joined to the parent by a `__txn_child` record before the commit.
+  Replicants already collect children this way. It costs one more log record
+  for each file in each transaction.
 
 ### 4. Commit: ordered by dependency, batched, off the writer thread
 
@@ -282,7 +399,7 @@ and every transaction it depends on has committed. It depends on:
 
 The first keeps page records in commit order. The second and third keep the
 commit order a valid serial order, which page read locks held to commit
-provide today. Because each btree is applied in sequence order, dependencies
+provide today. Because each file is applied in sequence order, dependencies
 always point to earlier transactions and cannot form a cycle.
 
 Two further changes belong to this stage and address the single-row limits
@@ -306,7 +423,7 @@ ascending index, and whose other keys land elsewhere.
 
 1. Both prepare at the same time. Neither reads anything the other writes.
 2. T1 is sequenced as 41, T2 as 42. Both plans are appended to the queue of
-   each btree they touch.
+   each file they touch.
 3. The thread draining the index on `a` applies T1's entries and then T2's on
    P, a few microseconds apart. T2 records a dependency on T1 because T1 was
    the last uncommitted writer of P.
@@ -320,7 +437,7 @@ rolled back and replayed.
 ### Readers on the master
 
 SQL running on the master must not sit on a page lock, or it stalls the apply
-thread for that btree. It uses the same snapshot cursors as on replicants,
+thread for that file. It uses the same snapshot cursors as on replicants,
 taking page copies and unrolling records of transactions that have not
 committed. Pages changed by a sequenced but uncommitted transaction are
 unrolled exactly as pages changed by an uncommitted transaction are today.
@@ -344,7 +461,7 @@ unrolled exactly as pages changed by an uncommitted transaction are today.
 - **Errors during apply.** These are I/O-class failures. The master treats
   them as a replicant treats a failed apply, and gives up mastership.
 - **Large transactions.** In stage 1 a large transaction delays every later
-  transaction queued behind it on the same btree. Stage 2 applies it in
+  transaction queued behind it on the same file. Stage 2 applies it in
   slices, so later small transactions can go ahead; a small transaction that
   ends up mutually dependent with it commits in the same unit.
 - **Other writers.** Schema-change converters, queue consumers and any other
@@ -372,8 +489,8 @@ These are estimates from the measurements above, not results.
 - **Page contention.** Deadlock replays on the master go to zero. The floor
   for the contended case is the serial rate measured with `maxwt 1`, 11,500
   rows/s, twice what 32 writer threads achieve now. Beyond that, prepare runs
-  in parallel and apply runs in parallel across btrees. One apply thread per
-  btree at today's 12 µs per put allows about 80,000 operations per second
+  in parallel and apply runs in parallel across files. One apply thread per
+  file at today's 12 µs per put allows about 80,000 operations per second
   through a single index on this hardware, so that is not expected to be the
   first limit; replicant apply and log volume are.
 - **Single-writer latency** stays at page-lock levels: the same log records,
@@ -393,29 +510,211 @@ These are estimates from the measurements above, not results.
    wait. This is small, addresses the single-row limits directly, and is worth
    doing whatever happens to the rest.
 1. **Ordered apply.** The four stages, using short page locks through the
-   existing lock manager. The first slice is inserts into tables with no
-   unique keys or foreign keys: it needs no intents, only the queues, early
-   lock release and ordered commit, and it would show whether the hot-leaf
-   workload scales as estimated.
+   existing lock manager, in three steps that differ only in when the next
+   transaction may start applying. Prepare, stamps and sequencing, where a
+   mistake is a correctness bug, are the same in all three.
+
+   1. **Serial apply.** Transaction N+1 does not start applying until N has
+      written its commit record. Its files are still applied in parallel. At
+      most one uncommitted transaction is on the pages at any time, so the
+      commit dependencies hold without being tracked and losing mastership
+      means aborting one ordinary transaction. Estimated from 12 µs per put
+      and four puts per row: about 20,000 rows/s applied on one thread, up to
+      about 80,000 for large transactions with the four files in parallel,
+      and about 20,000 single-row transactions per second. The cost is that
+      every write waits behind the transaction being applied, whether or not
+      it is related. Inserts into tables with no unique keys or foreign keys
+      can come first within this step, since they write no names.
+   2. **Serial per file.** N+1 may start if it shares no file with an earlier
+      uncommitted transaction. Different files have different pages, so there
+      is still one uncommitted transaction per page and each can be aborted
+      alone. Transactions on unrelated tables no longer wait for each other.
+   3. **Ordered per page.** The design as described above: transactions stack
+      on a page and commit in that order, with the dependency tracking and
+      the group undo that requires.
 2. **Latches and finer scheduling.** Page latches in the buffer pool instead
    of lock manager locks; slicing of large transactions; commit units; several
-   apply threads per btree, partitioned by key range.
+   apply threads per file, partitioned by key range.
 3. **Row-level log records.** One record per row operation instead of eight
    `__db_addrem` records. This is the stage where an incompatible format would
    pay, and it is separable from the rest.
+
+## Implementation status
+
+As of 2026-11-12. Everything below is on the `rowlocks-ideas` branch. PR 6144
+is merged there as a local merge commit, and the ordered-apply work is
+committed on top of it. Nothing has been pushed. Do not push this work to
+public GitHub; pushing to xeon is fine.
+
+### Stage 0: the ack wait, from PR 6144
+
+Stage 0 is upstream PR 6144 (`async_dist_commit`, on by default), used as it
+is. The block processor hands a committed request to one background thread,
+which checks the acks for every outstanding commit and sends the reply.
+
+Checked: the change was read against the inline wait it replaces; sections
+1–5 of `tests/async_dist_commit.test` pass on the three-node cluster; with one
+replicant paused for 8 seconds under load, all 96,000 transactions committed,
+every node had the same row count and all nodes returned to coherent. Sections
+6–11 of that test need the test harness (ssh, killing and restarting nodes)
+and were not run.
+
+| Workload                         | Off               | On           | Master cores, off → on |
+|----------------------------------|------------------:|-------------:|-----------------------:|
+| Random, 1 row, 32 clients        | 8,970–9,083 txn/s | 8,419–8,908  | 13.0 → 8.4             |
+| Random, 1 row, 64 clients        | 8,246–8,725 txn/s | 9,117–9,202  | 13.2–14.1 → 8.9        |
+| Random, 1 row, 128 clients       | 8,187–9,922 txn/s | 9,291–9,299  | 13.2–14.5 → 9.3–9.5    |
+| Ascending, 1 row, 32 clients     | 7,035–7,181 txn/s | 6,326–7,535  | 9.5–9.9 → 6.5–7.7      |
+| Ascending, 100 rows, 32 clients  | 5,418–5,623 rows/s | 6,770–6,788 | 1.0–1.1 → 1.3–1.4      |
+
+It removes about a third of the master's CPU. Single-row throughput stays near
+9,000 transactions per second, so the writer threads were not what capped it.
+
+### Stage 1.1, first step: inserts that write no names
+
+Tunables, all experimental: `ordered_apply` (off by default),
+`ordered_apply_threads` (3), `ordered_apply_parallel_min_ops` (64),
+`ordered_apply_serial_commit` (on). The code is `bdb/plan.c`, with hooks in
+`bdb/ll.c`, `bdb/tran.c`, `db/toblock.c`, `db/sltdbt.c` and `db/record.c`.
+
+What it does:
+
+- **Prepare.** A plain SQL write request starts in plan mode. `ll_dta_add` and
+  `ll_key_add` record the operation, with its key and its payload already
+  packed and compressed, instead of writing. Only adds to data files, blob
+  files and indexes that allow duplicates are planned. These write no names,
+  so there is no stamp table yet.
+- **Fallback.** Anything else abandons the plan before a page is written and
+  the request runs again at once under page locks held to commit: a unique
+  key, a foreign key, an update, a delete, a table under schema change, a
+  distributed transaction, or DDL. A transaction found holding a page lock
+  when it is about to wait for its turn falls back the same way; that catches
+  writes and reads that do not go through `ll.c`, such as queue adds for
+  triggers.
+- **Sequence.** The apply turn is a write lock in the Berkeley lock manager.
+  Waiters are served in order, and the deadlock detector sees a wait for the
+  turn, which matters when a transaction outside plan mode sits between two
+  that are in it.
+- **Apply.** The plan is replayed through the same `ll_*` routines under the
+  request's own Berkeley transaction, so the log records are the ordinary
+  ones. A plan of 64 or more operations is split by btree file, and each file
+  is applied on its own thread under its own child transaction. The children
+  are begun and committed on the owning thread.
+- **Turn release.** With `ordered_apply_serial_commit` on, the turn is kept
+  until the transaction commits, which is serial apply as described under
+  [Staging](#staging). Off releases it when apply is done. Page locks taken
+  in apply are held to commit either way, so a later plan waits in the lock
+  manager for any page it shares with one that is still committing.
+
+What differs from the proposal: each transaction applies its own plan on its
+own thread, there are no per-file queues drained by whichever thread finds
+them, there is no prefetch, and page locks are held to commit, not for one
+operation.
+
+Checked: `tests/ordered_apply.test` (new) passes on a single node on macOS;
+`tests/tunables.test` expectations are updated; a kill -9 under load with
+parallel apply recovered to whole transactions with verify clean; after every
+benchmark phase the three nodes held identical tables and verify succeeded.
+Not run: the wider test suite with `ordered_apply` on, any test on a real
+disk, and the Jepsen suite.
+
+#### Results
+
+Same cluster and workloads as [How this was measured](#how-this-was-measured),
+with `async_dist_commit` on throughout. "Serial" applies on one thread and
+keeps the turn to commit. "Parallel" adds a thread per file. "Early" is
+parallel with `ordered_apply_serial_commit` off.
+
+| Ascending keys          | Page locks        | Serial | Parallel | Early  |
+|-------------------------|------------------:|-------:|---------:|-------:|
+| 100 rows, 1 client      | 6,726 rows/s      |  6,036 |    7,301 |  6,543 |
+| 100 rows, 8 clients     | 8,132 rows/s      | 11,245 |   23,430 | 25,382 |
+| 100 rows, 32 clients    | 6,732 rows/s      | 11,350 |   26,004 | 27,239 |
+| 1 row, 1 client         | 560 txn/s         |    525 |      528 |    529 |
+| 1 row, 32 clients       | 7,001 txn/s       |  2,975 |    3,070 |  3,511 |
+
+| Random keys, 4.2M rows  | Page locks        | Serial | Parallel | Early  |
+|-------------------------|------------------:|-------:|---------:|-------:|
+| 100 rows, 1 client      | 6,280 rows/s      |  6,743 |    6,771 |  6,854 |
+| 100 rows, 8 clients     | 7,075 rows/s      |  8,540 |   20,468 | 22,000 |
+| 100 rows, 32 clients    | 6,610 rows/s      |  8,973 |   22,343 | 23,654 |
+| 500 rows, 16 clients    | 8,179 rows/s      | 10,262 |   26,513 |      — |
+| 1 row, 32 clients       | 8,408 txn/s       |  2,813 |    2,753 |  3,514 |
+| 1 row, 64 clients       | 8,748 txn/s       |  2,876 |    2,754 |  3,435 |
+
+The 500-row figures for page locks and serial come from the earlier runs in
+`results/stage0-async-dist-commit.results` and
+`results/stage1-serial-apply.results`.
+
+- **Deadlocks.** None in any ordered-apply run. Under page locks the same
+  runs had 930 to 1,251 for 1,920 transactions of 100 rows.
+- **Large transactions.** Serial apply lands at the `maxwt 1` rate, as
+  expected. A thread per file gives 3.4 to 4 times the page-lock rate at 8
+  and 32 clients. Master CPU goes from about 1.5 cores to about 5.5.
+- **Single-row transactions lose more than half.** The turn is busy about 90%
+  of the time, so this is the serial section itself. With 32 clients it is
+  about 300 µs per transaction: 180–210 µs applying four puts and about
+  120 µs from the end of apply to the end of commit. The same four puts take
+  120–134 µs with one client, and about 85 µs as part of a 100-row plan
+  (8.4 ms for 400). Releasing the turn early removes the commit part and
+  gains about 20%, but apply itself then takes 235 µs.
+- **A single client is unchanged**, within run-to-run noise.
+
+The estimate under [Staging](#staging) of 20,000 single-row transactions per
+second for serial apply assumed 12 µs per put. Measured inside the turn, a
+put costs 20 µs in a large plan and 45–60 µs in a single-row one.
+
+### Where to resume
+
+1. **Run the same comparison on a single node.** The purpose is to find out
+   whether replication is the limit in this scheme: every log record is sent
+   to the replicants on the thread that writes it, and that thread is now the
+   one holding the turn. If single-row apply is much cheaper with no
+   replicants, moving the send off the applying thread comes before anything
+   else. `ordered-apply-variants.sh` in `docs/adr/0003-bench/` drives the four
+   variants; it needs a one-node variant of `newcluster.sh` and the compose
+   file.
+2. **Find where the 180–240 µs of a single-row apply goes**, with
+   `perfdwarf.sh` on the master during a serial single-row run. Candidates:
+   the send above, the log region mutex, cold caches after the turn changes
+   thread, and the lock manager calls for the turn and for each put.
+3. **Then choose between the two directions:**
+   - Names and stamps, which is the rest of stage 1.1: unique keys, updates
+     and deletes in plan mode, with reads laid over the plan and the lossy
+     stamp array. This needs a decision on how writers outside plan mode take
+     part once names exist. The working idea is that such a writer takes the
+     turn for its whole transaction and bumps a generation that makes every
+     prepare in flight run again.
+   - Single-row throughput: a thread that keeps the turn and applies queued
+     plans for other transactions, which needs commit ordered per page
+     (stage 1.3) or commit units (stage 2).
+4. **Open items in what exists:** no prefetch; parallel apply is off when
+   logical logging (`llog`) or a logical live schema change is on, because
+   those records are chained through the top-level transaction; a request
+   that cannot be planned pays one aborted attempt each time; the default for
+   `ordered_apply_serial_commit` is not settled.
 
 ## Risks and open questions
 
 - **Plan mode for the block processor is the bulk of the work.** Deferred key
   adds, the constraint temp tables, cascades, triggers and live schema-change
   mirroring all have to produce plan entries, and every read they do has to go
-  through the plan and record a version. A missed read is a correctness bug,
+  through the plan and note a stamp. A missed read is a correctness bug,
   so the list of reads needs to be exhaustive and the rules need a model or
   proof as well as the Jepsen suite.
 - **A page missing from the buffer pool stalls an apply thread**, and with it
-  every transaction queued on that btree. Prepare touches the same pages just
-  before, so this should be rare, but it has to be measured on real disks.
-- **Single-thread apply rate per btree** is estimated from today's cost per
+  every transaction queued on that file, or every write on the master under
+  serial apply. Prefetching in prepare and from the queue is meant to make
+  this rare. It cannot help a transaction larger than the buffer pool, whose
+  apply runs at the disk's rate, and it has to be measured on real disks.
+  Waits for a free buffer or for the log buffer to flush stall apply the same
+  way.
+- **A large transaction under serial apply stalls every write** for as long
+  as it takes to apply: 12 to 50 seconds for a million rows at the estimated
+  rates. Today it blocks only the transactions that contend with it. Serial
+  per file confines the stall to the tables it touches. Within one table only
+  slicing, in stage 2, removes it.
+- **Single-thread apply rate per file** is estimated from today's cost per
   put. If a production workload pushes one index past it, partitioned apply
   moves from stage 2 to stage 1.
 - **Master SQL depends on the snapshot cursor work** being complete enough
@@ -425,6 +724,13 @@ These are estimates from the measurements above, not results.
   page locks on the replicant at once.
 - **Memory.** A plan holds keys and row images until applied. Large plans need
   to spill to temp tables as the operation list does today.
+- **Which stamp table.** The exact table with eviction has no false conflicts
+  but does more work under the sequence mutex; the fixed array is simpler and
+  its false-conflict rate depends on its size and on transaction size. Not
+  decided.
+- **One transaction's log records written by several threads.** A latch on
+  the transaction or a child transaction per file; see
+  [Transaction boundaries](#transaction-boundaries). Not decided.
 
 ## Alternatives considered
 
@@ -444,6 +750,98 @@ These are estimates from the measurements above, not results.
 - **Row-versioned storage, or an in-memory table in front of the btrees.**
   Either removes the problem by replacing the storage layer, replication and
   the snapshot design.
+
+## Related work
+
+Each stage has close precedents. They mostly assume main-memory storage,
+logical logging, or a write set known in advance. This proposal keeps
+physical page logging, its undo and the replicant apply path as they are, so
+the constraint it adds is the one in
+[What page locks are needed for](#what-page-locks-are-needed-for): log
+records for any one page stay in commit order.
+
+**Settling the order before execution.** Calvin [1] puts transactions in a
+global order before running them, so execution cannot deadlock. If a
+transaction's read and write sets depend on data, Calvin first runs a
+read-only reconnaissance pass (OLLP), then checks at execution that the sets
+are unchanged and restarts the transaction if they are not. Prepare and
+sequence follow the same pattern. The difference is that the whole plan,
+payloads included, is built during prepare, not just the set of locks. Bohm
+[2] also knows the write sets up front. It puts in placeholder versions so
+that a read waits for a pending writer, which corresponds to a prepare
+waiting until a stamp's transaction has applied to the file being read. PWV
+[3] lets a write become visible before commit and tracks the commit
+dependencies this creates. Aria [4] runs a batch, validates it and then
+commits, without needing read or write sets in advance.
+
+**Queues per partition drained in order.** QueCC [5] has planner threads
+split each transaction into a queue per partition, and executor threads
+drain those queues in a fixed order with no locking. The apply stage works
+the same way, with files in place of partitions. Here a queue has no
+dedicated executor: any thread that finds it unattended drains it.
+
+**Threads that own data.** DORA [6] sends each part of a transaction to the
+thread that owns that data, and PLP [7] extends this so that each partition's
+btree pages are latch free. H-Store [8] runs each partition serially. In the
+apply stage a file has one owner at a time, but the owner is whoever is
+draining the queue, not a fixed thread.
+
+**Validation against stamps.** Checking that every stamp read is unchanged
+at the sequence mutex is backward-validation optimistic concurrency control
+[9], in the form Silo [10] uses with a transaction id on each record. The
+lossy stamp array is the versioned lock array of TL2 [11]. In TL2 names are
+hashed into a fixed array of version numbers, a collision causes a needless
+abort but never a missed conflict, and the false-abort rate is set by the
+size of the array. The size estimate in
+[A stamp table that fits in memory](#a-stamp-table-that-fits-in-memory) is
+the same calculation.
+
+**Commit ordered by dependency.** Releasing locks before commit and making
+later transactions wait on earlier commits is early lock release [12], used
+alongside group commit and flush pipelining in Aether [13]. Controlled lock
+violation [14] records the commit dependency each early release creates and
+enforces commit order with it, which is what the commit stage does with its
+three kinds of dependency. Hekaton [15] tracks commit dependencies the same
+way for speculative reads.
+
+The papers above also show where these designs tend to break down: Calvin's
+restart rate when the reconnaissance reads change, a long transaction holding
+up queues in QueCC and in serial apply generally, and tuning the stamp array
+for false aborts. These are covered under
+[Risks and open questions](#risks-and-open-questions).
+
+1. A. Thomson, T. Diamond, S.-C. Weng, K. Ren, P. Shao, D. J. Abadi.
+   *Calvin: Fast Distributed Transactions for Partitioned Database Systems.*
+   SIGMOD 2012.
+2. J. M. Faleiro, D. J. Abadi. *Rethinking Serializable Multiversion
+   Concurrency Control.* VLDB 2015.
+3. J. M. Faleiro, D. J. Abadi, J. M. Hellerstein. *High Performance
+   Transactions via Early Write Visibility.* VLDB 2017.
+4. Y. Lu, X. Yu, L. Cao, S. Madden. *Aria: A Fast and Practical
+   Deterministic OLTP Database.* VLDB 2020.
+5. T. Qadah, M. Sadoghi. *QueCC: A Queue-oriented, Control-free Concurrency
+   Architecture.* Middleware 2018.
+6. I. Pandis, R. Johnson, N. Hardavellas, A. Ailamaki. *Data-Oriented
+   Transaction Execution.* VLDB 2010.
+7. I. Pandis, P. Tözün, R. Johnson, A. Ailamaki. *PLP: Page Latch-free
+   Shared-everything OLTP.* VLDB 2011.
+8. R. Kallman et al. *H-Store: a High-Performance, Distributed Main Memory
+   Transaction Processing System.* VLDB 2008.
+9. H. T. Kung, J. T. Robinson. *On Optimistic Methods for Concurrency
+   Control.* ACM TODS 6(2), 1981.
+10. S. Tu, W. Zheng, E. Kohler, B. Liskov, S. Madden. *Speedy Transactions
+    in Multicore In-Memory Databases.* SOSP 2013.
+11. D. Dice, O. Shalev, N. Shavit. *Transactional Locking II.* DISC 2006.
+12. D. J. DeWitt, R. H. Katz, F. Olken, L. D. Shapiro, M. R. Stonebraker,
+    D. Wood. *Implementation Techniques for Main Memory Database Systems.*
+    SIGMOD 1984.
+13. R. Johnson, I. Pandis, R. Stoica, M. Athanassoulis, A. Ailamaki.
+    *Aether: A Scalable Approach to Logging.* VLDB 2010.
+14. G. Graefe, M. Lillibridge, H. Kuno, J. Tucek, A. Veitch. *Controlled
+    Lock Violation.* SIGMOD 2013.
+15. P.-Å. Larson, S. Blanas, C. Diaconu, C. Freedman, J. M. Patel,
+    M. Zwilling. *High-Performance Concurrency Control Mechanisms for
+    Main-Memory Databases.* VLDB 2011.
 
 ## Reproducing the measurements
 
@@ -505,6 +903,10 @@ Notes:
   during a run.
 - `results/` holds the plain-run output behind the tables above, for page
   locks and for the existing rowlocks mode.
+- `ordered-apply-variants.sh` runs the comparison under
+  [Implementation status](#implementation-status); its output and the two
+  earlier runs are in `results/stage*.results`. Copy it to `/tmp/rlbench` with
+  the other scripts.
 
 ## References
 
@@ -516,6 +918,9 @@ Notes:
 - Page-LSN rules for redo and undo: `berkdb/db/db_rec.c:285`
 - Snapshot unroll: `berkdb/mp/mp_versioned.c:372`
 - Child transactions on replicants: `berkdb/rep/rep_record.c:6762`
+- Collecting a transaction's records by previous LSN:
+  `berkdb/rep/rep_record.c:6708`; the chain is kept in `txnid->last_lsn` by
+  the generated log functions (`berkdb/dist/gen_rec.awk:515`)
 - Transaction-class dispatch: `bdb/ll.c:246`
 - ADR 0001, multiple freelists per btree, for uncontended throughput and an
   earlier profile of the commit path

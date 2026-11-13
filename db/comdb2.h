@@ -1547,6 +1547,11 @@ struct ireq {
      * the block processor gives it the request (instead of recycling it)
      * when it is done with it. */
     struct seqnum_wait *handoff;
+    /* Ordered apply: this request met something a plan cannot hold and runs
+     * with page locks held to commit.  plan_fallback asks the retry loop to
+     * run it again at once, without the deadlock backoff. */
+    unsigned plan_disabled : 1;
+    unsigned plan_fallback : 1;
     /* REVIEW COMMENTS AT BEGINING OF STRUCT BEFORE ADDING NEW VARIABLES */
 };
 
@@ -2252,6 +2257,8 @@ int trans_commit_logical(struct ireq *iq, void *trans, char *source_host,
                          int timeoutms, int adaptive, void *blkseq, int blklen,
                          void *blkkey, int blkkeylen);
 int trans_abort(struct ireq *iq, void *trans);
+int trans_plan_apply(struct ireq *iq, void *trans);
+extern int gbl_ordered_apply;
 int trans_abort_priority(struct ireq *iq, void *trans, int *priority);
 int trans_abort_logical(struct ireq *iq, void *trans, void *blkseq, int blklen,
                         void *blkkey, int blkkeylen);

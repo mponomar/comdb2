@@ -1140,8 +1140,8 @@ int bdb_prepare_put_pack_updateid(bdb_state_type *bdb_state, int is_blob,
     memcpy(data2, data, sizeof(DBT));
 
     if (odhready) {
-        /* If the record is preprocessed on a replicant, use it as is. */
-        assert(is_blob);
+        /* The record already has its header: a blob preprocessed on a
+         * replicant, or anything recorded in an ordered-apply plan. */
         *freeptr = NULL;
         rc = 0;
     } else {

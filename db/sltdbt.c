@@ -212,6 +212,13 @@ retry:
         avg_toblock_us += ((stopus - startus - avg_toblock_us) >> 4);
         if (avg_toblock_us > 25000)
             avg_toblock_us = 25000;
+    } else if (rc == RC_INTERNAL_RETRY && iq->plan_fallback) {
+        /* Ordered apply gave up on a plan for this request before writing
+         * anything.  Not contention: no penalty, no backoff. */
+        iq->plan_fallback = 0;
+        iq->retries++; /* toblock sets a request up only when this is 0 */
+        iq->usedb = iq->origdb;
+        goto retry;
     } else if (rc == RC_INTERNAL_RETRY) {
         iq->retries++;
         if (++retries < gbl_maxretries) {

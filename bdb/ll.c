@@ -200,6 +200,9 @@ int ll_dta_add(bdb_state_type *bdb_state, unsigned long long genid, DB *dbp,
                tran_type *tran, int dtafile, int dtastripe, DBT *dbt_key,
                DBT *dbt_data, int flags, int odhready)
 {
+    if (bdb_plan_recording(tran))
+        return bdb_plan_dta_add(bdb_state, genid, dbp, tran, dtafile, dtastripe, dbt_key, dbt_data, flags, odhready);
+
     int outrc = 0;
     int tran_flags;
 
@@ -260,6 +263,10 @@ int ll_dta_del(bdb_state_type *bdb_state, tran_type *tran, int rrn,
                unsigned long long genid, DB *dbp, int dtafile, int dtastripe,
                DBT *dta_out)
 {
+    /* ordered apply plans only adds so far */
+    if (bdb_plan_recording(tran))
+        return bdb_plan_refuse(tran);
+
     int rc;
     DBT dbt_key = {0};
     DBT dta_out_si = {0};
@@ -453,6 +460,10 @@ done:
 int ll_key_del(bdb_state_type *bdb_state, tran_type *tran, int ixnum, void *key,
                int keylen, int rrn, unsigned long long genid, int *payloadsz)
 {
+    /* ordered apply plans only adds so far */
+    if (bdb_plan_recording(tran))
+        return bdb_plan_refuse(tran);
+
     int rc = 0;
     DB *dbp;
     DBC *dbcp;
@@ -594,6 +605,10 @@ int ll_key_upd(bdb_state_type *bdb_state, tran_type *tran, char *table_name,
                unsigned long long oldgenid, unsigned long long genid, void *key,
                int ixnum, int keylen, void *dta, int dtalen)
 {
+    /* ordered apply plans only adds so far */
+    if (bdb_plan_recording(tran))
+        return bdb_plan_refuse(tran);
+
     int rc = 0;
     DB *dbp;
     DBC *dbcp;
@@ -768,6 +783,9 @@ int ll_key_add(bdb_state_type *bdb_state, unsigned long long ingenid,
 {
     int rc;
 
+    if (bdb_plan_recording(tran))
+        return bdb_plan_key_add(bdb_state, ingenid, tran, ixnum, dbt_key, dbt_data);
+
     switch (tran->tranclass) {
     case TRANCLASS_BERK:
         if (tran->logical_tran) {
@@ -826,6 +844,10 @@ static int ll_dta_upd_int(bdb_state_type *bdb_state, int rrn,
                           int is_blob, int has_blob_update_optimization,
                           int keep_genid_intact, int odhready)
 {
+    /* ordered apply plans only adds so far */
+    if (bdb_plan_recording(tran))
+        return bdb_plan_refuse(tran);
+
     int rc = 0;
     int inplace = 0;
     int updateid = 0;

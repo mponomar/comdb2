@@ -130,6 +130,20 @@ static inline int has_constraint(int flags)
  * For logical_livesc, function returns ERR_VERIFY if
  * the record being added is already in the btree.
  */
+/* Ordered apply plans only what writes no names: an insert into a table with
+ * no unique key and no foreign key, that no schema change is converting. */
+static int plan_can_add(const struct dbtable *db, int flags)
+{
+    if (db == NULL || is_event_from_sc(flags) || db->n_constraints > 0 || db->sc_to || db->sc_from ||
+        db->sc_live_logical || db->doing_conversion || db->doing_upgrade)
+        return 0;
+    for (int i = 0; i < db->nix; i++) {
+        if (!db->ix_dupes[i])
+            return 0;
+    }
+    return 1;
+}
+
 int add_record(struct ireq *iq, void *trans, const uint8_t *p_buf_tag_name,
                const uint8_t *p_buf_tag_name_end, uint8_t *p_buf_rec,
                const uint8_t *p_buf_rec_end, const unsigned char fldnullmap[32],
@@ -158,6 +172,11 @@ int add_record(struct ireq *iq, void *trans, const uint8_t *p_buf_tag_name,
     unsigned long long vgenid = 0;
 
     *ixfailnum = -1;
+
+    if (trans && bdb_tran_plan_active(trans) && !plan_can_add(iq->usedb, flags)) {
+        bdb_tran_plan_set_unsupported(trans);
+        return RC_INTERNAL_RETRY;
+    }
 
     if (!blobs) {
         bzero(myblobs, sizeof(myblobs));
