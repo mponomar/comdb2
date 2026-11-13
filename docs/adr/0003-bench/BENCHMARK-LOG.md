@@ -365,6 +365,46 @@ second.
   cannot say how much of that is the unique key, the changes since, or the
   5 to 10% between runs. No run of this build without `UNIQUE=1` was made.
 
+### 15. Test suite again, with the fixes
+
+- **When:** 2026-11-13 18:42–21:00 UTC. Not a timed benchmark.
+- **Code:** commit `065501ff6`, which has everything from runs 13 and 14.
+- **Setup:** as run 13: a native build on xeon in `/tmp/rltest2`, private
+  pmux on port 19500, single-node databases, `ordered_apply 1` and
+  `ordered_apply_unit 1` added to every test database, `-j40`,
+  `MAX_TEST_FAILURES=100000`. One script
+  (`/tmp/rltest-keep/run15.sh`) runs the pass, then the failed tests on
+  `main` (`983c0348d`), then the ones that pass on `main` once more with
+  ordered apply, then `ordered_apply` with nothing added.
+- **Results:** `suite-run15.txt`.
+  - The pass: 584 passed and 198 failed of 789 (run 13: 578 and 204).
+  - The 197 failures other than `ordered_apply` itself, on `main`: 186 fail
+    there too and 11 pass.
+  - Those 11 again with ordered apply, 20 at a time: 5 pass (`insert_lots`,
+    `insert_lots_ssl_generated`, `sc_addfield_logicalsc_generated`,
+    `maxtable`, `random_osql_replay`) and 6 fail.
+  - `ordered_apply` with nothing added passes.
+- **Found:** no new failure caused by ordered apply. The six that fail twice
+  with it and pass on `main` are the differences recorded under run 13:
+  `reqlog_logbyte` and `fingerprints` (a request in a unit reports no log
+  bytes or writes), `reorder_inserts_noreorder_generated` and
+  `nodeadlock_table_noreorder_generated` (they assert a minimum number of
+  deadlocks), `upsert` and `manual_partition_lgcy` (row order from a select
+  with no `ORDER BY`). `reorder_deletes_noreorder_generated`, the third
+  deadlock-count test, failed on `main` as well this time. None of the hangs
+  of run 13 came back.
+- **Failures in the pass that were load:** `insert_lots` and its variant ran
+  into their 15-minute limit with 40 tests running (one step took nine
+  minutes), `maxtable` into its 40-minute limit, and
+  `sc_addfield_logicalsc_generated` failed after 500 seconds. All pass at 20
+  in parallel. Whether ordered apply makes them slower under load than
+  `main` is not known: `main` was only run at lower load.
+- **Watchdog stalls:** four databases logged "stalled, aborting"
+  (`electbug2`, `logarchive`, `spemitrace`, `sslpartialwritehang`), each
+  while shutting down at the end of its test; the three whose results were
+  found passed. Not compared with `main`, which did not run those tests.
+- **Not covered:** single node only.
+
 ## Elsewhere
 
 - **Adaptive mode on the existing rowlocks code**, by a second agent, on

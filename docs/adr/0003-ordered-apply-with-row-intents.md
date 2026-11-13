@@ -968,10 +968,61 @@ Tests that still fail with ordered apply on:
 - `upsert`, `manual_partition_lgcy`: rows in a different order from a
   select with no `ORDER BY`. Cause not established.
 
-Only the tests involved were run again after the fixes, not the whole
-suite, and nothing clustered has been run.
+The whole suite was then run again from the commit with the fixes
+(`results/suite-run15.txt`, run 15): 584 passed and 198 failed. Of the 197
+failures other than the feature's own test, 186 fail on `main` too. Of the
+11 that pass on `main`, five pass with ordered apply when run at lower load;
+they had run into their time limits with 40 tests in parallel. The other six
+are the tests listed above, less one deadlock-count test that failed on
+`main` as well. None of the hangs came back. Nothing clustered has been
+run.
 
 ### Where to resume
+
+State at the end of the session of 2026-11-13:
+
+- **Code:** branch `rowlocks-ideas`, last code commit `065501ff6`. Commits
+  since the merge of PR 6144, oldest first: `7abd18b80` (plans and the
+  turn), `d9529dd95` (single node, profile, detector cost), `e27a9c411`
+  (commit units), `aa86f91e7` (a lone transaction applies its own plan;
+  benchmark log), `12131d4c2`, `065501ff6` (unique keys, the detector-visible
+  wait, the fixes from the test suite). Nothing is pushed.
+- **To measure, use these settings:** `ordered_apply 1`,
+  `ordered_apply_unit 1`. Everything else is at its default. The turn
+  variants (`serial`, `par`, `par-early`) are kept only for comparison.
+- **Every run is in `docs/adr/0003-bench/BENCHMARK-LOG.md`**, runs 1 to 15,
+  with what changed before each. Add an entry for each new run when it
+  starts.
+- **A second branch, `rowlocks-adaptive`**, has the experiment on the
+  existing rowlocks code. It is finished and nothing follows from it.
+- **On xeon** (all under `/tmp`, a RAM disk that a reboot empties): the
+  benchmark cluster in `/tmp/rlbench` (containers `rlbench-*`, idle), builds
+  for the test suite in `/tmp/rltest2` (this branch) and `/tmp/rltest-main`
+  (`main`), and a pmux of our own on port 19500. All can be removed;
+  `teardown-host.sh` removes the benchmark cluster, and
+  `suite-with-ordered-apply.sh` says how to set the suite up again.
+
+Things learned the hard way, which the next step must respect:
+
+- **A transaction recording a plan must not wait for a lock.** The lock may
+  be held by a unit that waits for this transaction, or by this
+  transaction's own parent under another lock owner. Reads made while
+  planning use a transaction that does not wait, and treat a locked page as
+  "not known".
+- **A request can run twice**, once with a plan and again without. Anything
+  it does outside its transaction must not happen in the first attempt:
+  bpfuncs, counters, per-request limits and statistics.
+- **Only what goes through `ll_dta_add` and `ll_key_add` is planned.**
+  Anything that reads back what the request wrote sees nothing, since the
+  row is only in the plan. That is why inserts made with constraint checking
+  on are not planned, and it is the first thing updates and deletes run
+  into: reads laid over the plan do not exist yet.
+- **Children of one transaction on several threads** are new to this code
+  base. The lock manager assumed one thread for each transaction family in
+  one place that was found (the waiting flag); there may be others.
+- **The test suite finds what the benchmarks do not.** Every one of the six
+  bugs of run 13 was invisible to the insert benchmarks and to the feature's
+  own test as it then was.
 
 1. **Updates and deletes in plan mode**, the rest of stage 1.1. These need
    the stamp array: a read of a row or key laid over the plan, a stamp
@@ -979,7 +1030,8 @@ suite, and nothing clustered has been run.
    keys. It needs a decision on how writers outside plan mode take part once
    names exist. The working idea is that such a writer bumps a generation
    that makes every prepare in flight run again.
-2. **Run the whole suite again** with the fixes, and on a cluster.
+2. **Run the suite on a cluster.** The single-node run with the fixes is
+   done.
 3. **Per-request accounting under units**: log bytes and write counts for
    request logging and fingerprints.
 4. **Decide whether a lone transaction should skip the plan altogether.**
