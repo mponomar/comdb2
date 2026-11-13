@@ -1,0 +1,816 @@
+BUILD-OK
+#### one node
+master=node1
+(name='maxwt', value='32')
+(name='cachekb', value='4194304')
+(out='rowlocks is             disabled')
+## config=pg
+STEP 1/41 mono 1 1 2000
+mono K=1   M=1    txns=2000   secs=   2.02 txn/s=      992 rows/s=      992 ms/txn=  1.01 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=16.4 master=node1 cpu(cores) master=1.62 replicants=
+     master-events n=2000 avg-ms total=0.3 queue=0.0 processing=0.3 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.3 lockwaiting=0.00
+STEP 2/41 mono 32 1 2000
+mono K=32  M=1    txns=64000  secs=   8.02 txn/s=     7978 rows/s=     7978 ms/txn=  4.01 | commits=64000 deadlocks=811 retries=811 lockwaits=35509 lockwait_ms=18744 lockreq/row=22.0 master=node1 cpu(cores) master=10.79 replicants=
+     master-events n=64000 avg-ms total=2.5 queue=0.4 processing=2.1 lockwait=0.3 | avg-concurrent queued=3.2 processing=16.8 lockwaiting=2.34
+STEP 3/41 mono 1 100 60
+mono K=1   M=100  txns=60     secs=   0.62 txn/s=       96 rows/s=     9607 ms/txn= 10.41 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=20.4 master=node1 cpu(cores) master=1.73 replicants=
+     master-events n=60 avg-ms total=6.5 queue=0.0 processing=6.5 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.6 lockwaiting=0.00
+STEP 4/41 mono 8 100 60
+mono K=8   M=100  txns=480    secs=   5.05 txn/s=       95 rows/s=     9505 ms/txn= 84.16 | commits=480 deadlocks=163 retries=163 lockwaits=549 lockwait_ms=1711 lockreq/row=23.1 master=node1 cpu(cores) master=1.78 replicants=
+     master-events n=480 avg-ms total=71.6 queue=60.8 processing=10.8 lockwait=3.6 | avg-concurrent queued=5.8 processing=1.0 lockwaiting=0.34
+STEP 5/41 mono 32 100 60
+mono K=32  M=100  txns=1920   secs=  25.28 txn/s=       76 rows/s=     7596 ms/txn=421.29 | commits=1920 deadlocks=1268 retries=1268 lockwaits=4038 lockwait_ms=12924 lockreq/row=25.0 master=node1 cpu(cores) master=1.24 replicants=
+     master-events n=1920 avg-ms total=142.8 queue=130.5 processing=12.4 lockwait=6.7 | avg-concurrent queued=9.9 processing=0.9 lockwaiting=0.51
+## config=par-early
+STEP 6/41 mono 1 1 2000
+mono K=1   M=1    txns=2000   secs=   2.18 txn/s=      919 rows/s=      919 ms/txn=  1.09 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=23.4 master=node1 cpu(cores) master=1.53 replicants=
+     master-events n=2000 avg-ms total=0.3 queue=0.0 processing=0.3 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.3 lockwaiting=0.00
+     plan: txns=2000 units=0 parallel=0 fallbacks=0 apply-us/txn=99 held-us/txn=99 wait-us/txn=0 turn-held-secs=0
+STEP 7/41 mono 32 1 2000
+mono K=32  M=1    txns=64000  secs=  17.03 txn/s=     3757 rows/s=     3757 ms/txn=  8.52 | commits=64000 deadlocks=0 retries=0 lockwaits=81900 lockwait_ms=449108 lockreq/row=25.5 master=node1 cpu(cores) master=5.62 replicants=
+     master-events n=64000 avg-ms total=7.7 queue=0.0 processing=7.6 lockwait=7.0 | avg-concurrent queued=0.1 processing=28.7 lockwaiting=26.37
+     plan: txns=64000 units=0 parallel=0 fallbacks=0 apply-us/txn=202 held-us/txn=203 wait-us/txn=7126 turn-held-secs=13
+STEP 8/41 mono 1 100 60
+mono K=1   M=100  txns=60     secs=   0.48 txn/s=      125 rows/s=    12503 ms/txn=  8.00 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=19.7 master=node1 cpu(cores) master=1.56 replicants=
+     master-events n=60 avg-ms total=4.2 queue=0.0 processing=4.1 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.5 lockwaiting=0.00
+     plan: txns=60 units=0 parallel=60 fallbacks=0 apply-us/txn=3232 held-us/txn=3233 wait-us/txn=0 turn-held-secs=0
+STEP 9/41 mono 8 100 60
+mono K=8   M=100  txns=480    secs=   1.58 txn/s=      304 rows/s=    30436 ms/txn= 26.28 | commits=480 deadlocks=0 retries=0 lockwaits=558 lockwait_ms=8893 lockreq/row=21.5 master=node1 cpu(cores) master=4.41 replicants=
+     master-events n=480 avg-ms total=22.6 queue=0.0 processing=22.6 lockwait=18.5 | avg-concurrent queued=0.0 processing=6.9 lockwaiting=5.64
+     plan: txns=480 units=0 parallel=480 fallbacks=0 apply-us/txn=2999 held-us/txn=2999 wait-us/txn=18583 turn-held-secs=1
+STEP 10/41 mono 32 100 60
+mono K=32  M=100  txns=1920   secs=   5.16 txn/s=      372 rows/s=    37241 ms/txn= 85.93 | commits=1920 deadlocks=0 retries=0 lockwaits=4029 lockwait_ms=149023 lockreq/row=21.9 master=node1 cpu(cores) master=5.24 replicants=
+     master-events n=1920 avg-ms total=81.3 queue=0.0 processing=81.3 lockwait=77.6 | avg-concurrent queued=0.0 processing=30.3 lockwaiting=28.90
+     plan: txns=1920 units=0 parallel=1920 fallbacks=0 apply-us/txn=2559 held-us/txn=2560 wait-us/txn=77704 turn-held-secs=4
+## config=unit
+STEP 11/41 mono 1 1 2000
+mono K=1   M=1    txns=2000   secs=   2.32 txn/s=      860 rows/s=      860 ms/txn=  1.16 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=22.4 master=node1 cpu(cores) master=1.86 replicants=
+     master-events n=2000 avg-ms total=0.4 queue=0.0 processing=0.4 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+     plan: txns=2000 units=2000 parallel=0 fallbacks=0 apply-us/txn=140 held-us/txn=159 wait-us/txn=241 turn-held-secs=0
+STEP 12/41 mono 32 1 2000
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 107, in main
+    cores = {n: (c1[n] - c0[n]) / 100.0 / secs for n in c0}
+                 ~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 13/41 mono 1 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 14/41 mono 8 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 15/41 mono 32 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_threads 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+## config=unit-1t
+STEP 16/41 mono 1 1 2000
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 17/41 mono 32 1 2000
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 18/41 mono 1 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 19/41 mono 8 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 20/41 mono 32 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.verify('t')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+## preload random rows
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_threads 3')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_serial_commit 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+## config=par
+STEP 21/41 rand 16 500 375
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+## config=pg
+STEP 22/41 rand 32 1 2000
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 23/41 rand 64 1 2000
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 24/41 rand 1 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 25/41 rand 8 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 26/41 rand 32 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_threads 3')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_serial_commit 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+## config=par-early
+STEP 27/41 rand 32 1 2000
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 28/41 rand 64 1 2000
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 29/41 rand 1 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 30/41 rand 8 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 31/41 rand 32 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_threads 3')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+## config=unit
+STEP 32/41 rand 32 1 2000
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 33/41 rand 64 1 2000
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 34/41 rand 1 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 35/41 rand 8 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 36/41 rand 32 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_threads 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+## config=unit-1t
+STEP 37/41 rand 32 1 2000
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 38/41 rand 64 1 2000
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 39/41 rand 1 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 40/41 rand 8 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 41/41 rand 32 100 60
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 108, in main
+    cpu = "cpu(cores) master=%.2f replicants=%s" % (cores[m], ",".join("%.2f" % cores[n] for n in sorted(cores) if n != m))
+                                                    ~~~~~^^^
+KeyError: 'node1'
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node1): -2 Name or service not known
+[exec procedure sys.cmd.verify('t')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+ALLDONE
+#### three nodes
+master=node3
+(name='maxwt', value='32')
+(name='cachekb', value='4194304')
+(out='rowlocks is             disabled')
+## config=pg
+STEP 1/41 mono 1 1 2000
+mono K=1   M=1    txns=2000   secs=   3.74 txn/s=      535 rows/s=      535 ms/txn=  1.87 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=15.4 master=node3 cpu(cores) master=0.84 replicants=0.91,1.18
+     master-events n=2000 avg-ms total=0.8 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+STEP 2/41 mono 32 1 2000
+mono K=32  M=1    txns=64000  secs=   8.46 txn/s=     7566 rows/s=     7566 ms/txn=  4.23 | commits=64000 deadlocks=667 retries=667 lockwaits=52467 lockwait_ms=26531 lockreq/row=21.0 master=node3 cpu(cores) master=8.01 replicants=7.94,7.26
+     master-events n=64000 avg-ms total=2.8 queue=0.3 processing=2.5 lockwait=0.4 | avg-concurrent queued=2.3 processing=19.0 lockwaiting=3.14
+STEP 3/41 mono 1 100 60
+mono K=1   M=100  txns=60     secs=   1.01 txn/s=       60 rows/s=     5962 ms/txn= 16.77 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=20.4 master=node3 cpu(cores) master=0.91 replicants=0.76,0.82
+     master-events n=60 avg-ms total=12.6 queue=0.0 processing=12.6 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.7 lockwaiting=0.00
+STEP 4/41 mono 8 100 60
+mono K=8   M=100  txns=480    secs=   6.40 txn/s=       75 rows/s=     7501 ms/txn=106.65 | commits=480 deadlocks=173 retries=173 lockwaits=704 lockwait_ms=2405 lockreq/row=23.4 master=node3 cpu(cores) master=1.72 replicants=0.96,0.99
+     master-events n=480 avg-ms total=91.0 queue=74.7 processing=16.3 lockwait=5.0 | avg-concurrent queued=5.6 processing=1.2 lockwaiting=0.38
+STEP 5/41 mono 32 100 60
+mono K=32  M=100  txns=1920   secs=  30.58 txn/s=       63 rows/s=     6278 ms/txn=509.73 | commits=1920 deadlocks=1218 retries=1218 lockwaits=4007 lockwait_ms=14896 lockreq/row=24.7 master=node3 cpu(cores) master=1.14 replicants=0.94,0.99
+     master-events n=1920 avg-ms total=170.2 queue=152.5 processing=17.7 lockwait=7.8 | avg-concurrent queued=9.6 processing=1.1 lockwaiting=0.49
+## config=par-early
+STEP 6/41 mono 1 1 2000
+mono K=1   M=1    txns=2000   secs=   3.93 txn/s=      509 rows/s=      509 ms/txn=  1.96 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=22.4 master=node3 cpu(cores) master=1.13 replicants=1.13,1.33
+     master-events n=2000 avg-ms total=0.8 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+     plan: txns=2000 units=0 parallel=0 fallbacks=0 apply-us/txn=124 held-us/txn=124 wait-us/txn=0 turn-held-secs=0
+STEP 7/41 mono 32 1 2000
+mono K=32  M=1    txns=64000  secs=  18.92 txn/s=     3383 rows/s=     3383 ms/txn=  9.46 | commits=64000 deadlocks=0 retries=0 lockwaits=85685 lockwait_ms=469901 lockreq/row=24.6 master=node3 cpu(cores) master=4.53 replicants=3.70,4.02
+     master-events n=64000 avg-ms total=8.4 queue=0.0 processing=8.4 lockwait=7.3 | avg-concurrent queued=0.1 processing=28.3 lockwaiting=24.84
+     plan: txns=64000 units=0 parallel=0 fallbacks=0 apply-us/txn=244 held-us/txn=244 wait-us/txn=7428 turn-held-secs=15
+STEP 8/41 mono 1 100 60
+mono K=1   M=100  txns=60     secs=   0.79 txn/s=       76 rows/s=     7639 ms/txn= 13.09 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=19.8 master=node3 cpu(cores) master=1.76 replicants=1.57,1.43
+     master-events n=60 avg-ms total=9.0 queue=0.0 processing=9.0 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.7 lockwaiting=0.00
+     plan: txns=60 units=0 parallel=60 fallbacks=0 apply-us/txn=3893 held-us/txn=3893 wait-us/txn=0 turn-held-secs=0
+STEP 9/41 mono 8 100 60
+mono K=8   M=100  txns=480    secs=   2.06 txn/s=      233 rows/s=    23276 ms/txn= 34.37 | commits=480 deadlocks=0 retries=0 lockwaits=1079 lockwait_ms=9498 lockreq/row=21.9 master=node3 cpu(cores) master=6.05 replicants=4.11,3.81
+     master-events n=480 avg-ms total=29.4 queue=0.0 processing=29.3 lockwait=19.7 | avg-concurrent queued=0.0 processing=6.8 lockwaiting=4.59
+     plan: txns=480 units=0 parallel=480 fallbacks=0 apply-us/txn=4011 held-us/txn=4011 wait-us/txn=19768 turn-held-secs=1
+STEP 10/41 mono 32 100 60
+mono K=32  M=100  txns=1920   secs=   7.04 txn/s=      273 rows/s=    27257 ms/txn=117.40 | commits=1920 deadlocks=0 retries=0 lockwaits=4486 lockwait_ms=196034 lockreq/row=22.0 master=node3 cpu(cores) master=6.37 replicants=4.82,4.76
+     master-events n=1920 avg-ms total=111.7 queue=0.0 processing=111.6 lockwait=102.0 | avg-concurrent queued=0.0 processing=30.4 lockwaiting=27.81
+     plan: txns=1920 units=0 parallel=1920 fallbacks=0 apply-us/txn=3556 held-us/txn=3556 wait-us/txn=102142 turn-held-secs=6
+## config=unit
+STEP 11/41 mono 1 1 2000
+mono K=1   M=1    txns=2000   secs=   4.10 txn/s=      488 rows/s=      488 ms/txn=  2.05 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=21.4 master=node3 cpu(cores) master=1.32 replicants=1.23,1.10
+     master-events n=2000 avg-ms total=0.9 queue=0.0 processing=0.9 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+     plan: txns=2000 units=2000 parallel=0 fallbacks=0 apply-us/txn=180 held-us/txn=236 wait-us/txn=332 turn-held-secs=0
+STEP 12/41 mono 32 1 2000
+Traceback (most recent call last):
+  File "/tmp/rlbench/bench_cluster.py", line 120, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/rlbench/bench_cluster.py", line 104, in main
+    c1 = cputicks()
+  File "/tmp/rlbench/bench_cluster.py", line 49, in cputicks
+    res[n] = int(f[11]) + int(f[12])
+                 ~^^^^
+IndexError: list index out of range
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 13/41 mono 1 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+mono K=1   M=100  txns=60     secs=   0.95 txn/s=       63 rows/s=     6314 ms/txn= 15.84 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=20.4 master=node2 cpu(cores) master=0.99 replicants=1.06
+     master-events n=60 avg-ms total=11.2 queue=0.0 processing=11.2 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.7 lockwaiting=0.00
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 14/41 mono 8 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+mono K=8   M=100  txns=480    secs=   6.27 txn/s=       77 rows/s=     7656 ms/txn=104.49 | commits=480 deadlocks=151 retries=151 lockwaits=755 lockwait_ms=3001 lockreq/row=24.0 master=node2 cpu(cores) master=1.63 replicants=1.22
+     master-events n=480 avg-ms total=85.6 queue=68.9 processing=16.7 lockwait=6.3 | avg-concurrent queued=5.3 processing=1.3 lockwaiting=0.48
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 15/41 mono 32 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+mono K=32  M=100  txns=1920   secs=  28.08 txn/s=       68 rows/s=     6839 ms/txn=467.93 | commits=1920 deadlocks=1121 retries=1121 lockwaits=3873 lockwait_ms=15168 lockreq/row=25.5 master=node2 cpu(cores) master=1.32 replicants=1.20
+     master-events n=1920 avg-ms total=158.2 queue=140.5 processing=17.7 lockwait=7.9 | avg-concurrent queued=9.6 processing=1.2 lockwaiting=0.54
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_threads 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+## config=unit-1t
+STEP 16/41 mono 1 1 2000
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+mono K=1   M=1    txns=2000   secs=   4.04 txn/s=      495 rows/s=      495 ms/txn=  2.02 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=21.5 master=node2 cpu(cores) master=1.06 replicants=1.43
+     master-events n=2000 avg-ms total=0.8 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 17/41 mono 32 1 2000
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+mono K=32  M=1    txns=64000  secs=   9.35 txn/s=     6843 rows/s=     6843 ms/txn=  4.68 | commits=64000 deadlocks=1116 retries=1116 lockwaits=60926 lockwait_ms=36148 lockreq/row=23.4 master=node2 cpu(cores) master=6.17 replicants=10.46
+     master-events n=64000 avg-ms total=2.5 queue=0.6 processing=1.9 lockwait=0.6 | avg-concurrent queued=4.0 processing=13.1 lockwaiting=3.88
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 18/41 mono 1 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+mono K=1   M=100  txns=60     secs=   0.93 txn/s=       65 rows/s=     6470 ms/txn= 15.46 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=20.4 master=node2 cpu(cores) master=1.07 replicants=1.18
+     master-events n=60 avg-ms total=11.3 queue=0.0 processing=11.3 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.7 lockwaiting=0.00
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 19/41 mono 8 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+mono K=8   M=100  txns=480    secs=   6.64 txn/s=       72 rows/s=     7231 ms/txn=110.64 | commits=480 deadlocks=147 retries=147 lockwaits=684 lockwait_ms=2787 lockreq/row=24.3 master=node2 cpu(cores) master=1.59 replicants=1.31
+     master-events n=480 avg-ms total=93.4 queue=75.4 processing=18.0 lockwait=5.8 | avg-concurrent queued=5.5 processing=1.3 lockwaiting=0.42
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 20/41 mono 32 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+mono K=32  M=100  txns=1920   secs=  29.84 txn/s=       64 rows/s=     6435 ms/txn=497.29 | commits=1920 deadlocks=1133 retries=1133 lockwaits=4142 lockwait_ms=17427 lockreq/row=25.7 master=node2 cpu(cores) master=1.33 replicants=1.19
+     master-events n=1920 avg-ms total=173.2 queue=154.1 processing=19.1 lockwait=9.1 | avg-concurrent queued=9.9 processing=1.2 lockwaiting=0.59
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+node1: 1248000	584730547540	624210745674	623922455142
+node2: 1248000	584730547540	624210745674	623922455142
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.verify('t')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+## preload random rows
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_threads 3')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_serial_commit 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+## config=par
+STEP 21/41 rand 16 500 375
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=16  M=500  txns=6000   secs= 374.02 txn/s=       16 rows/s=     8021 ms/txn=997.38 | commits=6000 deadlocks=8062 retries=8062 lockwaits=23525 lockwait_ms=225208 lockreq/row=30.1 master=node2 cpu(cores) master=1.66 replicants=1.28
+     master-events n=6000 avg-ms total=630.4 queue=553.4 processing=76.9 lockwait=37.6 | avg-concurrent queued=8.9 processing=1.2 lockwaiting=0.60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+## config=pg
+STEP 22/41 rand 32 1 2000
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=32  M=1    txns=64000  secs=   7.29 txn/s=     8775 rows/s=     8775 ms/txn=  3.65 | commits=64000 deadlocks=49 retries=49 lockwaits=17744 lockwait_ms=4894 lockreq/row=28.9 master=node2 cpu(cores) master=7.78 replicants=13.77
+     master-events n=64000 avg-ms total=2.0 queue=0.0 processing=1.9 lockwait=0.1 | avg-concurrent queued=0.3 processing=16.9 lockwaiting=0.67
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 23/41 rand 64 1 2000
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=64  M=1    txns=128000 secs=  13.45 txn/s=     9518 rows/s=     9518 ms/txn=  6.72 | commits=128000 deadlocks=199 retries=199 lockwaits=37346 lockwait_ms=14742 lockreq/row=29.2 master=node2 cpu(cores) master=9.95 replicants=11.83
+     master-events n=128000 avg-ms total=5.0 queue=0.1 processing=5.0 lockwait=0.1 | avg-concurrent queued=0.6 processing=47.3 lockwaiting=1.10
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 24/41 rand 1 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=1   M=100  txns=60     secs=   1.08 txn/s=       56 rows/s=     5561 ms/txn= 17.98 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=28.5 master=node2 cpu(cores) master=1.52 replicants=1.57
+     master-events n=60 avg-ms total=13.8 queue=0.0 processing=13.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.8 lockwaiting=0.00
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 25/41 rand 8 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=8   M=100  txns=480    secs=   6.48 txn/s=       74 rows/s=     7405 ms/txn=108.04 | commits=480 deadlocks=127 retries=127 lockwaits=554 lockwait_ms=2117 lockreq/row=31.4 master=node2 cpu(cores) master=1.98 replicants=1.71
+     master-events n=480 avg-ms total=88.5 queue=69.7 processing=18.7 lockwait=4.4 | avg-concurrent queued=5.2 processing=1.4 lockwaiting=0.33
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 26/41 rand 32 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=32  M=100  txns=1920   secs=  30.32 txn/s=       63 rows/s=     6332 ms/txn=505.38 | commits=1920 deadlocks=939 retries=939 lockwaits=3723 lockwait_ms=19978 lockreq/row=33.8 master=node2 cpu(cores) master=1.76 replicants=1.32
+     master-events n=1920 avg-ms total=181.2 queue=158.2 processing=23.0 lockwait=10.4 | avg-concurrent queued=10.0 processing=1.5 lockwaiting=0.66
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_threads 3')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_serial_commit 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+## config=par-early
+STEP 27/41 rand 32 1 2000
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=32  M=1    txns=64000  secs=   7.29 txn/s=     8774 rows/s=     8774 ms/txn=  3.65 | commits=64000 deadlocks=62 retries=62 lockwaits=18114 lockwait_ms=5789 lockreq/row=29.0 master=node2 cpu(cores) master=7.89 replicants=13.18
+     master-events n=64000 avg-ms total=2.1 queue=0.0 processing=2.0 lockwait=0.1 | avg-concurrent queued=0.3 processing=17.8 lockwaiting=0.79
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 28/41 rand 64 1 2000
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=64  M=1    txns=128000 secs=  13.29 txn/s=     9632 rows/s=     9632 ms/txn=  6.64 | commits=128000 deadlocks=213 retries=213 lockwaits=38313 lockwait_ms=16778 lockreq/row=29.2 master=node2 cpu(cores) master=10.15 replicants=12.07
+     master-events n=128000 avg-ms total=5.0 queue=0.1 processing=4.9 lockwait=0.1 | avg-concurrent queued=0.6 processing=47.5 lockwaiting=1.26
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 29/41 rand 1 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=1   M=100  txns=60     secs=   0.89 txn/s=       68 rows/s=     6761 ms/txn= 14.79 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=28.5 master=node2 cpu(cores) master=0.94 replicants=1.81
+     master-events n=60 avg-ms total=10.8 queue=0.0 processing=10.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.7 lockwaiting=0.00
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 30/41 rand 8 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=8   M=100  txns=480    secs=   6.36 txn/s=       75 rows/s=     7544 ms/txn=106.04 | commits=480 deadlocks=141 retries=141 lockwaits=586 lockwait_ms=2297 lockreq/row=31.8 master=node2 cpu(cores) master=2.02 replicants=1.65
+     master-events n=480 avg-ms total=87.6 queue=68.8 processing=18.9 lockwait=4.8 | avg-concurrent queued=5.2 processing=1.4 lockwaiting=0.36
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 31/41 rand 32 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=32  M=100  txns=1920   secs=  28.87 txn/s=       67 rows/s=     6651 ms/txn=481.12 | commits=1920 deadlocks=921 retries=921 lockwaits=3548 lockwait_ms=19563 lockreq/row=33.7 master=node2 cpu(cores) master=1.85 replicants=1.41
+     master-events n=1920 avg-ms total=171.4 queue=149.3 processing=22.1 lockwait=10.2 | avg-concurrent queued=9.9 processing=1.5 lockwaiting=0.68
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_threads 3')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+## config=unit
+STEP 32/41 rand 32 1 2000
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=32  M=1    txns=64000  secs=   7.46 txn/s=     8580 rows/s=     8580 ms/txn=  3.73 | commits=64000 deadlocks=65 retries=65 lockwaits=18319 lockwait_ms=5551 lockreq/row=28.9 master=node2 cpu(cores) master=7.61 replicants=13.36
+     master-events n=64000 avg-ms total=2.1 queue=0.0 processing=2.0 lockwait=0.1 | avg-concurrent queued=0.3 processing=17.4 lockwaiting=0.74
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 33/41 rand 64 1 2000
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=64  M=1    txns=128000 secs=  13.22 txn/s=     9681 rows/s=     9681 ms/txn=  6.61 | commits=128000 deadlocks=141 retries=141 lockwaits=33595 lockwait_ms=11060 lockreq/row=29.0 master=node2 cpu(cores) master=9.71 replicants=12.29
+     master-events n=128000 avg-ms total=4.9 queue=0.0 processing=4.9 lockwait=0.1 | avg-concurrent queued=0.4 processing=47.1 lockwaiting=0.84
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 34/41 rand 1 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=1   M=100  txns=60     secs=   1.10 txn/s=       54 rows/s=     5446 ms/txn= 18.36 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=28.5 master=node2 cpu(cores) master=1.04 replicants=1.41
+     master-events n=60 avg-ms total=14.0 queue=0.0 processing=14.0 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.8 lockwaiting=0.00
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 35/41 rand 8 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=8   M=100  txns=480    secs=   5.95 txn/s=       81 rows/s=     8072 ms/txn= 99.11 | commits=480 deadlocks=110 retries=110 lockwaits=528 lockwait_ms=2115 lockreq/row=30.6 master=node2 cpu(cores) master=2.06 replicants=1.83
+     master-events n=480 avg-ms total=80.7 queue=61.8 processing=18.9 lockwait=4.4 | avg-concurrent queued=5.0 processing=1.5 lockwaiting=0.36
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 36/41 rand 32 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=32  M=100  txns=1920   secs=  28.50 txn/s=       67 rows/s=     6737 ms/txn=475.01 | commits=1920 deadlocks=897 retries=897 lockwaits=3541 lockwait_ms=20016 lockreq/row=33.7 master=node2 cpu(cores) master=1.90 replicants=1.39
+     master-events n=1920 avg-ms total=172.6 queue=149.6 processing=23.0 lockwait=10.5 | avg-concurrent queued=10.1 processing=1.5 lockwaiting=0.70
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_threads 0')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.send('ordered_apply_unit 1')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+## config=unit-1t
+STEP 37/41 rand 32 1 2000
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=32  M=1    txns=64000  secs=   7.12 txn/s=     8987 rows/s=     8987 ms/txn=  3.56 | commits=64000 deadlocks=64 retries=64 lockwaits=17039 lockwait_ms=4746 lockreq/row=28.9 master=node2 cpu(cores) master=7.86 replicants=13.54
+     master-events n=64000 avg-ms total=2.0 queue=0.0 processing=2.0 lockwait=0.1 | avg-concurrent queued=0.2 processing=17.6 lockwaiting=0.67
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 38/41 rand 64 1 2000
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=64  M=1    txns=128000 secs=  13.38 txn/s=     9564 rows/s=     9564 ms/txn=  6.69 | commits=128000 deadlocks=190 retries=190 lockwaits=35571 lockwait_ms=13551 lockreq/row=29.2 master=node2 cpu(cores) master=9.86 replicants=11.95
+     master-events n=128000 avg-ms total=5.0 queue=0.1 processing=5.0 lockwait=0.1 | avg-concurrent queued=0.5 processing=47.4 lockwaiting=1.01
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 39/41 rand 1 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=1   M=100  txns=60     secs=   1.00 txn/s=       60 rows/s=     5979 ms/txn= 16.72 | commits=60 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=28.5 master=node2 cpu(cores) master=1.28 replicants=1.42
+     master-events n=60 avg-ms total=12.6 queue=0.0 processing=12.6 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.8 lockwaiting=0.00
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 40/41 rand 8 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=8   M=100  txns=480    secs=   6.08 txn/s=       79 rows/s=     7897 ms/txn=101.30 | commits=480 deadlocks=112 retries=112 lockwaits=535 lockwait_ms=2148 lockreq/row=31.1 master=node2 cpu(cores) master=2.09 replicants=1.67
+     master-events n=480 avg-ms total=77.6 queue=59.2 processing=18.4 lockwait=4.5 | avg-concurrent queued=4.7 processing=1.5 lockwaiting=0.35
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+STEP 41/41 rand 32 100 60
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+rand K=32  M=100  txns=1920   secs=  27.34 txn/s=       70 rows/s=     7023 ms/txn=455.67 | commits=1920 deadlocks=848 retries=848 lockwaits=3407 lockwait_ms=19498 lockreq/row=33.3 master=node2 cpu(cores) master=1.93 replicants=1.54
+     master-events n=1920 avg-ms total=163.2 queue=141.1 processing=22.2 lockwait=10.2 | avg-concurrent queued=9.9 processing=1.6 lockwaiting=0.71
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[select value from comdb2_metrics where name in ('ordered_apply_txns','ordered_apply_waits','ordered_apply_wait_us','ordered_apply_held_us','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_units') order by name] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+node1: 6000000	2960337442241	2998477999136	3000217719418
+node2: 6000000	2960337442241	2998477999136	3000217719418
+cdb2_tcpresolve:getaddrinfo(node3): -2 Name or service not known
+[exec procedure sys.cmd.verify('t')] failed with rc -1 cdb2_run_statement_typed_int: Can't connect to db
+ALLDONE
+BOTHDONE

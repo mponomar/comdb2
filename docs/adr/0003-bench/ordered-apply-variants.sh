@@ -8,6 +8,8 @@
 #   unit      one thread applies the waiting plans under one transaction and commits
 #             them as a unit, a btree file per thread once a unit has 64+ operations
 #   unit-1t   unit, with every unit applied on the one thread
+#   unit-q    unit, but every plan goes to the unit thread, where unit lets a
+#             transaction that finds nothing waiting apply its own plan
 # VARIANTS in the environment picks which to run, in order.
 cd /tmp/rlbench
 D="docker exec rlbench-dev-1"
@@ -15,7 +17,7 @@ VARIANTS=${VARIANTS:-"pg serial par par-early"}
 TOTAL=$(( $(echo $VARIANTS | wc -w) * 10 + 1 )); i=0
 send() { $D cdb2sql -s testdb --host $m "exec procedure sys.cmd.send('$1')" >/dev/null; }
 cfg() {
-  send "ordered_apply_unit 0"
+  send "ordered_apply_unit 0"; send "ordered_apply_unit_inline 1"
   case $1 in
     pg)        send "ordered_apply 0";;
     serial)    send "ordered_apply 1"; send "ordered_apply_threads 0"; send "ordered_apply_serial_commit 1";;
@@ -23,6 +25,7 @@ cfg() {
     par-early) send "ordered_apply 1"; send "ordered_apply_threads 3"; send "ordered_apply_serial_commit 0";;
     unit)      send "ordered_apply 1"; send "ordered_apply_threads 3"; send "ordered_apply_unit 1";;
     unit-1t)   send "ordered_apply 1"; send "ordered_apply_threads 0"; send "ordered_apply_unit 1";;
+    unit-q)    send "ordered_apply 1"; send "ordered_apply_threads 3"; send "ordered_apply_unit 1"; send "ordered_apply_unit_inline 0";;
   esac
   echo "## config=$1"
 }

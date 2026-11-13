@@ -3022,6 +3022,10 @@ REGISTER_TUNABLE("ordered_apply_unit",
                  "transaction and commits them as a unit; the transactions that made them wait for "
                  "that commit. Off, each transaction applies its own plan in turn. (Default: off)",
                  TUNABLE_BOOLEAN, &gbl_ordered_apply_unit, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("ordered_apply_unit_inline",
+                 "With ordered_apply_unit, a transaction whose plan is the only one in flight applies "
+                 "it on its own thread, as a unit of one. (Default: on)",
+                 TUNABLE_BOOLEAN, &gbl_ordered_apply_unit_inline, EXPERIMENTAL, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("ordered_apply_unit_max_ops",
                  "An ordered_apply commit unit takes no more plans once it has this many btree "
                  "operations. (Default: 4096)",

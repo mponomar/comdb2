@@ -121,7 +121,7 @@ extern int dumptxn(DB_ENV *, DB_LSN *);
 extern void fsnapf(FILE * fil, const void *buf, int len);
 
 /* Track transactions open by a single td (should remain small) */
-#define TXN_TD_MAX 10
+#define TXN_TD_MAX 64
 static __thread int txncnt = 0;
 static __thread DB_TXN *td_txn[TXN_TD_MAX];
 

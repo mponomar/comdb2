@@ -577,8 +577,9 @@ Tunables, all experimental: `ordered_apply` (off by default),
 `ordered_apply_serial_commit` (on), `ordered_apply_turn_detect` (on; off is
 for measurement only, see
 [One node, and what the turn costs](#one-node-and-what-the-turn-costs)),
-`ordered_apply_unit` (off) and `ordered_apply_unit_max_ops` (4096), for
-[Commit units](#commit-units). The code is `bdb/plan.c`, with hooks in
+`ordered_apply_unit` (off), `ordered_apply_unit_max_ops` (4096) and
+`ordered_apply_unit_inline` (on), for [Commit units](#commit-units). The
+code is `bdb/plan.c`, with hooks in
 `bdb/ll.c`, `bdb/tran.c`, `db/toblock.c`, `db/sltdbt.c` and `db/record.c`.
 
 What it does:
@@ -757,6 +758,11 @@ What it does:
 - **A file per thread.** A unit with `ordered_apply_parallel_min_ops` or more
   operations is split by btree file and applied as large plans were, under
   child transactions of the unit.
+- **A transaction on its own applies its own plan.** With
+  `ordered_apply_unit_inline` on, a request whose plan is the only one in
+  existence, counted from the start of prepare, does not wake the unit
+  thread: it applies the plan itself, as a unit of one, and any that arrive
+  meanwhile queue until it is done.
 - **Deadlocks.** All page locks in a unit belong to one transaction, so its
   members cannot wait for each other. If the unit is the victim of a
   deadlock with a transaction outside it, it aborts, which also takes its
@@ -769,7 +775,7 @@ question. What is given up is that members share fate: a unit commits or
 aborts as a whole.
 
 What differs from the proposal: there is one queue, not one per file; the
-applier is a dedicated thread; members are joined into one transaction, where
+applier is a dedicated thread unless a transaction is alone; members are joined into one transaction, where
 the proposal has child transactions under one commit record; and page locks
 are held to the unit's commit.
 
@@ -783,8 +789,12 @@ reaches, and the wider test suite.
 A bug found on the way: Berkeley allows a thread ten open transactions, and
 applying a file per thread begins one child for each file. Single-row inserts
 from many clients touch eight data stripes and three indexes, and the master
-aborted. Files are now put in at most seven groups. Plans applied in turn
-had the same exposure for a table with many indexes.
+aborted. Plans applied in turn had the same exposure for a table with many
+indexes. The limit is `TXN_TD_MAX` in `berkdb/txn/txn.c`, which is Comdb2's
+and not Berkeley's: it sizes a per-thread list used to check that a request
+leaves no transaction open. It is now 64. The results below were measured
+with a stopgap of at most seven groups of files; with one child for each file
+again the numbers do not change by more than they vary between runs.
 
 #### Results
 
@@ -823,9 +833,15 @@ per thread from 64 operations; "one thread" never does.
   nodes a unit holds 5 to 15. The single-row rate is now set by what is
   outside the applier.
 - **A lone client loses 9 to 13% on one node** against early release on
-  ascending keys, for one row or a hundred: it now waits for another thread
-  to be woken and then to wake it. On three nodes there is no clear
-  difference.
+  ascending keys, for one row or a hundred, when every plan goes to the unit
+  thread: it waits for another thread to be woken and then to wake it. On
+  three nodes there is no clear difference. These tables were measured that
+  way. With `ordered_apply_unit_inline` the loss is gone: 945 single-row
+  transactions a second for one client on one node against 858 without it
+  and 952 for early release, and no change that can be told from noise with
+  32 clients (`results/stage1-commit-units-lone.results`). Page locks do
+  1,027, so recording a plan and applying it afterwards costs a lone client
+  4 to 8% on one node, and nothing measurable on three.
 - **Large transactions.** On one node units are ahead of early release, by
   41% on ascending keys and 6% on random ones. On three nodes they are 7 to
   16% behind it.
@@ -836,13 +852,11 @@ per thread from 64 operations; "one thread" never does.
 
 ### Where to resume
 
-1. **A lone transaction applies its own plan.** When a request reaches the
-   point of handing its plan over and finds nothing queued and the applier
-   idle, it applies the plan on its own thread, as a unit of one, and others
-   queue behind it. This is the proposal's rule that whichever thread finds
-   the queue unattended drains it, and it should give back the single-client
-   loss. Running such a request under page locks from its first write, with
-   no plan at all, is the further step if a gap remains.
+1. **Decide whether a lone transaction should skip the plan altogether.**
+   It now applies its own plan, which leaves it 4 to 8% behind page locks on
+   one node for single-row inserts and level on three nodes. Running it under
+   page locks from its first write would close that, at the price of a second
+   kind of writer that units can deadlock with.
 2. **Names and stamps**, the rest of stage 1.1: unique keys, updates and
    deletes in plan mode, with reads laid over the plan and the lossy stamp
    array. This needs a decision on how writers outside plan mode take part
@@ -1018,7 +1032,9 @@ for false aborts. These are covered under
 
 ## Reproducing the measurements
 
-The scripts are in `docs/adr/0003-bench/`. They need a Linux host with Docker
+The scripts are in `docs/adr/0003-bench/`. `BENCHMARK-LOG.md` there lists every
+run in order, with what changed in the code before it and which results file
+it produced. They need a Linux host with Docker
 (with the Compose plugin) and `python3`, and enough cores that three nodes and
 the clients do not compete; the numbers above used 72 hardware threads. All
 state lives in `/tmp/rlbench`, which should be tmpfs to match those numbers.
@@ -1078,7 +1094,8 @@ Notes:
   locks and for the existing rowlocks mode.
 - `ordered-apply-variants.sh` runs the comparison under
   [Implementation status](#implementation-status); its output and the two
-  earlier runs are in `results/stage*.results`. `setup-host.sh` copies it to
+  earlier runs are in `results/stage*.results`. Figures for one variant move
+  by 5 to 10% from run to run. `setup-host.sh` copies it to
   `/tmp/rlbench` with the other scripts.
 - `VARIANTS` in the environment picks what `ordered-apply-variants.sh` runs;
   the commit-unit results are `VARIANTS="pg par-early unit unit-1t"`, on one

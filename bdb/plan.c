@@ -116,6 +116,14 @@ int64_t gbl_ordered_apply_unit_retries; /* commit units aborted and applied agai
  * to write, at the unit's LSN.  There is no turn to hand from thread to
  * thread, and a unit costs one commit record however many plans are in it. */
 int gbl_ordered_apply_unit = 0;
+/* On: a transaction whose plan is the only one in existence applies it
+ * itself, as a unit of one, on its own thread; any that arrive meanwhile
+ * queue until it is done.  A lone writer then never waits for another thread
+ * to be woken.  With other plans being prepared the unit thread is about to
+ * be needed anyway, and it applies them with its caches warm. */
+int gbl_ordered_apply_unit_inline = 1;
+static int64_t plans_alive; /* plans started and not yet freed */
+int64_t gbl_ordered_apply_units_inline; /* units of one applied by their own transaction */
 /* A unit stops taking plans once it has this many btree operations. */
 int gbl_ordered_apply_unit_max_ops = 4096;
 
@@ -197,6 +205,7 @@ static void plan_free(struct bdb_plan *plan)
         blk = next;
     }
     free(plan);
+    ATOMIC_ADD64(plans_alive, -1);
 }
 
 static struct plan_op *plan_new_op(struct bdb_plan *plan, int type, bdb_state_type *bdb_state, DBT *key, DBT *data)
@@ -226,7 +235,10 @@ int bdb_tran_plan_start(tran_type *tran)
     if (tran == NULL || tran->tranclass != TRANCLASS_BERK || tran->plan)
         return -1;
     tran->plan = calloc(1, sizeof(struct bdb_plan));
-    return tran->plan ? 0 : -1;
+    if (tran->plan == NULL)
+        return -1;
+    ATOMIC_ADD64(plans_alive, 1);
+    return 0;
 }
 
 /* Is this transaction recording its writes instead of doing them? */
@@ -333,14 +345,12 @@ static int apply_op(struct plan_op *op, tran_type *tran)
  * record that joins its chain to the parent's.  Replicants and recovery
  * already collect a transaction's children this way.
  *
- * Berkeley lets a thread have ten transactions open (TXN_TD_MAX), and the
- * children are all begun on one thread, which has up to two open already.
- * So there are at most PLAN_MAX_GROUPS children.  A plan that touches more
- * files than that, such as single-row inserts into several data stripes,
- * puts the extra files in the first group, to be applied one after another
- * on one thread.
+ * The children are all begun on one thread, which has up to two transactions
+ * open already, and a thread may have TXN_TD_MAX (64) open: berkdb/txn/txn.c.
+ * A plan that touches more than PLAN_MAX_FILES files is applied on one
+ * thread.
  */
-enum { PLAN_MAX_FILES = 64, PLAN_MAX_GROUPS = 7 };
+enum { PLAN_MAX_FILES = 48 };
 
 struct plan_file {
     DB *db;
@@ -431,10 +441,7 @@ static int plan_needs_one_chain(struct bdb_plan *plan)
  * the plan is to be applied on this thread alone. */
 static int apply_parallel(bdb_state_type *bdb_state, tran_type *tran, struct bdb_plan *plan, int *done)
 {
-    struct plan_file files[PLAN_MAX_GROUPS];
-    DB *dbs[PLAN_MAX_FILES];
-    int group[PLAN_MAX_FILES];
-    int ndbs = 0;
+    struct plan_file files[PLAN_MAX_FILES];
     int nfiles = 0;
 
     if (gbl_ordered_apply_threads <= 0 || plan->nops < gbl_ordered_apply_parallel_min_ops)
@@ -444,23 +451,16 @@ static int apply_parallel(bdb_state_type *bdb_state, tran_type *tran, struct bdb
 
     for (struct plan_op *op = plan->first; op; op = op->next) {
         DB *db = op_file(op);
-        int d;
-        for (d = 0; d < ndbs && dbs[d] != db; d++)
+        int i;
+        for (i = 0; i < nfiles && files[i].db != db; i++)
             ;
-        if (d == ndbs) {
-            if (ndbs == PLAN_MAX_FILES)
+        if (i == nfiles) {
+            if (nfiles == PLAN_MAX_FILES)
                 return 0;
-            dbs[ndbs] = db;
-            if (nfiles < PLAN_MAX_GROUPS) {
-                memset(&files[nfiles], 0, sizeof(files[nfiles]));
-                files[nfiles].db = db;
-                group[ndbs] = nfiles++;
-            } else {
-                group[ndbs] = 0;
-            }
-            ndbs++;
+            memset(&files[i], 0, sizeof(files[i]));
+            files[i].db = db;
+            nfiles++;
         }
-        int i = group[d];
         op->gnext = NULL;
         if (files[i].last)
             files[i].last->gnext = op;
@@ -709,6 +709,7 @@ static pthread_cond_t unit_work = PTHREAD_COND_INITIALIZER;
 static struct unit_member *unit_first;
 static struct unit_member *unit_last;
 static int unit_thread_started;
+static int unit_busy; /* a unit is being applied, by the unit thread or by its own transaction */
 
 enum { UNIT_MAX_RETRIES = 100 };
 
@@ -830,10 +831,11 @@ static void *unit_thread(void *arg)
     bdb_thread_event(bdb_state, BDBTHR_EVENT_START);
     Pthread_mutex_lock(&unit_lk);
     for (;;) {
-        if (unit_first == NULL) {
+        if (unit_first == NULL || unit_busy) {
             Pthread_cond_wait(&unit_work, &unit_lk);
             continue;
         }
+        unit_busy = 1;
         /* take members until the unit is large enough; always at least one */
         struct unit_member *batch = unit_first;
         struct unit_member *tail = batch;
@@ -851,6 +853,7 @@ static void *unit_thread(void *arg)
         unit_run(bdb_state, batch);
 
         Pthread_mutex_lock(&unit_lk);
+        unit_busy = 0;
         while (batch) {
             /* a member is on its thread's stack, gone once that thread runs */
             struct unit_member *next = batch->next;
@@ -889,6 +892,23 @@ int bdb_tran_plan_unit_commit(bdb_state_type *bdb_state, tran_type *tran, void *
 
     uint64_t start = now_us();
     Pthread_mutex_lock(&unit_lk);
+    if (gbl_ordered_apply_unit_inline && !unit_busy && unit_first == NULL && ATOMIC_LOAD64(plans_alive) <= 1) {
+        /* no other plan anywhere: no need for the unit thread.  Beginning and committing the unit's transaction here
+         * replaces this thread's note of its own top-level transaction. */
+        unit_busy = 1;
+        Pthread_mutex_unlock(&unit_lk);
+        void *mine = pthread_getspecific(bdb_state->seqnum_info->key);
+        unit_run(bdb_state, &m);
+        Pthread_setspecific(bdb_state->seqnum_info->key, mine);
+        Pthread_mutex_lock(&unit_lk);
+        unit_busy = 0;
+        if (unit_first)
+            Pthread_cond_signal(&unit_work);
+        Pthread_mutex_unlock(&unit_lk);
+        Pthread_cond_destroy(&m.cond);
+        ATOMIC_ADD64(gbl_ordered_apply_units_inline, 1);
+        goto done;
+    }
     if (!unit_thread_started) {
         pthread_t tid;
         pthread_attr_t attr;
@@ -919,6 +939,7 @@ int bdb_tran_plan_unit_commit(bdb_state_type *bdb_state, tran_type *tran, void *
     ATOMIC_ADD64(gbl_ordered_apply_waits, 1);
     ATOMIC_ADD64(gbl_ordered_apply_wait_us, now_us() - start);
 
+done:
     /* applied or not, the plan is finished with */
     plan_free(tran->unit_plan);
     tran->unit_plan = NULL;
