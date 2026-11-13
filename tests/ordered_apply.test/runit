@@ -188,6 +188,107 @@ SQL
 set_tunable ordered_apply_unit 0
 
 ################################################################
+# 5c. Unique keys.  An insert into a table with a unique key is
+#     planned; a duplicate is refused with the same error, whether
+#     the key was there, is added twice by one transaction, or is
+#     being added by another client at the same time.  NULLs do not
+#     collide.  With the turn and with commit units.
+################################################################
+sql "create table pk(a int primary key, b int, c int)" >/dev/null
+sql "create index pkb on pk(b)" >/dev/null
+sql "create table un(a int unique, b int)" >/dev/null
+for unit in 0 1; do
+    set_tunable ordered_apply_unit $unit
+    base=$((unit * 1000000))
+    before=$(counter txns)
+    fb_before=$(counter fallbacks)
+    sql "insert into pk values($base + 1, 1, 1)" >/dev/null
+    [ "$(($(counter txns) - before))" = "1" ] || fail "an insert with a unique key was not planned (unit $unit)"
+    out=$(sql "insert into pk values($base + 1, 2, 2)" 2>&1) && fail "duplicate of an existing key was accepted (unit $unit)"
+    echo "$out" | grep -qi "duplicate" || fail "duplicate of an existing key gave the wrong error: $out"
+    out=$(sql "insert into pk values($base + 2, 1, 1), ($base + 3, 1, 1), ($base + 2, 9, 9)" 2>&1) && fail "a key added twice in one statement was accepted (unit $unit)"
+    echo "$out" | grep -qi "duplicate" || fail "a key added twice gave the wrong error: $out"
+    out=$(cdb2sql --tabs ${CDB2_OPTIONS} $dbname default - 2>&1 <<SQL
+begin
+insert into pk values($base + 4, 1, 1)
+insert into pk values($base + 4, 2, 2)
+commit
+SQL
+) && fail "a key added twice in one transaction was accepted (unit $unit)"
+    echo "$out" | grep -qi "duplicate" || fail "a key added twice in one transaction gave the wrong error: $out"
+    [ "$(sql "select count(*) from pk where a between $base + 1 and $base + 9")" = "1" ] || fail "failed inserts left rows behind (unit $unit)"
+    sql "insert into un values(null, $unit), (null, $unit)" >/dev/null || fail "two NULLs in a unique key were refused (unit $unit)"
+    [ "$(($(counter fallbacks) - fb_before))" = "0" ] || fail "unique-key inserts fell back to page locks (unit $unit)"
+
+    # 16 clients insert the same 300 keys: each key goes in once, and every
+    # other attempt is told it is a duplicate
+    for w in $(seq 1 16); do
+        (
+            for i in $(seq 1 300); do
+                echo "insert into pk values($base + 1000 + $i, $w, $i)"
+            done | cdb2sql ${CDB2_OPTIONS} $dbname default - > ${TMPDIR:-/tmp}/oa_pk_$w.out 2>&1
+        ) &
+    done
+    wait
+    [ "$(sql "select count(*) from pk where a > $base + 1000 and a <= $base + 1300")" = "300" ] || fail "concurrent inserts of the same keys left the wrong number of rows (unit $unit)"
+    [ "$(sql "select count(*) from pk where b between 1 and 16 and a > $base + 1000 and a <= $base + 1300")" = "300" ] || fail "index pkb is wrong after concurrent unique inserts (unit $unit)"
+    dups=$(cat ${TMPDIR:-/tmp}/oa_pk_*.out | grep -ci "duplicate" || true)
+    others=$(cat ${TMPDIR:-/tmp}/oa_pk_*.out | grep -i "failed" | grep -vci "duplicate" || true)
+    [ "$dups" = "4500" ] || fail "expected 4500 duplicate errors, got $dups (unit $unit)"
+    [ "$others" = "0" ] || fail "$others inserts failed with something other than a duplicate (unit $unit)"
+
+    # 8 clients, 10 rows a transaction, the same keys: all of a transaction or none
+    for w in $(seq 1 8); do
+        (
+            for i in $(seq 1 100); do
+                echo "insert into pk select $base + 500000 + $i * 10 + value, $w, $i from generate_series(0, 9)"
+            done | cdb2sql ${CDB2_OPTIONS} $dbname default - >/dev/null 2>&1
+        ) &
+    done
+    wait
+    [ "$(sql "select count(*) from pk where a >= $base + 500000 and a < $base + 600000")" = "1000" ] || fail "multi-row unique inserts left the wrong number of rows (unit $unit)"
+    [ "$(sql "select count(*) from (select c, count(*) n, count(distinct b) d from pk where a >= $base + 500000 and a < $base + 600000 group by c having n != 10 or d != 1)")" = "0" ] || fail "a multi-row unique insert was applied in part (unit $unit)"
+    rm -f ${TMPDIR:-/tmp}/oa_pk_*.out
+done
+set_tunable ordered_apply_unit 0
+master_sql "exec procedure sys.cmd.verify('pk')" | grep -q "Verify succeeded" || fail "verify of pk failed"
+
+# off: a table with a unique key is not planned
+set_tunable ordered_apply_unique 0
+fb_before=$(counter fallbacks)
+sql "insert into pk values(9999999, 1, 1)" >/dev/null
+[ "$(($(counter fallbacks) - fb_before))" = "1" ] || fail "ordered_apply_unique off still planned a unique-key insert"
+set_tunable ordered_apply_unique 1
+
+################################################################
+# 5d. Inserts while a schema change runs.  They take the path that
+#     adds keys at the end of the request from the row read back
+#     from the data file, which a planned row is not in; they must
+#     run without a plan and none may fail.
+################################################################
+set_tunable ordered_apply_unit 1
+sql "create table sc(a int primary key, b int)" >/dev/null
+for w in $(seq 1 8); do
+    (
+        for i in $(seq 1 400); do
+            echo "insert into sc values($w * 100000 + $i, $i)"
+        done | cdb2sql ${CDB2_OPTIONS} $dbname default - > ${TMPDIR:-/tmp}/oa_sc_$w.out 2>&1
+    ) &
+done
+for i in 1 2 3; do
+    sql "rebuild sc" >/dev/null || fail "rebuild failed"
+    sql "create index scb$i on sc(b)" >/dev/null || fail "create index failed"
+done
+wait
+scfailed=$(cat ${TMPDIR:-/tmp}/oa_sc_*.out | grep -ci "failed" || true)
+[ "$scfailed" = "0" ] || fail "$scfailed inserts failed while a schema change ran: $(cat ${TMPDIR:-/tmp}/oa_sc_*.out | grep -i failed | head -1)"
+[ "$(sql 'select count(*) from sc')" = "3200" ] || fail "inserts during a schema change lost rows"
+[ "$(sql 'select count(*) from sc where b > 0')" = "3200" ] || fail "an index built during inserts is wrong"
+master_sql "exec procedure sys.cmd.verify('sc')" | grep -q "Verify succeeded" || fail "verify of sc failed"
+rm -f ${TMPDIR:-/tmp}/oa_sc_*.out
+set_tunable ordered_apply_unit 0
+
+################################################################
 # 6. Every node has the same table, and it verifies.
 ################################################################
 want=$(master_sql "select count(*), sum(a), sum(b), sum(c) from t")

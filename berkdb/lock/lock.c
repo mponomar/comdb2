@@ -2357,6 +2357,7 @@ __lock_get_internal_int(lt, locker, in_locker, flags, obj, lock_mode, timeout,
 	extern int gbl_lock_get_verbose_waiter;
 	int verbose_waiter = gbl_lock_get_verbose_waiter;;
 	int grant_dirty, no_dd, ret, t_ret;
+	u_int32_t *wait_counted = NULL;
 	extern int gbl_locks_check_waiters;
 
 	/*
@@ -3047,12 +3048,14 @@ upgrade:
 			    &sh_locker->lk_expire)))
 			region->next_timeout = sh_locker->lk_expire;
 
-		/* set waiting status for master_locker */
+		/* count this wait on the master_locker; taken off again as
+		 * soon as the wait is over, however it ends */
 		if (sh_locker->master_locker == INVALID_ROFF)
-			sh_locker->wstatus = 1;
+			wait_counted = &sh_locker->wstatus;
 		else
-			((DB_LOCKER *)R_ADDR(&lt->reginfo,
-				sh_locker->master_locker))->wstatus = 1;
+			wait_counted = &((DB_LOCKER *)R_ADDR(&lt->reginfo,
+				sh_locker->master_locker))->wstatus;
+		__sync_fetch_and_add(wait_counted, 1);
 
 		unlock_locker_partition(region, lpartition);
 
@@ -3153,6 +3156,12 @@ upgrade:
 			x1 = bb_berkdb_fasttime();
 		}
 		MUTEX_LOCK(dbenv, &newl->mutex);
+
+		/* awake: granted, aborted or expired, this locker waits no more */
+		if (wait_counted) {
+			__sync_fetch_and_sub(wait_counted, 1);
+			wait_counted = NULL;
+		}
 
 		if (gbl_bb_berkdb_enable_thread_stats) {
 			struct berkdb_thread_stats *t;
@@ -3284,12 +3293,8 @@ expired:			obj_ndx = sh_obj->index;
 	sh_locker->nlocks++;
 
 
-	/* clear waiting status for master_locker */
-	if (sh_locker->master_locker == INVALID_ROFF)
-		sh_locker->wstatus = 0;
-	else
-		((DB_LOCKER *)R_ADDR(&lt->reginfo,
-			sh_locker->master_locker))->wstatus = 0;
+	/* the wait, if there was one, came off the master_locker's count when
+	 * this thread woke */
 
 	if (is_pagelock(sh_obj))
 		sh_locker->npagelocks++;
@@ -3332,6 +3337,11 @@ expired:			obj_ndx = sh_obj->index;
 done:
 	ret = 0;
 err:
+	if (wait_counted) {
+		/* left before going to sleep */
+		__sync_fetch_and_sub(wait_counted, 1);
+		wait_counted = NULL;
+	}
 	if (newl != NULL &&
 	    (t_ret = __lock_freelock(lt, newl, sh_locker,
 		    DB_LOCK_FREE | DB_LOCK_UNLINK)) != 0 && ret == 0) {

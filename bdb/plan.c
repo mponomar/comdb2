@@ -85,6 +85,11 @@ struct bdb_plan {
     int applying;    /* replaying: ll_* routines write for real */
     int unsupported; /* refused an operation: run the request without a plan */
     int deferred;    /* to be applied in a commit unit, not by this transaction */
+    /* the unique keys this plan adds, hashed, to catch one added twice */
+    struct plan_op **uniq;
+    int nuniq;
+    int uniqcap;
+    int64_t bytes; /* estimate of the log this plan will write */
     int turn_held;
 };
 
@@ -116,6 +121,11 @@ int64_t gbl_ordered_apply_unit_retries; /* commit units aborted and applied agai
  * to write, at the unit's LSN.  There is no turn to hand from thread to
  * thread, and a unit costs one commit record however many plans are in it. */
 int gbl_ordered_apply_unit = 0;
+/* On: a plan can add to an index that allows no duplicates.  Off: such a
+ * request runs without a plan, as it did before. */
+int gbl_ordered_apply_unique = 1;
+int64_t gbl_ordered_apply_dup_retries; /* plans sent back because a unique key they add was in the index at apply */
+int64_t gbl_ordered_apply_dup_unread;  /* unique keys not looked for while planning because the page was locked */
 /* On: a transaction whose plan is the only one in existence applies it
  * itself, as a unit of one, on its own thread; any that arrive meanwhile
  * queue until it is done.  A lone writer then never waits for another thread
@@ -124,6 +134,14 @@ int gbl_ordered_apply_unit = 0;
 int gbl_ordered_apply_unit_inline = 1;
 static int64_t plans_alive; /* plans started and not yet freed */
 int64_t gbl_ordered_apply_units_inline; /* units of one applied by their own transaction */
+/* A member waiting for its unit sleeps on a condition variable, which the
+ * deadlock detector cannot see.  After this many milliseconds it waits in
+ * the lock manager instead, for a lock the unit being applied holds, so that
+ * a cycle through the member's own locks is found. */
+int gbl_ordered_apply_unit_detect_ms = 100;
+int64_t gbl_ordered_apply_unit_slow_waits; /* members that went on to wait in the lock manager */
+int64_t gbl_ordered_apply_unit_kicks;      /* times a member was a deadlock victim and aborted its waiters */
+static char unit_name[16] = "ordered unit";
 /* A unit stops taking plans once it has this many btree operations. */
 int gbl_ordered_apply_unit_max_ops = 4096;
 
@@ -204,6 +222,7 @@ static void plan_free(struct bdb_plan *plan)
         free(blk);
         blk = next;
     }
+    free(plan->uniq);
     free(plan);
     ATOMIC_ADD64(plans_alive, -1);
 }
@@ -227,6 +246,8 @@ static struct plan_op *plan_new_op(struct bdb_plan *plan, int type, bdb_state_ty
         plan->first = op;
     plan->last = op;
     plan->nops++;
+    /* one add record for each operation: the item and its header */
+    plan->bytes += key->size + data->size + 96;
     return op;
 }
 
@@ -250,6 +271,13 @@ int bdb_plan_recording(tran_type *tran)
 int bdb_tran_plan_active(tran_type *tran)
 {
     return bdb_plan_recording(tran);
+}
+
+/* An estimate of the log a transaction's plan will write when applied, for
+ * limits that are checked as a request runs. */
+int64_t bdb_tran_plan_bytes(tran_type *tran)
+{
+    return (tran && tran->plan) ? tran->plan->bytes : 0;
 }
 
 int bdb_tran_plan_unsupported(tran_type *tran)
@@ -303,18 +331,133 @@ int bdb_plan_dta_add(bdb_state_type *bdb_state, unsigned long long genid, DB *db
     return 0;
 }
 
+/*
+ * Unique keys.
+ *
+ * Adding a key to an index that allows no duplicates is refused if the key
+ * is there already.  A transaction writing as it goes finds that out from
+ * the put.  A plan finds out in two steps:
+ *
+ * - When the add is recorded, the plan is searched for an earlier add of the
+ *   same key, and the index is read for it.  The read never waits for a
+ *   lock: a transaction recording a plan must not block on a page, because
+ *   the lock may belong to a commit unit that is waiting for a lock of this
+ *   transaction's, or to this transaction's own parent, and neither wait
+ *   would ever end.  A key found gives the duplicate error the put would
+ *   have, at the point in the request where the put would have given it.  A
+ *   page that is locked gives nothing, and the add is recorded.
+ * - When the plan is applied the put itself still refuses a duplicate: the
+ *   key was behind a lock when the plan looked, or was added afterwards.
+ *   The apply is abandoned and the request runs again without a plan, under
+ *   page locks, where the put reports the duplicate in the ordinary way.  In
+ *   a commit unit only the member whose key it was goes back; the others are
+ *   applied again without it.
+ *
+ * So the btree stays the judge of uniqueness, as it is under page locks, and
+ * a plan can be wrong only in the direction of trying again.
+ */
+static uint32_t uniq_hash(bdb_state_type *bdb_state, int ixnum, const uint8_t *key, uint32_t len)
+{
+    uint32_t h = 2166136261u ^ (uint32_t)(uintptr_t)bdb_state ^ ((uint32_t)ixnum * 16777619u);
+    for (uint32_t i = 0; i < len; i++)
+        h = (h ^ key[i]) * 16777619u;
+    return h;
+}
+
+/* Finds the slot for this key: the op that adds it, or the empty slot where
+ * it would go. */
+static struct plan_op **uniq_slot(struct bdb_plan *plan, bdb_state_type *bdb_state, int ixnum, const uint8_t *key,
+                                  uint32_t len)
+{
+    uint32_t i = uniq_hash(bdb_state, ixnum, key, len) & (plan->uniqcap - 1);
+    for (;;) {
+        struct plan_op *op = plan->uniq[i];
+        if (op == NULL || (op->bdb_state == bdb_state && op->ixnum == ixnum && op->keylen == len &&
+                           memcmp(op + 1, key, len) == 0))
+            return &plan->uniq[i];
+        i = (i + 1) & (plan->uniqcap - 1);
+    }
+}
+
+static int uniq_grow(struct bdb_plan *plan)
+{
+    int oldcap = plan->uniqcap;
+    struct plan_op **old = plan->uniq;
+    int cap = oldcap ? oldcap * 2 : 64;
+    struct plan_op **tbl = calloc(cap, sizeof(struct plan_op *));
+    if (tbl == NULL)
+        return ENOMEM;
+    plan->uniq = tbl;
+    plan->uniqcap = cap;
+    for (int i = 0; i < oldcap; i++) {
+        struct plan_op *op = old[i];
+        if (op)
+            *uniq_slot(plan, op->bdb_state, op->ixnum, (uint8_t *)(op + 1), op->keylen) = op;
+    }
+    free(old);
+    return 0;
+}
+
+/* Is the key in the index now?  Returns DB_KEYEXIST if it is, and 0 if it is
+ * not or if that could not be found out without waiting for a lock.  The
+ * read is under a transaction of its own that does not wait and is over when
+ * this returns, so it leaves no lock behind. */
+static int uniq_read(bdb_state_type *bdb_state, int ixnum, DBT *dbt_key)
+{
+    DB_ENV *dbenv = bdb_state->parent ? bdb_state->parent->dbenv : bdb_state->dbenv;
+    DB *dbp = bdb_state->dbp_ix[ixnum];
+    DB_TXN *tid;
+    DBC *dbcp;
+    DBT key = {0}, data = {0};
+
+    if (dbenv->txn_begin(dbenv, NULL, &tid, DB_TXN_NOWAIT) != 0)
+        return 0;
+    int rc = dbp->cursor(dbp, tid, &dbcp, 0);
+    if (rc == 0) {
+        key.data = dbt_key->data;
+        key.size = dbt_key->size;
+        /* nothing of the entry is wanted, only whether it is there */
+        data.flags = DB_DBT_USERMEM | DB_DBT_PARTIAL;
+        rc = dbcp->c_get(dbcp, &key, &data, DB_SET);
+        dbcp->c_close(dbcp);
+    } else {
+        rc = DB_LOCK_NOTGRANTED;
+    }
+    tid->abort(tid);
+    if (rc == 0)
+        return DB_KEYEXIST;
+    if (rc != DB_NOTFOUND)
+        ATOMIC_ADD64(gbl_ordered_apply_dup_unread, 1);
+    return 0;
+}
+
 int bdb_plan_key_add(bdb_state_type *bdb_state, unsigned long long genid, tran_type *tran, int ixnum, DBT *dbt_key,
                      DBT *dbt_data)
 {
-    /* A unique key is a name: adding one needs a duplicate check and a stamp,
-     * which this step does not have. */
-    if (!bdb_state->ixdups[ixnum])
-        return bdb_plan_refuse(tran);
-    struct plan_op *op = plan_new_op(tran->plan, PLAN_KEY_ADD, bdb_state, dbt_key, dbt_data);
+    struct bdb_plan *plan = tran->plan;
+    struct plan_op **slot = NULL;
+
+    if (!bdb_state->ixdups[ixnum]) {
+        if (!gbl_ordered_apply_unique)
+            return bdb_plan_refuse(tran);
+        if (plan->nuniq * 2 >= plan->uniqcap && uniq_grow(plan) != 0)
+            return ENOMEM;
+        slot = uniq_slot(plan, bdb_state, ixnum, dbt_key->data, dbt_key->size);
+        if (*slot)
+            return DB_KEYEXIST;
+        int rc = uniq_read(bdb_state, ixnum, dbt_key);
+        if (rc != 0)
+            return rc;
+    }
+    struct plan_op *op = plan_new_op(plan, PLAN_KEY_ADD, bdb_state, dbt_key, dbt_data);
     if (op == NULL)
         return ENOMEM;
     op->genid = genid;
     op->ixnum = ixnum;
+    if (slot) {
+        *slot = op;
+        plan->nuniq++;
+    }
     return 0;
 }
 
@@ -358,6 +501,7 @@ struct plan_file {
     struct plan_op *last;
     tran_type tran; /* stands in for the planning transaction in the ll_* routines */
     int rc;
+    struct plan_op *failed; /* the operation that gave rc */
     struct plan_file *next; /* in the helpers' queue */
 };
 
@@ -372,8 +516,11 @@ static int nhelpers;
 static void apply_file(struct plan_file *f)
 {
     int rc = 0;
-    for (struct plan_op *op = f->first; op && rc == 0; op = op->gnext)
+    for (struct plan_op *op = f->first; op && rc == 0; op = op->gnext) {
         rc = apply_op(op, &f->tran);
+        if (rc != 0)
+            f->failed = op;
+    }
     f->rc = rc;
 }
 
@@ -437,9 +584,11 @@ static int plan_needs_one_chain(struct bdb_plan *plan)
     return 0;
 }
 
-/* Sets *done if it applied the plan, and returns the rc of that.  Otherwise
- * the plan is to be applied on this thread alone. */
-static int apply_parallel(bdb_state_type *bdb_state, tran_type *tran, struct bdb_plan *plan, int *done)
+/* Sets *done if it applied the plan, and returns the rc of that, with the
+ * operation that failed in *failed.  Otherwise the plan is to be applied on
+ * this thread alone. */
+static int apply_parallel(bdb_state_type *bdb_state, tran_type *tran, struct bdb_plan *plan, int *done,
+                          struct plan_op **failed)
 {
     struct plan_file files[PLAN_MAX_FILES];
     int nfiles = 0;
@@ -520,8 +669,11 @@ static int apply_parallel(bdb_state_type *bdb_state, tran_type *tran, struct bdb
             Pthread_cond_wait(&helper_done, &helper_lk);
         Pthread_mutex_unlock(&helper_lk);
 
-        for (int i = 0; i < nfiles && rc == 0; i++)
+        for (int i = 0; i < nfiles && rc == 0; i++) {
             rc = files[i].rc;
+            if (rc != 0)
+                *failed = files[i].failed;
+        }
     }
 
     /* Every child ends here, before the planning transaction writes anything
@@ -598,7 +750,8 @@ int bdb_tran_plan_apply(bdb_state_type *bdb_state, tran_type *tran, int *bdberr)
     }
 
     int done = 0;
-    rc = apply_parallel(bdb_state, tran, plan, &done);
+    struct plan_op *failed = NULL;
+    rc = apply_parallel(bdb_state, tran, plan, &done, &failed);
     if (!done) {
         for (struct plan_op *op = plan->first; op && rc == 0; op = op->next)
             rc = apply_op(op, tran);
@@ -616,7 +769,13 @@ int bdb_tran_plan_apply(bdb_state_type *bdb_state, tran_type *tran, int *bdberr)
         ATOMIC_ADD64(gbl_ordered_apply_ops, plan->nops);
         return 0;
     }
-    if (rc == DB_LOCK_DEADLOCK || rc == DB_REP_HANDLE_DEAD) {
+    if (rc == DB_KEYEXIST) {
+        /* a unique key this plan adds is in the index: run without a plan,
+         * and let the put report it */
+        ATOMIC_ADD64(gbl_ordered_apply_dup_retries, 1);
+        plan->unsupported = 1;
+        *bdberr = BDBERR_DEADLOCK;
+    } else if (rc == DB_LOCK_DEADLOCK || rc == DB_REP_HANDLE_DEAD) {
         *bdberr = BDBERR_DEADLOCK;
     } else {
         logmsg(LOGMSG_ERROR, "%s: applying a plan failed rc %d\n", __func__, rc);
@@ -686,6 +845,17 @@ void bdb_plan_tran_done(tran_type *tran)
  * The members keep their table locks while they wait, so the handles in
  * their plans stay valid.  They hold no page locks: bdb_tran_plan_apply()
  * checked that before leaving the plan for a unit.
+ *
+ * Deadlocks through a member.  A unit can wait for a page held by a
+ * transaction that is itself waiting for a lock a member holds.  The member
+ * sleeps on a condition variable, so the detector sees no cycle.  Two things
+ * close that.  A transaction that applies its own plan does it under its own
+ * Berkeley transaction, not a unit's, so its locks and its waits belong to
+ * one family.  And every unit holds a write lock on one name; a member that
+ * has waited gbl_ordered_apply_unit_detect_ms asks for that name in read
+ * mode, which is a wait the detector follows.  If the member is then chosen
+ * as the victim it cannot give up its locks, since its plan may be half
+ * applied; it aborts the transactions waiting for them, and waits again.
  */
 struct unit_member {
     struct unit_member *next;
@@ -699,6 +869,7 @@ struct unit_member {
     int rc;
     int bdberr;
     int dup;
+    int stale; /* a unique key it adds is in the index: left out, to run again without a plan */
     DB_LSN lsn;
     int done;
     pthread_cond_t cond;
@@ -749,9 +920,21 @@ static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch)
             return;
         }
 
+        /* members that have waited long wait for this; it goes with the
+         * transaction's other locks when it commits or aborts */
+        {
+            DBT name = {0};
+            DB_LOCK lk;
+            name.data = unit_name;
+            name.size = sizeof(unit_name);
+            rc = berkdb_lock(bdb_state->dbenv, tran->tid->txnid, 0, &name, DB_LOCK_WRITE, &lk);
+        }
+
         /* blkseq records first: they say which members are replays.  The
          * plans of the rest are joined into one list of operations. */
         for (struct unit_member *m = batch; m && rc == 0; m = m->next) {
+            if (m->stale)
+                continue;
             if (m->bskey) {
                 rc = bdb_blkseq_insert(bdb_state, tran, m->bskey, m->bskeylen, m->bsdata, m->bsdatalen, m->replay_data,
                                        m->replay_len, 0);
@@ -773,15 +956,46 @@ static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch)
             nplans++;
         }
 
+        struct plan_op *failed = NULL;
         if (rc == 0 && all.nops > 0) {
             int done = 0;
-            rc = apply_parallel(bdb_state, tran, &all, &done);
+            rc = apply_parallel(bdb_state, tran, &all, &done, &failed);
             if (!done) {
-                for (struct plan_op *op = all.first; op && rc == 0; op = op->next)
+                for (struct plan_op *op = all.first; op && rc == 0; op = op->next) {
                     rc = apply_op(op, tran);
+                    if (rc != 0)
+                        failed = op;
+                }
             }
         }
         uint64_t applied = now_us();
+
+        if (rc == DB_KEYEXIST && failed) {
+            /* A unique key one member adds is in the index: another
+             * transaction added it after the member read, or an earlier
+             * member of this unit did.  That member goes back to run again;
+             * the rest are applied again without it. */
+            struct unit_member *whose = NULL;
+            for (struct unit_member *m = batch; m && !whose; m = m->next) {
+                if (m->stale || m->dup)
+                    continue;
+                for (struct plan_op *op = m->plan->first;; op = op->next) {
+                    if (op == failed) {
+                        whose = m;
+                        break;
+                    }
+                    if (op == m->plan->last)
+                        break;
+                }
+            }
+            if (whose) {
+                bdb_tran_abort(bdb_state, tran, &bdberr);
+                unit_drop_replays(batch);
+                whose->stale = 1;
+                ATOMIC_ADD64(gbl_ordered_apply_dup_retries, 1);
+                continue;
+            }
+        }
 
         if (rc != 0) {
             bdb_tran_abort(bdb_state, tran, &bdberr);
@@ -812,6 +1026,11 @@ static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch)
 
         uint64_t end = now_us();
         for (struct unit_member *m = batch; m; m = m->next) {
+            if (m->stale) {
+                m->rc = -1;
+                m->bdberr = BDBERR_ADD_DUPE;
+                continue;
+            }
             m->rc = m->dup ? IX_DUP : 0;
             memcpy(&m->lsn, &seqnum, sizeof(DB_LSN));
         }
@@ -822,6 +1041,56 @@ static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch)
         ATOMIC_ADD64(gbl_ordered_apply_held_us, end - start);
         return;
     }
+}
+
+/* A transaction applying its own plan: its blkseq record and its operations
+ * go under its own transaction, which then commits them itself.  Returns
+ * what bdb_tran_plan_unit_commit() does. */
+static int unit_apply_own(bdb_state_type *bdb_state, tran_type *tran, struct unit_member *m, int *bdberr)
+{
+    struct bdb_plan *plan = m->plan;
+    uint64_t start = now_us();
+    int rc = 0;
+
+    if (m->bskey) {
+        rc = bdb_blkseq_insert(bdb_state, tran, m->bskey, m->bskeylen, m->bsdata, m->bsdatalen, m->replay_data,
+                               m->replay_len, 0);
+        if (rc == IX_DUP)
+            return IX_DUP;
+        if (rc != 0) {
+            *bdberr = BDBERR_MISC;
+            return -1;
+        }
+    }
+    int done = 0;
+    struct plan_op *failed = NULL;
+    rc = apply_parallel(bdb_state, tran, plan, &done, &failed);
+    if (!done) {
+        for (struct plan_op *op = plan->first; op && rc == 0; op = op->next)
+            rc = apply_op(op, tran);
+    }
+    uint64_t end = now_us();
+    ATOMIC_ADD64(gbl_ordered_apply_apply_us, end - start);
+    ATOMIC_ADD64(gbl_ordered_apply_held_us, end - start);
+    if (rc == 0) {
+        ATOMIC_ADD64(gbl_ordered_apply_units, 1);
+        ATOMIC_ADD64(gbl_ordered_apply_units_inline, 1);
+        ATOMIC_ADD64(gbl_ordered_apply_txns, 1);
+        ATOMIC_ADD64(gbl_ordered_apply_ops, plan->nops);
+        return 0;
+    }
+    if (rc == DB_KEYEXIST) {
+        /* a unique key this plan adds is in the index: run without a plan,
+         * and let the put report it */
+        ATOMIC_ADD64(gbl_ordered_apply_dup_retries, 1);
+        *bdberr = BDBERR_ADD_DUPE;
+    } else if (rc == DB_LOCK_DEADLOCK || rc == BDBERR_DEADLOCK || rc == DB_REP_HANDLE_DEAD) {
+        *bdberr = BDBERR_DEADLOCK;
+    } else {
+        logmsg(LOGMSG_ERROR, "%s: applying a plan failed rc %d\n", __func__, rc);
+        *bdberr = BDBERR_MISC;
+    }
+    return -1;
 }
 
 static void *unit_thread(void *arg)
@@ -897,17 +1166,16 @@ int bdb_tran_plan_unit_commit(bdb_state_type *bdb_state, tran_type *tran, void *
          * replaces this thread's note of its own top-level transaction. */
         unit_busy = 1;
         Pthread_mutex_unlock(&unit_lk);
-        void *mine = pthread_getspecific(bdb_state->seqnum_info->key);
-        unit_run(bdb_state, &m);
-        Pthread_setspecific(bdb_state->seqnum_info->key, mine);
+        int rc = unit_apply_own(bdb_state, tran, &m, bdberr);
         Pthread_mutex_lock(&unit_lk);
         unit_busy = 0;
         if (unit_first)
             Pthread_cond_signal(&unit_work);
         Pthread_mutex_unlock(&unit_lk);
         Pthread_cond_destroy(&m.cond);
-        ATOMIC_ADD64(gbl_ordered_apply_units_inline, 1);
-        goto done;
+        plan_free(tran->unit_plan);
+        tran->unit_plan = NULL;
+        return rc;
     }
     if (!unit_thread_started) {
         pthread_t tid;
@@ -931,15 +1199,60 @@ int bdb_tran_plan_unit_commit(bdb_state_type *bdb_state, tran_type *tran, void *
         unit_first = &m;
     unit_last = &m;
     Pthread_cond_signal(&unit_work);
-    while (!m.done)
-        Pthread_cond_wait(&m.cond, &unit_lk);
+
+    int slow = 0;
+    struct timespec until;
+    clock_gettime(CLOCK_REALTIME, &until);
+    int ms = gbl_ordered_apply_unit_detect_ms > 0 ? gbl_ordered_apply_unit_detect_ms : 0;
+    until.tv_sec += ms / 1000;
+    until.tv_nsec += (long)(ms % 1000) * 1000000;
+    if (until.tv_nsec >= 1000000000) {
+        until.tv_sec++;
+        until.tv_nsec -= 1000000000;
+    }
+    while (!m.done) {
+        if (!slow) {
+            if (pthread_cond_timedwait(&m.cond, &unit_lk, &until) != 0 && !m.done) {
+                slow = 1;
+                ATOMIC_ADD64(gbl_ordered_apply_unit_slow_waits, 1);
+            }
+            continue;
+        }
+        /* Wait where the deadlock detector can see it: every unit holds this
+         * name in write mode for as long as it is being applied. */
+        Pthread_mutex_unlock(&unit_lk);
+        DBT name = {0};
+        DB_LOCK lk;
+        name.data = unit_name;
+        name.size = sizeof(unit_name);
+        int lrc = berkdb_lock(bdb_state->dbenv, tran->tid->txnid, 0, &name, DB_LOCK_READ, &lk);
+        if (lrc == 0) {
+            bdb_release_lock(bdb_state, &lk);
+        } else if (lrc == BDBERR_DEADLOCK) {
+            /* The unit this plan is in, or one ahead of it, waits for a
+             * transaction that waits for a lock of ours. */
+            bdb_abort_waiters(bdb_state, tran);
+            ATOMIC_ADD64(gbl_ordered_apply_unit_kicks, 1);
+        }
+        Pthread_mutex_lock(&unit_lk);
+        if (!m.done) {
+            /* between units nothing holds the name */
+            struct timespec nap;
+            clock_gettime(CLOCK_REALTIME, &nap);
+            nap.tv_nsec += 2000000;
+            if (nap.tv_nsec >= 1000000000) {
+                nap.tv_sec++;
+                nap.tv_nsec -= 1000000000;
+            }
+            pthread_cond_timedwait(&m.cond, &unit_lk, &nap);
+        }
+    }
     Pthread_mutex_unlock(&unit_lk);
     Pthread_cond_destroy(&m.cond);
 
     ATOMIC_ADD64(gbl_ordered_apply_waits, 1);
     ATOMIC_ADD64(gbl_ordered_apply_wait_us, now_us() - start);
 
-done:
     /* applied or not, the plan is finished with */
     plan_free(tran->unit_plan);
     tran->unit_plan = NULL;

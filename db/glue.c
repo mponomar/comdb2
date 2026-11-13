@@ -1061,6 +1061,13 @@ int trans_plan_unit_commit(struct ireq *iq, void *trans, void *bskey, int bskeyl
     iq->gluewhere = "bdb_tran_plan_unit_commit done";
     if (rc != -1)
         return rc;
+    if (bdberr == BDBERR_ADD_DUPE) {
+        /* a unique key in the plan is already in the index: run the request
+         * again under page locks, where the put reports it */
+        iq->plan_disabled = 1;
+        iq->plan_fallback = 1;
+        return RC_INTERNAL_RETRY;
+    }
     if (bdberr == BDBERR_DEADLOCK)
         return RC_INTERNAL_RETRY;
     if (bdberr == BDBERR_READONLY)

@@ -130,16 +130,29 @@ static inline int has_constraint(int flags)
  * For logical_livesc, function returns ERR_VERIFY if
  * the record being added is already in the btree.
  */
-/* Ordered apply plans only what writes no names: an insert into a table with
- * no unique key and no foreign key, that no schema change is converting. */
-static int plan_can_add(const struct dbtable *db, int flags)
+/* Ordered apply plans an insert into a table with no foreign key that no
+ * schema change is converting.  Unique keys are checked as the plan records
+ * them (bdb/plan.c); an insert that reads the index to decide what to do,
+ * as ON CONFLICT does, is not planned. */
+extern int gbl_ordered_apply_unique;
+static int plan_can_add(const struct dbtable *db, int flags, int rec_flags)
 {
     if (db == NULL || is_event_from_sc(flags) || db->n_constraints > 0 || db->sc_to || db->sc_from ||
         db->sc_live_logical || db->doing_conversion || db->doing_upgrade)
         return 0;
-    for (int i = 0; i < db->nix; i++) {
-        if (!db->ix_dupes[i])
-            return 0;
+    if (rec_flags & (OSQL_IGNORE_FAILURE | OSQL_FORCE_VERIFY))
+        return 0;
+    /* With constraint checking on, which is also how every insert runs while
+     * a schema change is in progress, the keys are added at the end of the
+     * request from the row as read back from the data file.  A planned row
+     * is not there to be read. */
+    if (has_constraint(flags))
+        return 0;
+    if (!gbl_ordered_apply_unique) {
+        for (int i = 0; i < db->nix; i++) {
+            if (!db->ix_dupes[i])
+                return 0;
+        }
     }
     return 1;
 }
@@ -173,7 +186,7 @@ int add_record(struct ireq *iq, void *trans, const uint8_t *p_buf_tag_name,
 
     *ixfailnum = -1;
 
-    if (trans && bdb_tran_plan_active(trans) && !plan_can_add(iq->usedb, flags)) {
+    if (trans && bdb_tran_plan_active(trans) && !plan_can_add(iq->usedb, flags, rec_flags)) {
         bdb_tran_plan_set_unsupported(trans);
         return RC_INTERNAL_RETRY;
     }
@@ -714,7 +727,9 @@ int add_record(struct ireq *iq, void *trans, const uint8_t *p_buf_tag_name,
             ERR("live_sc_post rc %d", rc);
         }
 
-        if (!retrc && gbl_max_wr_logbytes_per_txn && (iq->written_logbytes_count > gbl_max_wr_logbytes_per_txn)) {
+        /* a plan has written nothing yet; count what it will write */
+        if (!retrc && gbl_max_wr_logbytes_per_txn &&
+            (iq->written_logbytes_count + bdb_tran_plan_bytes(trans) > gbl_max_wr_logbytes_per_txn)) {
             reqerrstr(iq, COMDB2_CSTRT_RC_TRN_TOO_BIG, "Transaction exceeds max log-bytes limit");
             retrc = ERR_TRAN_TOO_BIG;
             ERR("exceeds max log-bytes limit %llu", iq->written_logbytes_count);

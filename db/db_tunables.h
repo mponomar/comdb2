@@ -3017,11 +3017,21 @@ REGISTER_TUNABLE("ordered_apply_turn_detect",
                  "turn to apply. Off is for measurement only: a deadlock that a wait for the turn "
                  "completes may go unnoticed. (Default: on)",
                  TUNABLE_BOOLEAN, &gbl_ordered_apply_turn_detect, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("ordered_apply_unique",
+                 "With ordered_apply, plan inserts into tables that have unique keys. A request "
+                 "whose key turns out to be in the index when its plan is applied runs again "
+                 "without a plan. Off, such requests run without a plan from the start. "
+                 "(Default: on)",
+                 TUNABLE_BOOLEAN, &gbl_ordered_apply_unique, EXPERIMENTAL, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("ordered_apply_unit",
                  "With ordered_apply, one thread applies the plans that are waiting under a single "
                  "transaction and commits them as a unit; the transactions that made them wait for "
                  "that commit. Off, each transaction applies its own plan in turn. (Default: off)",
                  TUNABLE_BOOLEAN, &gbl_ordered_apply_unit, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("ordered_apply_unit_detect_ms",
+                 "A transaction that has waited this long for its ordered_apply commit unit goes on "
+                 "waiting in the lock manager, where the deadlock detector can see it. (Default: 100)",
+                 TUNABLE_INTEGER, &gbl_ordered_apply_unit_detect_ms, EXPERIMENTAL, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("ordered_apply_unit_inline",
                  "With ordered_apply_unit, a transaction whose plan is the only one in flight applies "
                  "it on its own thread, as a unit of one. (Default: on)",

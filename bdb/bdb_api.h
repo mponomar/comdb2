@@ -717,6 +717,7 @@ int bdb_tran_abort_priority(bdb_state_type *bdb_handle, tran_type *tran, int *bd
  * bdb_tran_plan_unsupported(); the request is then run without a plan. */
 int bdb_tran_plan_start(tran_type *tran);
 int bdb_tran_plan_active(tran_type *tran);
+int64_t bdb_tran_plan_bytes(tran_type *tran);
 int bdb_tran_plan_unsupported(tran_type *tran);
 void bdb_tran_plan_set_unsupported(tran_type *tran);
 int bdb_tran_plan_apply(bdb_state_type *bdb_state, tran_type *tran, int *bdberr);
@@ -724,7 +725,9 @@ int bdb_tran_plan_apply(bdb_state_type *bdb_state, tran_type *tran, int *bdberr)
  * unapplied, and it moves to the parent when the child commits.  The parent
  * then hands the plan and its blkseq record to the unit thread and waits for
  * the unit they went into to commit.  Returns 0, IX_DUP if the blkseq key was
- * already there (nothing of this plan was applied), or -1 with bdberr set. */
+ * already there (nothing of this plan was applied), or -1 with bdberr set:
+ * BDBERR_ADD_DUPE means a unique key the plan adds is already in the index,
+ * nothing was applied, and the request is to run again without a plan. */
 int bdb_tran_plan_pending(tran_type *tran);
 int bdb_tran_plan_unit_commit(bdb_state_type *bdb_state, tran_type *tran, void *bskey, int bskeylen, void *bsdata,
                               int bsdatalen, void **replay_data, int *replay_len, int *bdberr);

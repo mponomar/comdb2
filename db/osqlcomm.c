@@ -9101,6 +9101,13 @@ done_delete:
     } break;
 
     case OSQL_BPFUNC: {
+        /* Ordered apply: a bpfunc can act outside the transaction, and a
+         * request that gives up its plan runs again from the start.  Give
+         * the plan up now, before the function has run once. */
+        if (trans && bdb_tran_plan_active(trans)) {
+            bdb_tran_plan_set_unsupported(trans);
+            return RC_INTERNAL_RETRY;
+        }
         const uint8_t *p_buf_end = p_msg_end;
         osql_bpfunc_t *rpl = NULL;
 

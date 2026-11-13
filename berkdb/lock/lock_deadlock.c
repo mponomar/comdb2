@@ -1200,7 +1200,7 @@ retry:	count = region->stat.st_nlockers;
 
 	for (DB_LOCKER *lip = SH_TAILQ_FIRST(&region->lockers, __db_locker);
 		lip != NULL; lip = SH_TAILQ_NEXT(lip, ulinks, __db_locker)) {
-		if (lip->wstatus == 1 || (tscnt && lip->timestamp > 0)) {	/*only master lockers can be in waiting status */
+		if (lip->wstatus > 0 || (tscnt && lip->timestamp > 0)) {	/*only master lockers can be in waiting status */
 			lip->dd_id = id ++;
 			locker_info *ptr_idarr = &dd_id_array[lip->dd_id];
 			ptr_idarr->id = lip->id;

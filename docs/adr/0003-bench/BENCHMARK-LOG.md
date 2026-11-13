@@ -31,6 +31,8 @@ the workload the later runs were chasing.
 |  10 | Commit units                              |     3 |      8,707 |   8,322 |
 |  12 | Commit units, own plan when alone         |     1 |      9,530 |  10,298 |
 |  12 | Commit units, own plan when alone         |     3 |      8,652 |   8,029 |
+|  14 | Commit units, table with a unique key     |     1 |      9,741 |  10,844 |
+|  14 | Commit units, table with a unique key     |     3 |      8,714 |   7,759 |
 
 Single-row inserts, one client, ascending keys, one node, transactions per
 second.
@@ -232,6 +234,136 @@ second.
   three-node random-key phase is slower than in run 10 for every variant
   including `par-early` (23,171 against 28,781 rows/s at 32 × 100), so that
   phase was probably disturbed.
+
+### 13. Test suite with ordered apply and commit units on
+
+- **When:** 2026-11-13, started 15:17 UTC. Not a timed benchmark.
+- **Change before:** two changes to commit units, uncommitted. (a) A
+  transaction applying its own plan does it under its own Berkeley
+  transaction with its own blkseq record, as the pre-unit code did, where
+  runs 11 and 12 used a separate unit transaction on the same thread. (b)
+  Every unit holds a write lock on one name, and a member that has waited
+  `ordered_apply_unit_detect_ms` (100) for its unit waits for that name in
+  the lock manager, so the deadlock detector can follow a cycle through the
+  member's locks; a member chosen as victim aborts the transactions waiting
+  on its locks.
+- **Setup:** a native build on xeon (`-DCOMDB2_TEST=1`) in `/tmp/rltest`, a
+  private pmux on port 19500, single-node databases. Two passes of the whole
+  default suite (789 tests) at once, 20 tests at a time each: a baseline, and
+  one with `ordered_apply 1` and `ordered_apply_unit 1` added to every test
+  database through `CUSTOMLRLPATH`.
+- **Command:** `PMUXPORT=19500 make -kj20` in `tests/`, and the same with
+  `CUSTOMLRLPATH=/tmp/rltest/oa.lrl`.
+- **Restarted:** the pass with ordered apply on was stopped after eight
+  minutes and started again at 15:27 UTC from a second build
+  (`/tmp/rltest2`) that adds (c): inserts into tables with unique keys are
+  planned (`ordered_apply_unique`, on). Without that, few tables in the suite
+  can be planned at all. The index is read for the key when the insert is
+  recorded; if the key has appeared by the time the plan is applied, the
+  request runs again, and in a unit only that member does. The baseline pass
+  was left running from the first build.
+- **Both passes stopped early.** The harness gives up once ten tests have
+  failed (`MAX_TEST_FAILURES` in `tests/runtestcase`), and many tests fail on
+  a single node for reasons of their own. The baseline ran 78 tests (65
+  passed) and the ordered-apply pass 40 (26 passed) before skipping the other
+  700. In that much, two tests failed only with ordered apply, `scindex` and
+  `scindex_logicalsc_generated`, and showed a real bug: an insert made while
+  a schema change runs adds its keys at the end of the request from the row
+  read back from the data file, and a planned row is not there ("verify key
+  constraint: record not found"). Such inserts, and inserts into tables with
+  constraint checking on, are no longer planned.
+- **Started again** at 16:10 UTC with that fix, as one pass with ordered
+  apply on, `MAX_TEST_FAILURES=100000` and `-j40`, from `/tmp/rltest2`. No
+  baseline pass: tests that failed were run again on a build of `main`
+  (`983c0348d`, in `/tmp/rltest-main`), and the ones that failed only with
+  ordered apply looked into.
+- **Results:** `suite-run13.txt` lists every test named below.
+  - 789 tests: 578 passed and 204 failed; 7 finished without the harness
+    printing a result. Of the 199 failures other than `ordered_apply` itself
+    (which checks that the feature is off by default), 180 fail on `main` as
+    well, mostly for want of a cluster, and 19 pass on `main`.
+  - Of those 19, run again on the same build, 4 passed (`sp`,
+    `sql_func_mem_leak`, `systbl_proc_leak`, `random_osql_replay`) and 15
+    failed again.
+- **Bugs found, all fixed in the working tree:**
+  1. **Deadlocks the detector did not see** (`insert_lots`, `guid`,
+     `reorder_inserts`, their generated variants, `sp` now and then): the
+     database stalled until its watchdog aborted it. The lock manager marks a
+     transaction family as waiting with one flag on the master locker, set by
+     a wait and cleared by the family's next grant. A unit applied a file per
+     thread has several threads in one family; a grant to one cleared the
+     flag while another waited, and the detector left that wait out of its
+     graph. Reproduced on macOS, with the cycle visible in `comdb2_locks`
+     and `st_ndeadlocks` at 0. The flag is now a count
+     (`berkdb/lock/lock.c`, `lock_deadlock.c`, `dbinc/lock.h`). Plans applied
+     a file per thread before units existed had the same exposure.
+  2. **The duplicate-key read waiting on its own transaction**
+     (`truncoplog`, `sp`): it ran under a lock owner of its own and waited
+     for a page the request's parent transaction had written. The read now
+     never waits. A locked page means the key is not looked for, and the put
+     at apply decides; a request whose key is there at apply runs again
+     without a plan, where the put reports the duplicate.
+  3. **Inserts during a schema change** (`scindex`,
+     `scindex_logicalsc_generated`), described above.
+  4. **Row limits counted twice** (`max_wr_rows`): a request that gave up
+     its plan kept the row counts of the abandoned attempt.
+  5. **The log-bytes limit not applied** (`max_wr_rows`): a plan writes no
+     log while the request runs. The limit now counts an estimate of what the
+     plan will write.
+  6. **`put counter ... increment` applied twice**
+     (`manual_partition_lgcy`): a request with a bpfunc gave up its plan
+     after the function had run and ran again. A plan is now given up before
+     a bpfunc runs.
+- **After the fixes**, run again with ordered apply on: `insert_lots`,
+  `insert_lots_ssl_generated`, `guid`, `sp`, `reorder_inserts`, `truncoplog`,
+  `truncoplog_timebased_generated`, `scindex`,
+  `scindex_logicalsc_generated`, `max_wr_rows` and
+  `max_wr_rows_partial_index_off_generated` pass. `ordered_apply` passes
+  through the harness on Linux with the feature off by default, and the
+  `tunables` test differs from its expected output only in the two pmux
+  settings of this setup.
+- **Still failing with ordered apply on, and why:**
+  - `reqlog_logbyte` and `fingerprints`: they check the log bytes and the
+    write counts reported for a request. A request whose plan goes into a
+    unit writes nothing itself, so it reports none. An accounting gap, not
+    fixed.
+  - `reorder_deletes_noreorder_generated`,
+    `reorder_inserts_noreorder_generated`,
+    `nodeadlock_table_noreorder_generated`: they assert a minimum number of
+    deadlocks, and there are fewer.
+  - `upsert`, `manual_partition_lgcy`: rows come back in a different order
+    from a select with no `ORDER BY`. Cause not established; probably which
+    data stripe a row lands in.
+- **Not covered:** this was single node, so nothing clustered ran; the 180
+  tests that fail on `main` here say nothing either way. The whole suite was
+  not run again after the fixes, only the tests listed.
+
+### 14. Unique keys
+
+- **When:** 2026-11-13 18:18–18:32 UTC.
+- **Change before:** everything under run 13: unique-key inserts planned
+  (`ordered_apply_unique`), the detector-visible wait for a unit, a
+  transaction's own plan applied under its own transaction, and the six fixes
+  from the test suite, among them the lock manager's count of waiting
+  lockers. Uncommitted.
+- **Setup:** the benchmark table with its index on `a` made unique
+  (`UNIQUE=1`, new in `newcluster.sh`); the benchmark never repeats a value
+  of `a`. One node, then three; `pg` and `unit`.
+- **Command:** `UNIQUE=1 NODES=1 VARIANTS="pg unit"
+  ./ordered-apply-variants.sh`, then the same without `NODES=1`.
+- **Results:** `stage1-unique-keys.results`.
+- **Found:** a unique key changes little. One node, one row, 32 clients:
+  10,640 txn/s ascending and 10,844 random, against 7,303 and 9,741 for page
+  locks; 100 rows, 32 clients: 39,066 and 33,268 rows/s against 7,541 and
+  6,697. Three nodes, one row, 32 clients: 8,334 ascending against 7,027,
+  and 7,759 random against 8,714 (9,452 against 8,704 with 64 clients); 100
+  rows, 32 clients: 19,254 and 15,861 rows/s against 6,710 and 6,224. No
+  request ran without a plan, and there were no deadlocks or unit retries. A
+  lone client on one node: 876 txn/s against 993 for page locks.
+- **Not comparable closely with run 10:** the three-node 100-row figures are
+  lower than run 10's without a unique key (25,648 and 24,228), and this run
+  cannot say how much of that is the unique key, the changes since, or the
+  5 to 10% between runs. No run of this build without `UNIQUE=1` was made.
 
 ## Elsewhere
 

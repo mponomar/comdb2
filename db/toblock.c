@@ -2994,6 +2994,11 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
     unsigned char nulls[MAXNULLBITS] = {0};
     unsigned long long genid = 0;
     int have_blkseq = 0;
+    /* Ordered apply: the request as it arrived.  The reply is packed over
+     * it before a plan goes into a commit unit, and a plan sent back from
+     * there has to run from the start. */
+    uint8_t *plan_req_copy = NULL;
+    size_t plan_req_len = 0;
     int have_keyless_requests = 0;
     int numerrs = 0;
     int check_serializability = 0;
@@ -5341,6 +5346,10 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
     /* Ordered apply: every operation has run and nothing can fail logically
      * from here.  Take the apply turn and write the plan. */
     if (trans && bdb_tran_plan_active(trans)) {
+        plan_req_len = p_blkstate->p_buf_req_end - p_blkstate->p_buf_req_start;
+        plan_req_copy = malloc(plan_req_len);
+        if (plan_req_copy)
+            memcpy(plan_req_copy, p_blkstate->p_buf_req_start, plan_req_len);
         thrman_wheref(thr_self, "%s [apply plan]", req2a(iq->opcode));
         rc = trans_plan_apply(iq, trans);
         if (rc != 0) {
@@ -6269,6 +6278,10 @@ add_blkseq:
                 }
 
                 if (rc == RC_INTERNAL_RETRY) {
+                    /* a plan sent back from a commit unit: the reply was
+                     * packed over the request */
+                    if (plan_req_copy)
+                        memcpy((uint8_t *)p_blkstate->p_buf_req_start, plan_req_copy, plan_req_len);
                     /* restore any part of the req we have saved */
                     if (block_state_restore(iq, p_blkstate))
                         /* TODO can I just return here? should prob go to
@@ -6521,6 +6534,8 @@ add_blkseq:
 
     fromline = __LINE__;
 cleanup:
+    free(plan_req_copy);
+    plan_req_copy = NULL;
 #if DEBUG_DID_REPLAY
     logmsg(LOGMSG_DEBUG, "%s cleanup rc %d did_replay:%d fromline:%d\n",
            __func__, outrc, did_replay, fromline);

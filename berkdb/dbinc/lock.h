@@ -317,7 +317,13 @@ typedef struct __db_locker {
 	int tablelock_waiters_ms;
 	u_int32_t flags;
 	u_int8_t has_pglk_lsn;
-	u_int8_t wstatus;  /* master locker waiting, for deadlock detection */
+	/* How many lockers of this family are waiting for a lock, kept on the
+	 * master locker, for deadlock detection.  It was a flag, set by a wait
+	 * and cleared by the family's next grant, which is right while one
+	 * thread works for a transaction.  With children of one transaction on
+	 * several threads, a grant to one cleared it while another still
+	 * waited, and the detector then left that wait out of its graph. */
+	u_int32_t wstatus;
 	int64_t timestamp;  /* wait-die timestamp */
 } DB_LOCKER;
 

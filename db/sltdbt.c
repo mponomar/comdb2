@@ -217,6 +217,10 @@ retry:
          * anything.  Not contention: no penalty, no backoff. */
         iq->plan_fallback = 0;
         iq->retries++; /* toblock sets a request up only when this is 0 */
+        /* the abandoned attempt wrote nothing; do not count its rows against
+         * the per-transaction limits */
+        iq->written_row_count = 0;
+        iq->cascaded_row_count = 0;
         iq->usedb = iq->origdb;
         goto retry;
     } else if (rc == RC_INTERNAL_RETRY) {

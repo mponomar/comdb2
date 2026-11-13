@@ -4,8 +4,9 @@
 
 Proposed — 2026-11-11
 
-Stage 0, the first step of stage 1.1 and a first form of commit units are
-implemented and measured on the `rowlocks-ideas` branch, behind tunables; see
+Stage 0, the first step of stage 1.1, a first form of commit units and
+inserts into tables with unique keys are implemented and measured on the
+`rowlocks-ideas` branch, behind tunables; see
 [Implementation status](#implementation-status) for what exists, what it
 measured and where to resume. The measurements under Context describe the
 system before that work, and the numbers under
@@ -577,9 +578,10 @@ Tunables, all experimental: `ordered_apply` (off by default),
 `ordered_apply_serial_commit` (on), `ordered_apply_turn_detect` (on; off is
 for measurement only, see
 [One node, and what the turn costs](#one-node-and-what-the-turn-costs)),
-`ordered_apply_unit` (off), `ordered_apply_unit_max_ops` (4096) and
-`ordered_apply_unit_inline` (on), for [Commit units](#commit-units). The
-code is `bdb/plan.c`, with hooks in
+`ordered_apply_unit` (off), `ordered_apply_unit_max_ops` (4096),
+`ordered_apply_unit_inline` (on) and `ordered_apply_unit_detect_ms` (100),
+for [Commit units](#commit-units), and `ordered_apply_unique` (on), for
+[Unique keys](#unique-keys). The code is `bdb/plan.c`, with hooks in
 `bdb/ll.c`, `bdb/tran.c`, `db/toblock.c`, `db/sltdbt.c` and `db/record.c`.
 
 What it does:
@@ -761,8 +763,20 @@ What it does:
 - **A transaction on its own applies its own plan.** With
   `ordered_apply_unit_inline` on, a request whose plan is the only one in
   existence, counted from the start of prepare, does not wake the unit
-  thread: it applies the plan itself, as a unit of one, and any that arrive
-  meanwhile queue until it is done.
+  thread: it applies the plan itself, under its own Berkeley transaction
+  with its own blkseq record, and any that arrive meanwhile queue until it
+  is done.
+- **A wait the deadlock detector can follow.** A member sleeps on a
+  condition variable while it waits for its unit, and it holds table locks.
+  A unit could wait for a page held by a transaction that waits for one of
+  those locks, and nothing would see the cycle. Every unit therefore holds a
+  write lock on one name, and a member that has waited
+  `ordered_apply_unit_detect_ms` asks for that name in read mode, in the
+  lock manager. A member chosen as the victim cannot give up its locks, so
+  it aborts the transactions waiting for them and waits again. That last
+  step has never run: no SQL was found that produces the cycle, since a
+  transaction mixing an insert with DDL on another table is refused. Forcing
+  every member to wait in the lock manager was tried, and works.
 - **Deadlocks.** All page locks in a unit belong to one transaction, so its
   members cannot wait for each other. If the unit is the victim of a
   deadlock with a transaction outside it, it aborts, which also takes its
@@ -850,36 +864,140 @@ per thread from 64 operations; "one thread" never does.
   single rows, where a unit rarely reaches 64 operations.
 - **Deadlocks and unit retries:** none in any run.
 
+### Unique keys
+
+`ordered_apply_unique` on. This is the first part of names and stamps, and
+it turned out to need neither.
+
+For an insert, the btree can stay the judge of uniqueness, as it is under
+page locks:
+
+- **When the add is recorded**, the plan is searched for an earlier add of
+  the same key, and the index is read for it. The read is under a
+  transaction of its own that does not wait for locks and is over at once.
+  A key that is found gives the usual duplicate error at the usual point in
+  the request. A page that is locked gives nothing, and the add is
+  recorded.
+- **When the plan is applied**, the put still refuses a duplicate. That
+  happens when the key was behind a lock at the time of the read, or was
+  added afterwards, by another transaction or by an earlier member of the
+  same unit. The request runs again without a plan, under page locks, where
+  the put reports the duplicate. In a unit only that member goes back; the
+  unit is aborted and the others are applied again.
+
+So a plan can be wrong about a unique key only in the direction of running
+again, and no stamp is needed. A stamp would save the aborted unit; stamps
+are still needed for updates and deletes, where the btree cannot arbitrate.
+
+The read must not wait. A first version waited, and a request could then
+wait for a page its own parent transaction had written, under a different
+lock owner, which nothing detects.
+
+Not planned, and run under page locks as before: `ON CONFLICT` inserts;
+tables with foreign keys; any insert made with constraint checking on, which
+includes every insert while a schema change runs, because those add their
+keys at the end of the request from the row read back from the data file;
+and requests that contain a bpfunc, which can act outside the transaction
+and must not run twice.
+
+Checked: `tests/ordered_apply.test` has sections for unique keys (sixteen
+clients inserting the same 300 keys leave 300 rows and 4,500 duplicate
+errors; multi-row transactions are all or nothing; NULLs do not collide)
+and for inserts during schema changes, and passes on macOS and through the
+harness on Linux.
+
+#### Results
+
+`results/stage1-unique-keys.results`: the benchmark table with its index on
+`a` made unique. The benchmark never repeats a key, so this measures the
+cost of the checks, not of duplicates.
+
+| Table with a unique key          | Nodes | Page locks   | Unit   |
+|----------------------------------|------:|-------------:|-------:|
+| Ascending, 1 row, 1 client       |     1 | 993 txn/s    |    876 |
+| Ascending, 1 row, 32 clients     |     1 | 7,303 txn/s  | 10,640 |
+| Random, 1 row, 32 clients        |     1 | 9,741 txn/s  | 10,844 |
+| Ascending, 100 rows, 32 clients  |     1 | 7,541 rows/s | 39,066 |
+| Random, 100 rows, 32 clients     |     1 | 6,697 rows/s | 33,268 |
+| Ascending, 1 row, 32 clients     |     3 | 7,027 txn/s  |  8,334 |
+| Random, 1 row, 32 clients        |     3 | 8,714 txn/s  |  7,759 |
+| Random, 1 row, 64 clients        |     3 | 8,704 txn/s  |  9,452 |
+| Ascending, 100 rows, 32 clients  |     3 | 6,710 rows/s | 19,254 |
+| Random, 100 rows, 32 clients     |     3 | 6,224 rows/s | 15,861 |
+
+No request ran without a plan, and there were no deadlocks or unit retries.
+The shape is that of the tables without a unique key. The three-node
+100-row figures are lower than those above (25,648 and 24,228), and this
+run cannot say whether that is the unique key, the other changes since, or
+variation between runs.
+
+### The test suite
+
+The default suite, 789 tests, was run on one node with `ordered_apply`,
+`ordered_apply_unit` and `ordered_apply_unique` on for every test database
+(`results/suite-run13.txt`, and run 13 in `BENCHMARK-LOG.md`). 578 passed.
+Of the 204 that failed, 180 fail on `main` in the same setup, mostly for
+want of a cluster. The other 19 led to six bugs, all fixed:
+
+1. **Deadlocks the detector did not see.** The lock manager marked a
+   transaction family as waiting with one flag on its master locker, set by
+   a wait and cleared by the family's next grant. That holds while one
+   thread works for a transaction. A unit applied a file per thread has
+   several threads in one family, so a grant to one cleared the flag while
+   another waited, and the detector left that wait out. Databases stalled
+   until their watchdog aborted them. The flag is now a count of waiting
+   lockers (`berkdb/lock/lock.c`, `lock_deadlock.c`, `dbinc/lock.h`). Plans
+   applied a file per thread had the same exposure before units existed.
+2. **The duplicate-key read waiting on its own transaction**, above.
+3. **Inserts during a schema change** failing with "verify key constraint:
+   record not found", above.
+4. **Row limits counted twice** when a request gave up its plan and ran
+   again.
+5. **The log-bytes limit not applied** to a plan, which writes no log while
+   the request runs. The limit now counts an estimate of what the plan will
+   write.
+6. **`put counter ... increment` applied twice**: a bpfunc ran, the request
+   gave up its plan, and it ran again.
+
+Tests that still fail with ordered apply on:
+
+- `reqlog_logbyte`, `fingerprints`: the log bytes and write counts reported
+  for a request. A request whose plan goes into a unit writes nothing
+  itself and reports none. Not fixed.
+- Three `noreorder` tests that assert a minimum number of deadlocks.
+- `upsert`, `manual_partition_lgcy`: rows in a different order from a
+  select with no `ORDER BY`. Cause not established.
+
+Only the tests involved were run again after the fixes, not the whole
+suite, and nothing clustered has been run.
+
 ### Where to resume
 
-1. **Decide whether a lone transaction should skip the plan altogether.**
-   It now applies its own plan, which leaves it 4 to 8% behind page locks on
-   one node for single-row inserts and level on three nodes. Running it under
-   page locks from its first write would close that, at the price of a second
-   kind of writer that units can deadlock with.
-2. **Names and stamps**, the rest of stage 1.1: unique keys, updates and
-   deletes in plan mode, with reads laid over the plan and the lossy stamp
-   array. This needs a decision on how writers outside plan mode take part
-   once names exist. The working idea is that such a writer bumps a
-   generation that makes every prepare in flight run again.
-3. **A wait the deadlock detector cannot see.** A member keeps its table
-   locks while it sleeps on a condition variable waiting for its unit. A
-   transaction that held a page the unit wants while waiting for one of those
-   table locks in write mode would hang with it. Nothing in the tests or
-   benchmarks does this. The member's wait needs to be a lock the detector
-   knows, or the unit needs the table locks and the members none.
-4. **Retire the turn.** With units on, the turn is used only by plans that
+1. **Updates and deletes in plan mode**, the rest of stage 1.1. These need
+   the stamp array: a read of a row or key laid over the plan, a stamp
+   noted, and the stamps checked when the plan joins a unit. Then foreign
+   keys. It needs a decision on how writers outside plan mode take part once
+   names exist. The working idea is that such a writer bumps a generation
+   that makes every prepare in flight run again.
+2. **Run the whole suite again** with the fixes, and on a cluster.
+3. **Per-request accounting under units**: log bytes and write counts for
+   request logging and fingerprints.
+4. **Decide whether a lone transaction should skip the plan altogether.**
+   It applies its own plan, which leaves it 4 to 12% behind page locks on
+   one node for single-row inserts and level on three nodes.
+5. **Retire the turn.** With units on, the turn is used only by plans that
    need logical log records. Once those go through units too, the turn, its
    lock, `ordered_apply_serial_commit` and `ordered_apply_turn_detect` can
    go.
-5. **Three nodes, large transactions:** find why units are behind early
-   release there.
-6. **Open items in what exists:** no prefetch; the replay path through a
-   unit is untested; a failed member fails its whole unit; a request that
-   cannot be planned pays one aborted attempt each time; units are not used
-   when logical logging (`llog`) or a logical live schema change is on.
-7. **Not yet run:** the wider test suite with `ordered_apply` on, any test on
-   a real disk, and the Jepsen suite.
+6. **Three nodes, large transactions:** find why units are behind early
+   release there, and whether a unique key costs anything.
+7. **Open items in what exists:** no prefetch; the replay path through a
+   unit and the victim path of a member's wait are untested; a failed member
+   fails its whole unit; a request that cannot be planned pays one aborted
+   attempt each time; a duplicate found at apply costs an aborted unit;
+   units are not used when logical logging (`llog`) or a logical live schema
+   change is on.
+8. **Not yet run:** any test on a real disk, and the Jepsen suite.
 
 ## Risks and open questions
 
@@ -1100,6 +1218,8 @@ Notes:
 - `VARIANTS` in the environment picks what `ordered-apply-variants.sh` runs;
   the commit-unit results are `VARIANTS="pg par-early unit unit-1t"`, on one
   node and on three. The script stops if the master stops answering.
+- `UNIQUE=1` in the environment makes `newcluster.sh` create the index on `a`
+  as a unique one.
 - `NODES=1` in the environment makes `newcluster.sh` and
   `ordered-apply-variants.sh` use one standalone node, with no `cluster` line
   in its lrl, in place of the three-node cluster. The other scripts work
