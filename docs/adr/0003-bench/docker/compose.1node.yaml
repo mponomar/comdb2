@@ -1,0 +1,46 @@
+# One standalone node and a client, for measuring the write path with no replication.
+# Used by newcluster.sh when NODES=1; same project name and image as compose.yaml.
+x-comdb2: &comdb2
+  image: rlbench-comdb2:latest
+  cap_add:
+    - ALL
+
+services:
+  init:
+    <<: *comdb2
+    entrypoint: ["/bin/bash", "/cluster-init.sh"]
+    environment:
+      NODES: "node1"
+      EXTRA_LRL: "${EXTRA_LRL:-}"
+      EXTRA_RUN_LRL: "${EXTRA_RUN_LRL:-}"
+    volumes:
+      - ./cluster-init.sh:/cluster-init.sh:ro
+      - /tmp/rlbench/vol/node1:/nodes/node1
+
+  node1:
+    <<: *comdb2
+    hostname: node1     # a standalone node reports its hostname as the master
+    entrypoint: ["/bin/bash", "/cluster-entrypoint.sh"]
+    volumes:
+      - ./cluster-entrypoint.sh:/cluster-entrypoint.sh:ro
+      - /tmp/rlbench/vol/node1:/db
+    expose: [5105]
+    healthcheck:
+      test: ["CMD", "cdb2sql", "testdb", "local", "select 1"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+  dev:
+    <<: *comdb2
+    entrypoint: ["/bin/bash", "/client-entrypoint.sh"]
+    volumes:
+      - ./client-entrypoint.sh:/client-entrypoint.sh:ro
+      - ./testdb.1node.cfg:/opt/bb/etc/cdb2/config.d/testdb.cfg:ro
+      - /tmp/rlbench/scripts:/scripts:ro
+    depends_on:
+      node1:
+        condition: service_healthy

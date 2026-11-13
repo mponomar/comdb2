@@ -115,6 +115,14 @@ int64_t gbl_ordered_apply_apply_us;  /* time spent writing plans to the btrees *
  * that is past apply never waits for one that is not. */
 int gbl_ordered_apply_serial_commit = 1;
 
+/* Off: a wait for the turn does not run the deadlock detector.  The detector
+ * walks every locker with the lock region held, once for each wait, and with
+ * many transactions queued for the turn that costs more than applying a small
+ * plan.  For measurement only: with it off, a deadlock whose last edge is a
+ * wait for the turn is found only when some other lock wait runs the
+ * detector. */
+int gbl_ordered_apply_turn_detect = 1;
+
 /* Threads that help apply a plan, one file each; 0 applies every plan on the
  * thread that owns it. */
 int gbl_ordered_apply_threads = 3;
@@ -134,7 +142,8 @@ static int turn_acquire(bdb_state_type *bdb_state, tran_type *top)
     name.data = turn_name;
     name.size = sizeof(turn_name);
     uint64_t start = now_us();
-    int rc = berkdb_lock(bdb_state->dbenv, top->tid->txnid, 0, &name, DB_LOCK_WRITE, &top->plan_turn_lock);
+    int rc = berkdb_lock(bdb_state->dbenv, top->tid->txnid, gbl_ordered_apply_turn_detect ? 0 : DB_LOCK_NODETECT, &name,
+                         DB_LOCK_WRITE, &top->plan_turn_lock);
     if (rc != 0)
         return rc;
     uint64_t waited = now_us() - start;

@@ -427,6 +427,8 @@ struct txn_properties;
 #define	DB_LOCK_ONELOCK		0x100   /* lockerid will acquire only this
 					 * lock */
 #define DB_LOCK_ENDIANIZE   0x200   /* Endianize lock-list correctly */
+#define DB_LOCK_NODETECT    0x400   /* A wait for this lock does not run the
+					 * deadlock detector or ask for a run */
 
 /* Flag values for lock_id_flags(). */
 #define DB_LOCK_ID_LOWPRI   0x001	/* Choose this as a deadlock victim */

@@ -3,7 +3,7 @@
 # extra create-time lrl lines ($EXTRA_LRL) and seeds every node's data directory.
 set -euo pipefail
 DB=testdb
-NODES="node1 node2 node3"
+NODES="${NODES:-node1 node2 node3}"
 if [ -f "/nodes/node1/${DB}.lrl" ]; then
     echo "[init] ${DB} already initialized; nothing to do"
     exit 0
@@ -18,8 +18,9 @@ comdb2 --create --lrl /tmp/create.lrl "$DB"
 cat > "/tmp/${DB}.lrl" <<EOL
 name    ${DB}
 dir     /db
-cluster nodes ${NODES}
 EOL
+# a single node runs standalone: no cluster line, so no replication at all
+[ "$NODES" = node1 ] || echo "cluster nodes ${NODES}" >> "/tmp/${DB}.lrl"
 # extra runtime lrl lines, ';'-separated (e.g. "maxwt 32;cachekb 4194304")
 echo "${EXTRA_RUN_LRL:-}" | tr ';' '\n' >> "/tmp/${DB}.lrl"
 for n in ${NODES}; do

@@ -6,7 +6,7 @@ label=$1; wl=$2; K=$3; M=$4; T=$5; who=${6:-master}
 out=/tmp/rlbench/prof/$label; mkdir -p $out
 cd /tmp/rlbench
 DEV=rlbench-dev-1
-master=$(docker exec $DEV cdb2sql -s --tabs testdb default "select host from comdb2_cluster where is_master='Y'")
+master=$(docker exec $DEV cdb2sql -s --tabs testdb default "select host from comdb2_cluster where is_master='Y'"); master=${master:-node1}
 rep=$(docker exec $DEV cdb2sql -s --tabs testdb default "select host from comdb2_cluster where is_master='N' limit 1")
 if [ $who = master ]; then mc=rlbench-$master-1; else mc=rlbench-$rep-1; fi
 python3 bench_cluster.py $wl $K $M $T > $out/bench.txt 2>&1 &

@@ -2112,7 +2112,8 @@ __lock_get_pp(dbenv, locker, flags, obj, lock_mode, lock)
 	/* Validate arguments. */
 	if ((ret = __db_fchk(dbenv, "DB_ENV->lock_get", flags,
 		    DB_LOCK_NOWAIT | DB_LOCK_UPGRADE | DB_LOCK_SWITCH |
-		    DB_LOCK_LOGICAL | DB_LOCK_NOPAGELK | DB_LOCK_ONELOCK)) != 0)
+		    DB_LOCK_LOGICAL | DB_LOCK_NOPAGELK | DB_LOCK_ONELOCK |
+		    DB_LOCK_NODETECT)) != 0)
 		return (ret);
 
 	rep_check = IS_ENV_REPLICATED(dbenv) ? 1 : 0;
@@ -2855,6 +2856,8 @@ __lock_get_internal_int(lt, locker, in_locker, flags, obj, lock_mode, timeout,
 		/* Disable deadlock detection if everything is wait-die */
         // this deadlocks lkmgr test .. why?
 		no_dd = gbl_all_waitdie ? 1 : no_dd;
+		if (LF_ISSET(DB_LOCK_NODETECT))
+			no_dd = 1;
 
 		SH_LIST_INSERT_HEAD(&sh_locker->heldby, newl, locker_links,
 		    __db_lock);
@@ -2998,7 +3001,8 @@ upgrade:
 			}
 		}
 
-		region->need_dd = 1;
+		if (!LF_ISSET(DB_LOCK_NODETECT))
+			region->need_dd = 1;
 
 		/*
 		 * First check to see if this txn has expired.

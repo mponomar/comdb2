@@ -11,7 +11,7 @@ out=/tmp/rlbench/prof/$label
 rm -rf $out; mkdir -p $out/master $out/rep
 cd /tmp/rlbench
 DEV=rlbench-dev-1
-master=$(docker exec $DEV cdb2sql -s --tabs testdb default "select host from comdb2_cluster where is_master='Y'")
+master=$(docker exec $DEV cdb2sql -s --tabs testdb default "select host from comdb2_cluster where is_master='Y'"); master=${master:-node1}
 rep=$(docker exec $DEV cdb2sql -s --tabs testdb default "select host from comdb2_cluster where is_master='N' limit 1")
 mc=rlbench-$master-1; rc=rlbench-$rep-1
 echo "master=$master replicant=$rep" | tee $out/info.txt

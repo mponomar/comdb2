@@ -4,7 +4,7 @@
 
 Proposed — 2026-11-11
 
-Stage 0 and the first step of stage 1.1 are implemented on the
+Stage 0 and the first step of stage 1.1 are implemented and measured on the
 `rowlocks-ideas` branch, behind tunables; see
 [Implementation status](#implementation-status) for what exists, what it
 measured and where to resume. The measurements under Context describe the
@@ -574,7 +574,10 @@ It removes about a third of the master's CPU. Single-row throughput stays near
 
 Tunables, all experimental: `ordered_apply` (off by default),
 `ordered_apply_threads` (3), `ordered_apply_parallel_min_ops` (64),
-`ordered_apply_serial_commit` (on). The code is `bdb/plan.c`, with hooks in
+`ordered_apply_serial_commit` (on), `ordered_apply_turn_detect` (on; off is
+for measurement only, see
+[One node, and what the turn costs](#one-node-and-what-the-turn-costs)). The
+code is `bdb/plan.c`, with hooks in
 `bdb/ll.c`, `bdb/tran.c`, `db/toblock.c`, `db/sltdbt.c` and `db/record.c`.
 
 What it does:
@@ -664,35 +667,104 @@ The estimate under [Staging](#staging) of 20,000 single-row transactions per
 second for serial apply assumed 12 µs per put. Measured inside the turn, a
 put costs 20 µs in a large plan and 45–60 µs in a single-row one.
 
+#### One node, and what the turn costs
+
+These are the first two items of the earlier resume list. The question was
+whether replication limits single-row throughput in this scheme, since each
+log record is sent to the replicants on the thread that writes it and that
+thread holds the turn.
+
+It does not. The same four variants on one standalone node, with no
+replication of any kind (`results/stage1-single-node.results`):
+
+| One node                         | Page locks   | Serial | Parallel | Early  |
+|----------------------------------|-------------:|-------:|---------:|-------:|
+| Ascending, 1 row, 1 client       | 1,062 txn/s  |    897 |      906 |    871 |
+| Ascending, 1 row, 32 clients     | 7,207 txn/s  |  3,352 |    3,466 |  3,863 |
+| Random, 1 row, 32 clients        | 8,745 txn/s  |  3,105 |    3,095 |  3,851 |
+| Random, 1 row, 64 clients        | 9,574 txn/s  |  3,009 |    2,952 |  3,779 |
+| Ascending, 100 rows, 32 clients  | 7,488 rows/s | 13,153 |   30,774 | 37,967 |
+| Random, 100 rows, 32 clients     | 6,768 rows/s |  9,725 |   28,560 | 31,472 |
+
+Single-row throughput with 32 clients is 4–13% above the three-node
+figures in every variant, and the 100-row figures keep their shape. On one
+node the SQL runs on the same process, so its CPU is not comparable with the
+master's above. Moving the log send off the applying thread would not help.
+
+A call-graph profile of the serial single-row run
+(`results/stage1-single-row-profile.txt`) shows where the time goes:
+
+- **The deadlock detector, for the turn.** 38% of the CPU under
+  `bdb_tran_plan_apply` is the lock manager call that takes the turn, and 32%
+  is the detector. Automatic detection runs the detector on every lock wait,
+  and nearly every transaction waits for the turn. Each run walks every
+  locker with the lock region held. A wait also marks the region as needing
+  a run, so the transaction that has the turn runs the detector again from
+  its own page-lock calls and at commit.
+- **The puts themselves, slower than in a large plan.** The rest is the four
+  puts, all of it on CPU, with no single hot spot: the search from the root
+  is 57–65% of a put, buffer pool gets 17%, compression 14%, logging 8%. A
+  put costs 38–50 µs here, 26 µs in a single-row plan with one client, and
+  18–25 µs in a 100-row plan. This fits the turn moving to a thread that has
+  just been woken, on another core, for four puts.
+
+`ordered_apply_turn_detect` off makes a wait for the turn skip the detector
+and not ask for a run (`DB_LOCK_NODETECT`). On one node
+(`results/stage1-turn-detect.results`):
+
+| 1 row per transaction, one node | Page locks  | Serial | Serial, no detect | Early | Early, no detect |
+|---------------------------------|------------:|-------:|------------------:|------:|-----------------:|
+| Random, 32 clients              | 9,527 txn/s |  3,130 |             3,639 | 3,910 |            4,571 |
+| Random, 64 clients              | 9,931 txn/s |  3,113 |             3,809 | 3,744 |            4,681 |
+| Ascending, 32 clients           |           — |  3,184 |             3,751 | 3,620 |            4,614 |
+
+That is 16–27% more, and 100-row transactions do not change. It is not safe
+to leave off: with automatic detection there is no periodic detector thread,
+so a deadlock whose last edge is a wait for the turn would be found only when
+some other lock wait happened to run the detector.
+
+With the detector out of the way a single-row transaction still holds the
+turn for about 155 µs when it releases at the end of apply, and the next one
+starts about 60 µs after that, which is the time to wake it. Page locks
+reach 9,500 transactions per second on 13 cores, so a serial section has to
+come in under 105 µs to match that, hand-off included. Handing the turn from
+thread to thread cannot do it. One thread that keeps the turn and applies
+queued plans pays no hand-off and keeps its caches; at the 18–25 µs per put
+measured in large plans that is 70–100 µs for a row with three keys, or
+10,000 to 14,000 single-row transactions per second on one core. A thread
+per file, as the proposal describes, is what would go well past page locks.
+
 ### Where to resume
 
-1. **Run the same comparison on a single node.** The purpose is to find out
-   whether replication is the limit in this scheme: every log record is sent
-   to the replicants on the thread that writes it, and that thread is now the
-   one holding the turn. If single-row apply is much cheaper with no
-   replicants, moving the send off the applying thread comes before anything
-   else. `ordered-apply-variants.sh` in `docs/adr/0003-bench/` drives the four
-   variants; it needs a one-node variant of `newcluster.sh` and the compose
-   file.
-2. **Find where the 180–240 µs of a single-row apply goes**, with
-   `perfdwarf.sh` on the master during a serial single-row run. Candidates:
-   the send above, the log region mutex, cold caches after the turn changes
-   thread, and the lock manager calls for the turn and for each put.
-3. **Then choose between the two directions:**
+1. **Choose between the two directions.** The measurements above bear on the
+   second one.
    - Names and stamps, which is the rest of stage 1.1: unique keys, updates
      and deletes in plan mode, with reads laid over the plan and the lossy
      stamp array. This needs a decision on how writers outside plan mode take
      part once names exist. The working idea is that such a writer takes the
      turn for its whole transaction and bumps a generation that makes every
      prepare in flight run again.
-   - Single-row throughput: a thread that keeps the turn and applies queued
-     plans for other transactions, which needs commit ordered per page
-     (stage 1.3) or commit units (stage 2).
-4. **Open items in what exists:** no prefetch; parallel apply is off when
+   - Single-row throughput: threads that keep the turn and apply queued
+     plans for other transactions, one for all files or one per file. The
+     transaction's own thread then waits for its plan to be applied instead
+     of for the turn. Applying on another thread before the owner commits
+     needs commit ordered per page (stage 1.3) or commit units (stage 2);
+     with serial commit the applier would have to wait for each owner's
+     commit, which brings the hand-off back.
+2. **Replace the turn's lock.** Whichever direction comes first, the turn
+   should stop costing a detector run per transaction. Options: keep the
+   lock and have a wait for the turn run the detector only when a transaction
+   outside plan mode holds or waits for a lock; or take the turn out of the
+   lock manager, which per-file queues do anyway, and give the detector the
+   one edge it needs some other way. `ordered_apply_turn_detect` goes away
+   with either.
+3. **Open items in what exists:** no prefetch; parallel apply is off when
    logical logging (`llog`) or a logical live schema change is on, because
    those records are chained through the top-level transaction; a request
    that cannot be planned pays one aborted attempt each time; the default for
    `ordered_apply_serial_commit` is not settled.
+4. **Not yet run:** the wider test suite with `ordered_apply` on, any test on
+   a real disk, and the Jepsen suite.
 
 ## Risks and open questions
 
@@ -905,8 +977,18 @@ Notes:
   locks and for the existing rowlocks mode.
 - `ordered-apply-variants.sh` runs the comparison under
   [Implementation status](#implementation-status); its output and the two
-  earlier runs are in `results/stage*.results`. Copy it to `/tmp/rlbench` with
-  the other scripts.
+  earlier runs are in `results/stage*.results`. `setup-host.sh` copies it to
+  `/tmp/rlbench` with the other scripts.
+- `NODES=1` in the environment makes `newcluster.sh` and
+  `ordered-apply-variants.sh` use one standalone node, with no `cluster` line
+  in its lrl, in place of the three-node cluster. The other scripts work
+  against either. `ordered-apply-turn.sh` is the one-node comparison of
+  `ordered_apply_turn_detect` on and off.
+- `perfunder.sh <label> <workload> <clients> <rows> <txns> <function>...`
+  records call graphs on the master and prints, for each function named, the
+  cores spent under it and what it called (`foldperf.py`). The profile above
+  is `./perfunder.sh serial rand 32 1 2500 bdb_tran_plan_apply apply_op`
+  after setting the serial variant by hand.
 
 ## References
 

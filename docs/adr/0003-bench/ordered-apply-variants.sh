@@ -1,5 +1,6 @@
 #!/bin/bash
 # Stage 1.1 benchmark, all variants.  async_dist_commit on throughout.
+# NODES=1 in the environment runs it on one standalone node.
 #   pg        ordered_apply off (page locks held from each write to commit)
 #   serial    ordered_apply on, one thread applies a plan, next plan waits for commit
 #   par       serial + a btree file per thread for plans of 64+ operations
@@ -26,11 +27,11 @@ run() {
 }
 check() {
   sleep 3
-  for n in node1 node2 node3; do echo -n "$n: "; $D cdb2sql -s --tabs testdb --host $n "select count(*), sum(a % 1000003), sum(b % 1000003), sum(c % 1000003) from t"; done
+  for n in $(docker ps --filter name=rlbench-node --format '{{.Names}}' | cut -d- -f2 | sort); do echo -n "$n: "; $D cdb2sql -s --tabs testdb --host $n "select count(*), sum(a % 1000003), sum(b % 1000003), sum(c % 1000003) from t"; done
   $D cdb2sql -s --tabs testdb --host $m "exec procedure sys.cmd.verify('t')" | tail -1
 }
 ./newcluster.sh "" "maxwt 32;cachekb 4194304" 2>&1 | tail -4
-m=$($D cdb2sql -s --tabs testdb default "select host from comdb2_cluster where is_master='Y'")
+m=$($D cdb2sql -s --tabs testdb default "select host from comdb2_cluster where is_master='Y'"); m=${m:-node1}
 for c in pg serial par par-early; do
   cfg $c
   run mono 1 1 2000; run mono 32 1 2000; run mono 1 100 60; run mono 8 100 60; run mono 32 100 60

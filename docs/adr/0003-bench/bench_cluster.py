@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Concurrent-writer benchmark against the 3-node docker cluster (compose project rlbench).
+"""Concurrent-writer benchmark against the docker cluster (compose project rlbench), three nodes or one.
 
 usage: bench_cluster.py <workload: mono|rand> <writers K> <rows per txn M> <txns per writer T>
 
 Clients run inside the dev container and connect to the cluster ("default" tier),
 so SQL runs on replicants and the bplog is applied by the master.  Lock metrics
-are read from the master.
+are read from the master.  With one standalone node (NODES=1 ./newcluster.sh) SQL
+and the bplog both run on that node, and its CPU figure includes the SQL.
 """
 import glob, json, os, random, subprocess, sys, time
 
@@ -21,7 +22,7 @@ def sql(q, host=None):
 
 
 def master():
-    return sql("select host from comdb2_cluster where is_master='Y'").strip()
+    return sql("select host from comdb2_cluster where is_master='Y'").strip() or "node1"  # standalone: no cluster
 
 
 def metrics(host):
@@ -40,7 +41,9 @@ def metrics(host):
 def cputicks():
     """utime+stime (clock ticks) of comdb2 (pid 1) in each node container."""
     res = {}
-    for n in ("node1", "node2", "node3"):
+    names = subprocess.run(["docker", "ps", "--filter", "name=rlbench-node", "--format", "{{.Names}}"],
+                           capture_output=True, text=True).stdout.split()
+    for n in sorted(x.split("-")[1] for x in names):
         out = subprocess.run(["docker", "exec", "rlbench-%s-1" % n, "cat", "/proc/1/stat"], capture_output=True, text=True).stdout
         f = out.rsplit(")", 1)[-1].split()
         res[n] = int(f[11]) + int(f[12])

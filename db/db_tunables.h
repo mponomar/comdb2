@@ -3012,5 +3012,10 @@ REGISTER_TUNABLE("ordered_apply_parallel_min_ops",
                  "An ordered_apply plan with fewer btree operations than this is applied on the "
                  "thread that owns it. (Default: 64)",
                  TUNABLE_INTEGER, &gbl_ordered_apply_parallel_min_ops, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("ordered_apply_turn_detect",
+                 "With ordered_apply, run the deadlock detector when a transaction waits for its "
+                 "turn to apply. Off is for measurement only: a deadlock that a wait for the turn "
+                 "completes may go unnoticed. (Default: on)",
+                 TUNABLE_BOOLEAN, &gbl_ordered_apply_turn_detect, EXPERIMENTAL, NULL, NULL, NULL, NULL);
 
 #endif /* _DB_TUNABLES_H */
