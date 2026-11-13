@@ -235,7 +235,21 @@ second.
 
 ## Elsewhere
 
-- A second agent is testing an adaptive mode on the existing rowlocks code
-  (page locks while one write is in flight, rowlocks otherwise) on branch
-  `rowlocks-adaptive`. Its results will be in
-  `results/rowlocks-adaptive.md` on that branch.
+- **Adaptive mode on the existing rowlocks code**, by a second agent, on
+  branch `rowlocks-adaptive` (commits `cab218e61`, `5603cfb4b`, `ea2bf95a6`,
+  from `e27a9c411`). Report and raw output:
+  `docs/adr/0003-bench/results/rowlocks-adaptive.md` and
+  `rowlocks-adaptive.results` on that branch.
+  - **When:** 2026-11-13, about 12:28–13:40 UTC, three nodes, two runs per
+    cell. It overlapped runs 11 and 12 here: the other cluster was above one
+    core right after 29 of its 64 runs.
+  - **Change:** tunable `rowlocks_adaptive`. A request that is alone in the
+    block processor when it starts keeps one physical transaction across its
+    operations (the rowlocks code's `micro_commit` cleared) but still takes
+    row locks and writes logical records. A plain page-lock transaction
+    cannot share a rowlocks database with logical ones.
+  - **Found:** one client, 100 rows: 5,870 rows/s ascending against 3,360
+    for rowlocks and 8,560 for page locks, so about 70% of page locks. With
+    32 clients it equals rowlocks. The existing `rowlocks_micro_commit off`
+    applied to every request matches it for one client and is 18–40% faster
+    with 32.
