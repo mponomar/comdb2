@@ -1,6 +1,9 @@
 #!/bin/bash
-# The comdb2 test suite on one node with ordered apply on, as runs 13 and 15 in
-# BENCHMARK-LOG.md.  Runs the whole suite with ordered_apply and
+# The comdb2 test suite on one node with ordered apply on, as runs 13, 15 and
+# 16 in BENCHMARK-LOG.md.  usage: suite-with-ordered-apply.sh [run name] [jobs]:
+# the run name names the output directory, run15 if not given; jobs is how
+# many tests run at once in the first pass, 40 if not given.  Many tests
+# depend on timing, and fewer at once gives fewer failures that are only load.  Runs the whole suite with ordered_apply and
 # ordered_apply_unit added to every test database, then the tests that failed
 # on a build of main, then the ones that pass on main once more with ordered
 # apply, then the ordered_apply test with nothing added.
@@ -10,7 +13,7 @@
 #   /tmp/rltest-main/src  a tree of main, built with
 #                         cmake -G Ninja -S . -B build -DCOMDB2_TEST=1 && ninja -C build && ninja -C build test-tools
 #   /tmp/rltest-keep/oa.lrl   two lines: "ordered_apply 1" and "ordered_apply_unit 1"
-#   /tmp/rltest-keep/run15/   empty directory for the output
+#   /tmp/rltest-keep/<run name>/   empty directory for the output
 #   a pmux of our own: <build>/tools/pmux/pmux -n -p 19500 -b /tmp/pmux.socket.19500
 #       (the system pmux on 5105 refuses our databases)
 # -DCOMDB2_TEST=1 is needed for the test tools to link.  MAX_TEST_FAILURES is
@@ -19,9 +22,9 @@
 # failed tests are removed as the pass goes, logs kept: /tmp is a 124G RAM
 # disk and they would fill it.  A pass takes about an hour at -j40; tests with
 # tight time limits (insert_lots, maxtable) fail at that load and pass at -j20.
-# Output: /tmp/rltest-keep/run15/status, oa.out, main.out, oa-again.out.
+# Output: /tmp/rltest-keep/<run name>/status, oa.out, main.out, oa-again.out.
 set -u
-K=/tmp/rltest-keep; O=/tmp/rltest-keep/run15
+K=/tmp/rltest-keep; O=/tmp/rltest-keep/${1:-run15}; J=${2:-40}
 export MAX_TEST_FAILURES=100000 PMUXPORT=19500
 cd /tmp/rltest2/src
 cmake -G Ninja -S . -B build -DCOMDB2_TEST=1 > $O/cmake.out 2>&1 && ninja -C build > $O/ninja.out 2>&1 && ninja -C build test-tools >> $O/ninja.out 2>&1 || { echo BUILD-FAILED > $O/status; exit 1; }
@@ -42,7 +45,7 @@ cleanmain() {
 }
 cd /tmp/rltest2/src/tests
 cleanoa &
-TESTID=1313 CUSTOMLRLPATH=$K/oa.lrl make -kj40 > $O/oa.out 2>&1
+TESTID=1313 CUSTOMLRLPATH=$K/oa.lrl make -kj$J > $O/oa.out 2>&1
 echo PASS-DONE >> $O/status
 res $O/oa.out failed | grep -v "^ordered_apply$" > $O/oa-failed.txt
 cd /tmp/rltest-main/src/tests

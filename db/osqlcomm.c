@@ -9021,6 +9021,13 @@ done_delete:
         iq->queryid = dbglog.queryid;
     } break;
     case OSQL_RECGENID: {
+        /* Ordered apply: a SELECTV row is read here and must stay as it is
+         * until this transaction commits, which the page lock taken by the
+         * read sees to.  A plan's reads keep no lock.  Give the plan up. */
+        if (trans && bdb_tran_plan_active(trans)) {
+            bdb_tran_plan_set_unsupported(trans);
+            return RC_INTERNAL_RETRY;
+        }
         osql_recgenid_t dt = {0};
         int bdberr = 0;
         unsigned long long lclgenid;

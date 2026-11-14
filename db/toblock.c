@@ -5272,6 +5272,18 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
             GOTOBACKOUT;
     }
 
+    /* Ordered apply: a request with a plan waits for page locks after this
+     * point, and a wait for the rwlock below is one the deadlock detector
+     * cannot see.  Take the same lock in the lock manager first. */
+    if (gbl_ordered_apply && parent_trans && !rowlocks) {
+        int gate_bdberr = 0;
+        if (bdb_tran_commit_gate(thedb->bdb_env, parent_trans, iq->arr || iq->selectv_arr, &gate_bdberr) != 0) {
+            rc = (gate_bdberr == BDBERR_DEADLOCK) ? RC_INTERNAL_RETRY : ERR_INTERNAL;
+            numerrs = 1;
+            GOTOBACKOUT;
+        }
+    }
+
     Pthread_rwlock_rdlock(&commit_lock);
     hascommitlock = 1;
     if (iq->arr || iq->selectv_arr) {
@@ -5485,6 +5497,28 @@ static int toblock_main_int(struct javasp_trans_state *javasp_trans_handle, stru
 /*------ERROR CONDITION------*/
 
 backout:
+    /* The commit lock is held from the serializability check to the commit.
+     * A request that gets here with it is not going to commit: with ordered
+     * apply, its plan could not be applied.  Give the lock up; kept, the
+     * next serializable or SELECTV transaction would wait for it for ever. */
+    if (hascommitlock) {
+        Pthread_rwlock_unlock(&commit_lock);
+        hascommitlock = 0;
+    }
+
+    /* Ordered apply: this request failed while recording a plan.  If it
+     * read or wrote a btree in a way that did not see the plan, the failure
+     * may be the plan's doing.  If it read rows for the plan, no lock kept
+     * them as they were, and the failure may come from reads that do not
+     * agree: a duplicate key seen after another transaction changed a row
+     * this one had read.  A verify error alone can be believed.  Run the
+     * request again without a plan. */
+    if (rc != RC_INTERNAL_RETRY && trans &&
+        (bdb_tran_plan_dirty(thedb->bdb_env, trans) || (rc != ERR_VERIFY && bdb_tran_plan_has_reads(trans)))) {
+        bdb_tran_plan_set_unsupported(trans);
+        rc = RC_INTERNAL_RETRY;
+    }
+
     /* wait-die deadlock on distributed txn -> verify-error */
     if (rc == RC_INTERNAL_RETRY && iq->sorese && iq->sorese->dist_txnid && waitdie_deadlock) {
         extern long long gbl_distributed_deadlock_count;

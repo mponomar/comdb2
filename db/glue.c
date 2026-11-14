@@ -1062,8 +1062,8 @@ int trans_plan_unit_commit(struct ireq *iq, void *trans, void *bskey, int bskeyl
     if (rc != -1)
         return rc;
     if (bdberr == BDBERR_ADD_DUPE) {
-        /* a unique key in the plan is already in the index: run the request
-         * again under page locks, where the put reports it */
+        /* the plan no longer fits the btrees: run the request again under
+         * page locks, which give the answer */
         iq->plan_disabled = 1;
         iq->plan_fallback = 1;
         return RC_INTERNAL_RETRY;
@@ -2221,8 +2221,13 @@ int ix_find_auxdb_by_rrn_and_genid_tran(int auxdb, struct ireq *iq, int rrn,
         return ERR_NO_AUXDB;
 retry:
     iq->gluewhere = req = "bdb_fetch_by_rrn_and_genid";
-    rc = bdb_fetch_by_rrn_and_genid_tran(bdb_handle, trans, rrn, genid, fnddta,
-                                         maxlen, fndlen, &args, &bdberr);
+    if (trans && auxdb == AUXDB_NONE && bdb_tran_plan_active(trans)) {
+        /* Ordered apply: the row may be one this request has planned, and
+         * the read must not take a lock that lasts. */
+        rc = bdb_tran_plan_fetch_genid(bdb_handle, trans, genid, fnddta, maxlen, fndlen, &args.ver, &bdberr);
+    } else {
+        rc = bdb_fetch_by_rrn_and_genid_tran(bdb_handle, trans, rrn, genid, fnddta, maxlen, fndlen, &args, &bdberr);
+    }
     iq->gluewhere = "bdb_fetch_by_rrn_and_genid done";
     if (rc == -1) {
         if (bdberr == BDBERR_DEADLOCK) {

@@ -27,10 +27,20 @@
  * transaction commits or aborts, so at most one plan-mode transaction has
  * uncommitted changes on the pages at any time.
  *
- * This first cut plans only what writes no names: adds to data files, blob
- * files and indexes that allow duplicates.  Anything else refuses, which the
- * caller sees as a deadlock; it then runs the request again with page locks
- * held to commit, as before.
+ * A plan holds adds, deletes and updates of rows, blobs and keys.  What it
+ * cannot hold refuses, which the caller sees as a deadlock; it then runs the
+ * request again with page locks held to commit, as before.
+ *
+ * A transaction recording a plan reads without taking part in locking: each
+ * read is under a transaction of its own that does not wait and is over at
+ * once, and its result is laid over the plan, so the transaction sees its
+ * own earlier operations.  Nothing protects what was read from changing
+ * before the plan is applied.  The btree is the judge at apply time: a row is
+ * updated or deleted by its genid, which names one version of the row and is
+ * never used again, and a unique key is added with a put that refuses a
+ * duplicate.  A plan that fails that way was built on something that is no
+ * longer there; its request runs again without a plan and gets its answer
+ * under page locks.
  *
  * A transaction waiting for its turn should hold no page lock, or it can
  * deadlock with the one that has the turn.  bdb_tran_plan_apply() checks
@@ -47,10 +57,16 @@
 #include "logmsg.h"
 #include "thread_util.h"
 #include "comdb2_atomic.h"
+#include "genid.h"
 #include <time.h>
+#include <unistd.h>
 #include <build/db.h>
 
-enum { PLAN_DTA_ADD = 1, PLAN_KEY_ADD = 2 };
+enum { PLAN_DTA_ADD = 1, PLAN_KEY_ADD = 2, PLAN_DTA_DEL = 3, PLAN_KEY_DEL = 4, PLAN_DTA_UPD = 5, PLAN_KEY_UPD = 6 };
+
+/* plan_op.upd: how ll_dta_upd_int() is to be called for a PLAN_DTA_UPD, and
+ * whether a PLAN_KEY_UPD carries a payload */
+enum { PLAN_UPD_BLOB_OPT = 1, PLAN_UPD_USE_NEW_GENID = 2, PLAN_UPD_HAS_DTA = 4 };
 
 /* one btree operation; the key bytes and then the data bytes follow it */
 struct plan_op {
@@ -59,7 +75,10 @@ struct plan_op {
     bdb_state_type *bdb_state;
     DB *dbp;
     unsigned long long genid;
+    unsigned long long genid2; /* updates: the genid the row or key ends up with */
     int type;
+    int upd;
+    int stripeid; /* updates: participant stripe id */
     int ixnum;
     int dtafile;
     int dtastripe;
@@ -91,6 +110,25 @@ struct bdb_plan {
     int uniqcap;
     int64_t bytes; /* estimate of the log this plan will write */
     int turn_held;
+    /* the rows this plan has read, written or removed, hashed by genid */
+    struct plan_row *rows;
+    int nrows;
+    int rowcap;
+    int one_thread; /* has an operation that writes two files: not to be split by file */
+    int row_reads;  /* rows read from a data file, with no lock kept on them */
+};
+
+/* What a plan knows about a row.  ROW_READ: it is in the data file, or was
+ * when this plan read it, and `size` is its size there.  ROW_PLAN: this plan
+ * wrote it, with operation `op`, whose payload is the row as it will be
+ * stored.  ROW_GONE: this plan deleted it or updated it into another genid. */
+enum { ROW_READ = 1, ROW_PLAN = 2, ROW_GONE = 3 };
+struct plan_row {
+    bdb_state_type *bdb_state;
+    unsigned long long genid;
+    int state;
+    uint32_t size;
+    struct plan_op *op;
 };
 
 /* The apply turn is a write lock in the Berkeley lock manager, held by the
@@ -126,6 +164,11 @@ int gbl_ordered_apply_unit = 0;
 int gbl_ordered_apply_unique = 1;
 int64_t gbl_ordered_apply_dup_retries; /* plans sent back because a unique key they add was in the index at apply */
 int64_t gbl_ordered_apply_dup_unread;  /* unique keys not looked for while planning because the page was locked */
+/* On: a plan can update and delete rows.  Off: a request that does either
+ * runs without a plan. */
+int gbl_ordered_apply_update = 1;
+int64_t gbl_ordered_apply_stale_retries; /* plans sent back because a row or key they change was gone at apply */
+int64_t gbl_ordered_apply_read_locked;   /* rows a plan gave up reading because the page stayed locked */
 /* On: a transaction whose plan is the only one in existence applies it
  * itself, as a unit of one, on its own thread; any that arrive meanwhile
  * queue until it is done.  A lone writer then never waits for another thread
@@ -223,12 +266,22 @@ static void plan_free(struct bdb_plan *plan)
         blk = next;
     }
     free(plan->uniq);
+    free(plan->rows);
     free(plan);
     ATOMIC_ADD64(plans_alive, -1);
 }
 
 static struct plan_op *plan_new_op(struct bdb_plan *plan, int type, bdb_state_type *bdb_state, DBT *key, DBT *data)
 {
+    /* Only plans made of adds are applied a file per thread.  A thread that
+     * has finished its file keeps its page locks until every file is done,
+     * so the files are locked in no particular order.  A reader that holds a
+     * data page and wants the blob page behind it can then be in a cycle
+     * with two threads of one unit, and such a cycle was seen to stand
+     * (recovdlock_emptyblob, run 16).  Updates and deletes go to pages
+     * readers are on; adds mostly do not. */
+    if (type != PLAN_DTA_ADD && type != PLAN_KEY_ADD)
+        plan->one_thread = 1;
     struct plan_op *op = plan_alloc(plan, sizeof(struct plan_op) + key->size + data->size);
     if (op == NULL)
         return NULL;
@@ -238,8 +291,10 @@ static struct plan_op *plan_new_op(struct bdb_plan *plan, int type, bdb_state_ty
     op->keylen = key->size;
     op->datalen = data->size;
     uint8_t *buf = (uint8_t *)(op + 1);
-    memcpy(buf, key->data, key->size);
-    memcpy(buf + key->size, data->data, data->size);
+    if (key->size)
+        memcpy(buf, key->data, key->size);
+    if (data->size)
+        memcpy(buf + key->size, data->data, data->size);
     if (plan->last)
         plan->last->next = op;
     else
@@ -285,6 +340,31 @@ int bdb_tran_plan_unsupported(tran_type *tran)
     return tran && tran->plan && tran->plan->unsupported;
 }
 
+/* Has a transaction that is recording a plan read or written a btree in the
+ * ordinary way?  It holds a page lock if so.  Such a read did not see the
+ * plan, so an error the request then fails with may be wrong: a row or key
+ * "not found" may be in the plan. */
+/* Has a transaction that is recording a plan read rows from a data file?
+ * Nothing keeps such a row as it was read.  The plan is judged when it is
+ * applied, but an error the request finds for itself is not judged by
+ * anything: a later read may have seen what another transaction committed
+ * to that row in the meantime, and reported a duplicate key where the row
+ * read first was simply gone.  Only "no such row" can be believed, because
+ * a genid that is gone does not come back. */
+int bdb_tran_plan_has_reads(tran_type *tran)
+{
+    return bdb_plan_recording(tran) && tran->plan->row_reads > 0;
+}
+
+static int holds_page_locks(bdb_state_type *bdb_state, tran_type *tran);
+
+int bdb_tran_plan_dirty(bdb_state_type *bdb_state, tran_type *tran)
+{
+    if (!bdb_plan_recording(tran))
+        return 0;
+    return holds_page_locks(bdb_state->parent ? bdb_state->parent : bdb_state, tran);
+}
+
 /* A plan-mode transaction reached something the plan cannot hold.  The caller
  * returns this rc, which every layer above already treats as a deadlock: the
  * transaction is aborted and the request runs again, this time without a
@@ -300,6 +380,9 @@ void bdb_tran_plan_set_unsupported(tran_type *tran)
     if (tran && tran->plan)
         tran->plan->unsupported = 1;
 }
+
+static int row_note(struct bdb_plan *plan, bdb_state_type *bdb_state, unsigned long long genid, int state,
+                    uint32_t size, struct plan_op *op);
 
 int bdb_plan_dta_add(bdb_state_type *bdb_state, unsigned long long genid, DB *dbp, tran_type *tran, int dtafile,
                      int dtastripe, DBT *dbt_key, DBT *dbt_data, int flags, int odhready)
@@ -328,6 +411,9 @@ int bdb_plan_dta_add(bdb_state_type *bdb_state, unsigned long long genid, DB *db
     op->dtastripe = dtastripe;
     op->flags = flags;
     op->odhready = odhready;
+    /* a later read of this row by genid is answered from the plan */
+    if (dtafile == 0 && row_note(tran->plan, bdb_state, genid, ROW_PLAN, 0, op) != 0)
+        return ENOMEM;
     return 0;
 }
 
@@ -443,11 +529,15 @@ int bdb_plan_key_add(bdb_state_type *bdb_state, unsigned long long genid, tran_t
         if (plan->nuniq * 2 >= plan->uniqcap && uniq_grow(plan) != 0)
             return ENOMEM;
         slot = uniq_slot(plan, bdb_state, ixnum, dbt_key->data, dbt_key->size);
-        if (*slot)
+        if (*slot && (*slot)->type != PLAN_KEY_DEL)
             return DB_KEYEXIST;
-        int rc = uniq_read(bdb_state, ixnum, dbt_key);
-        if (rc != 0)
-            return rc;
+        /* A key this plan deletes first is in the index now and will not be
+         * when the add is applied. */
+        if (*slot == NULL) {
+            int rc = uniq_read(bdb_state, ixnum, dbt_key);
+            if (rc != 0)
+                return rc;
+        }
     }
     struct plan_op *op = plan_new_op(plan, PLAN_KEY_ADD, bdb_state, dbt_key, dbt_data);
     if (op == NULL)
@@ -455,10 +545,438 @@ int bdb_plan_key_add(bdb_state_type *bdb_state, unsigned long long genid, tran_t
     op->genid = genid;
     op->ixnum = ixnum;
     if (slot) {
+        if (*slot == NULL)
+            plan->nuniq++;
         *slot = op;
-        plan->nuniq++;
     }
     return 0;
+}
+
+/*
+ * Rows.
+ *
+ * An update or a delete starts by reading the row, and what it does next
+ * depends on what the row holds: which keys to delete, which to change.  A
+ * plan reads the row without a lock that outlasts the read, so the row can be
+ * updated or deleted by another transaction before the plan is applied.  The
+ * genid settles it.  A genid names one version of one row; an update gives
+ * the row a new one, and none is used twice.  The plan's update or delete of
+ * the data file is by genid, and when it is applied it finds that genid or
+ * it does not.  If it does, the row is the one the plan read, and the keys
+ * the plan worked out from it are the keys in the indexes.  If it does not,
+ * the request runs again without a plan and gets the verify error, or
+ * whatever else is now the answer, under page locks.
+ *
+ * So the data file judges updates and deletes as an index judges a unique
+ * key, and no stamp is kept for a row.
+ *
+ * The plan keeps a table of the rows it has met.  A read looks there first:
+ * a row this plan added or updated is returned from the plan, and one it
+ * deleted or updated away is not found.  Only then is the data file read.
+ */
+static struct plan_row *row_slot(struct bdb_plan *plan, bdb_state_type *bdb_state, unsigned long long genid)
+{
+    uint32_t i = (uint32_t)((genid * 0x9E3779B97F4A7C15ULL) >> 32) & (plan->rowcap - 1);
+    for (;;) {
+        struct plan_row *r = &plan->rows[i];
+        if (r->state == 0 || (r->genid == genid && r->bdb_state == bdb_state))
+            return r;
+        i = (i + 1) & (plan->rowcap - 1);
+    }
+}
+
+static struct plan_row *row_find(struct bdb_plan *plan, bdb_state_type *bdb_state, unsigned long long genid)
+{
+    if (plan->rowcap == 0)
+        return NULL;
+    struct plan_row *r = row_slot(plan, bdb_state, genid);
+    return r->state ? r : NULL;
+}
+
+static int row_note(struct bdb_plan *plan, bdb_state_type *bdb_state, unsigned long long genid, int state,
+                    uint32_t size, struct plan_op *op)
+{
+    if ((plan->nrows + 1) * 2 > plan->rowcap) {
+        int oldcap = plan->rowcap;
+        struct plan_row *old = plan->rows;
+        int cap = oldcap ? oldcap * 2 : 32;
+        struct plan_row *tbl = calloc(cap, sizeof(struct plan_row));
+        if (tbl == NULL)
+            return ENOMEM;
+        plan->rows = tbl;
+        plan->rowcap = cap;
+        for (int i = 0; i < oldcap; i++) {
+            if (old[i].state)
+                *row_slot(plan, old[i].bdb_state, old[i].genid) = old[i];
+        }
+        free(old);
+    }
+    struct plan_row *r = row_slot(plan, bdb_state, genid);
+    if (r->state == 0)
+        plan->nrows++;
+    r->bdb_state = bdb_state;
+    r->genid = genid;
+    r->state = state;
+    r->size = size;
+    r->op = op;
+    return 0;
+}
+
+/* A page that is locked is tried again this many times, a little later each
+ * time, before the plan is given up.  The lock is most often a commit unit's,
+ * and is gone when the unit commits. */
+enum { PLAN_READ_TRIES = 6 };
+
+/* Reads a row from its data file, as it is stored.  Returns 0 with the row
+ * in *out, for the caller to free; DB_NOTFOUND; or DB_LOCK_NOTGRANTED if the
+ * page stayed locked.  Each try is under a transaction of its own that does
+ * not wait and is over before this returns, as in uniq_read(). */
+static int row_read(bdb_state_type *bdb_state, unsigned long long genid, DBT *out)
+{
+    DB_ENV *dbenv = bdb_state->parent ? bdb_state->parent->dbenv : bdb_state->dbenv;
+    if (bdb_state->attr->dtastripe) {
+        int stripe = get_dtafile_from_genid(genid);
+        if (stripe < 0 || stripe >= bdb_state->attr->dtastripe)
+            return DB_NOTFOUND;
+    }
+    DB *dbp = get_dbp_from_genid(bdb_state, 0, genid, NULL);
+    unsigned long long search = get_search_genid(bdb_state, genid);
+
+    for (int try = 0;; try++) {
+        DB_TXN *tid;
+        DBC *dbcp;
+        DBT key = {0};
+        memset(out, 0, sizeof(*out));
+        out->flags = DB_DBT_MALLOC;
+        int rc = dbenv->txn_begin(dbenv, NULL, &tid, DB_TXN_NOWAIT);
+        if (rc == 0) {
+            rc = dbp->cursor(dbp, tid, &dbcp, 0);
+            if (rc == 0) {
+                key.data = &search;
+                key.size = sizeof(search);
+                rc = dbcp->c_get(dbcp, &key, out, DB_SET);
+                dbcp->c_close(dbcp);
+            }
+            tid->abort(tid);
+        }
+        if (rc == 0 || rc == DB_NOTFOUND)
+            return rc;
+        if (try + 1 >= PLAN_READ_TRIES)
+            return DB_LOCK_NOTGRANTED;
+        usleep(50 << try);
+    }
+}
+
+/* Stands in for bdb_fetch_by_rrn_and_genid_tran() while a plan is being
+ * recorded: the row with this genid, from the plan if the plan wrote it,
+ * otherwise from the data file.  Returns 0 with the row in dta, its length
+ * in *reqdtalen and its schema version in *ver, or -1 with bdberr set:
+ * BDBERR_FETCH_DTA if there is no such row, BDBERR_DEADLOCK if the plan has
+ * been given up and the request is to run again without one. */
+int bdb_tran_plan_fetch_genid(bdb_state_type *bdb_state, tran_type *tran, unsigned long long genid, void *dta,
+                              int dtalen, int *reqdtalen, uint8_t *ver, int *bdberr)
+{
+    struct bdb_plan *plan = tran->plan;
+    struct plan_row *r = row_find(plan, bdb_state, genid);
+    DBT row = {0};
+    const void *stored;
+    uint32_t storedlen;
+    int updateid = -1;
+    struct odh odh;
+
+    *bdberr = BDBERR_NOERROR;
+    if (r && r->state == ROW_GONE) {
+        *bdberr = BDBERR_FETCH_DTA;
+        return -1;
+    }
+    if (r && r->state == ROW_PLAN) {
+        stored = (uint8_t *)(r->op + 1) + r->op->keylen;
+        storedlen = r->op->datalen;
+    } else {
+        int rc = row_read(bdb_state, genid, &row);
+        if (rc == DB_NOTFOUND) {
+            *bdberr = BDBERR_FETCH_DTA;
+            return -1;
+        }
+        if (rc != 0) {
+            ATOMIC_ADD64(gbl_ordered_apply_read_locked, 1);
+            plan->unsupported = 1;
+            *bdberr = BDBERR_DEADLOCK;
+            return -1;
+        }
+        stored = row.data;
+        storedlen = row.size;
+        /* the row at this place in the file may be a later version */
+        if (ip_updates_enabled(bdb_state))
+            updateid = get_updateid_from_genid(bdb_state, genid);
+    }
+
+    /* with no buffer the caller only asks whether the row is there, and the
+     * row is not uncompressed */
+    int rc = bdb_unpack(bdb_state, stored, storedlen, dta, dtalen, &odh, NULL);
+    if (rc == 0 && updateid >= 0 && odh.updateid != updateid)
+        rc = DB_NOTFOUND;
+    if (rc == 0 && dta != NULL && odh.recptr != dta) {
+        if (odh.length > dtalen)
+            rc = EINVAL;
+        else
+            memcpy(dta, odh.recptr, odh.length);
+    }
+    if (rc == 0) {
+        *reqdtalen = odh.length;
+        *ver = odh.csc2vers;
+        if (r == NULL || r->state != ROW_PLAN)
+            plan->row_reads++;
+        if (r == NULL && row_note(plan, bdb_state, genid, ROW_READ, storedlen, NULL) != 0)
+            rc = ENOMEM;
+    }
+    free(row.data);
+    if (rc == 0)
+        return 0;
+    if (rc == DB_NOTFOUND) {
+        *bdberr = BDBERR_FETCH_DTA;
+        return -1;
+    }
+    plan->unsupported = 1;
+    *bdberr = BDBERR_DEADLOCK;
+    return -1;
+}
+
+int bdb_plan_dta_del(bdb_state_type *bdb_state, tran_type *tran, unsigned long long genid, DB *dbp, int dtafile,
+                     int dtastripe, DBT *dta_out)
+{
+    struct bdb_plan *plan = tran->plan;
+    DBT none = {0};
+    uint32_t size = 0;
+
+    if (dta_out || !gbl_ordered_apply_update)
+        return bdb_plan_refuse(tran);
+    if (dtafile == 0) {
+        struct plan_row *r = row_find(plan, bdb_state, genid);
+        if (r && r->state == ROW_GONE)
+            return DB_NOTFOUND;
+        if (r)
+            size = r->state == ROW_PLAN ? r->op->datalen : r->size;
+    }
+    /* A blob is deleted whether or not the row has one; apply does not mind
+     * one that is not there.  A row this plan added is deleted like any
+     * other: its add comes first in the plan. */
+    struct plan_op *op = plan_new_op(plan, PLAN_DTA_DEL, bdb_state, &none, &none);
+    if (op == NULL)
+        return ENOMEM;
+    op->dbp = dbp;
+    op->genid = genid;
+    op->dtafile = dtafile;
+    op->dtastripe = dtastripe;
+    plan->bytes += size; /* a delete logs what it removes */
+    if (dtafile == 0 && row_note(plan, bdb_state, genid, ROW_GONE, 0, NULL) != 0)
+        return ENOMEM;
+    return 0;
+}
+
+int bdb_plan_key_del(bdb_state_type *bdb_state, tran_type *tran, int ixnum, void *key, int keylen,
+                     unsigned long long genid)
+{
+    struct bdb_plan *plan = tran->plan;
+    struct plan_op **slot = NULL;
+    DBT dbt_key = {0}, none = {0};
+
+    if (!gbl_ordered_apply_update)
+        return bdb_plan_refuse(tran);
+    dbt_key.data = key;
+    dbt_key.size = keylen;
+    if (!bdb_state->ixdups[ixnum]) {
+        if (plan->nuniq * 2 >= plan->uniqcap && uniq_grow(plan) != 0)
+            return ENOMEM;
+        slot = uniq_slot(plan, bdb_state, ixnum, key, keylen);
+    }
+    struct plan_op *op = plan_new_op(plan, PLAN_KEY_DEL, bdb_state, &dbt_key, &none);
+    if (op == NULL)
+        return ENOMEM;
+    op->genid = genid;
+    op->ixnum = ixnum;
+    /* the last thing this plan does with a unique key says whether a later
+     * add of it is a duplicate */
+    if (slot) {
+        if (*slot == NULL)
+            plan->nuniq++;
+        *slot = op;
+    }
+    return 0;
+}
+
+int bdb_plan_key_upd(bdb_state_type *bdb_state, tran_type *tran, unsigned long long oldgenid,
+                     unsigned long long genid, void *key, int ixnum, int keylen, void *dta, int dtalen)
+{
+    DBT dbt_key = {0}, dbt_dta = {0};
+
+    if (!gbl_ordered_apply_update)
+        return bdb_plan_refuse(tran);
+    dbt_key.data = key;
+    dbt_key.size = keylen;
+    if (dta) {
+        dbt_dta.data = dta;
+        dbt_dta.size = dtalen;
+    }
+    struct plan_op *op = plan_new_op(tran->plan, PLAN_KEY_UPD, bdb_state, &dbt_key, &dbt_dta);
+    if (op == NULL)
+        return ENOMEM;
+    op->genid = oldgenid;
+    op->genid2 = genid;
+    op->ixnum = ixnum;
+    op->upd = dta ? PLAN_UPD_HAS_DTA : 0;
+    return 0;
+}
+
+/* Takes the arguments of ll_dta_upd_int().
+ *
+ * A row's new genid is chosen here, since the caller builds keys from it
+ * before the plan is applied.  An update that keeps the row's place in the
+ * file is recorded as one operation.  One that moves it is recorded as a
+ * delete and an add, which may be in two stripes and so in two files.
+ *
+ * A blob update is recorded as it was called and decided at apply, because
+ * what it does depends on whether the row has that blob.  One that changes
+ * the genid may write two files, and its plan is then applied on one
+ * thread. */
+int bdb_plan_dta_upd(bdb_state_type *bdb_state, unsigned long long oldgenid, unsigned long long *newgenid, DB *dbp,
+                     tran_type *tran, int dtafile, int dtastripe, int participantstripid, int use_new_genid,
+                     DBT *verify_dta, DBT *dta, DBT *old_dta_out, int has_blob_update_optimization,
+                     int keep_genid_intact, int odhready)
+{
+    struct bdb_plan *plan = tran->plan;
+    bdb_state_type *parent = bdb_state->parent ? bdb_state->parent : bdb_state;
+    DBT none = {0};
+    struct plan_op *op;
+
+    if (!gbl_ordered_apply_update || keep_genid_intact || verify_dta || old_dta_out || newgenid == NULL)
+        return bdb_plan_refuse(tran);
+
+    if (dtafile > 0) {
+        if (*newgenid == 0)
+            return bdb_plan_refuse(tran);
+        op = plan_new_op(plan, PLAN_DTA_UPD, bdb_state, &none, dta ? dta : &none);
+        if (op == NULL)
+            return ENOMEM;
+        op->dbp = dbp;
+        op->genid = oldgenid;
+        op->genid2 = *newgenid;
+        op->dtafile = dtafile;
+        op->dtastripe = dtastripe;
+        op->stripeid = participantstripid;
+        op->odhready = odhready;
+        op->upd = (has_blob_update_optimization ? PLAN_UPD_BLOB_OPT : 0) |
+                  (use_new_genid ? PLAN_UPD_USE_NEW_GENID : 0) | (dta ? PLAN_UPD_HAS_DTA : 0);
+        if (bdb_inplace_cmp_genids(bdb_state, oldgenid, *newgenid) != 0)
+            plan->one_thread = 1;
+        return 0;
+    }
+
+    /* A row.  The genid is chosen as ll_dta_upd_int() chooses it. */
+    if (dta == NULL || *newgenid != 0 || !bdb_state->ondisk_header)
+        return bdb_plan_refuse(tran);
+
+    int64_t oldsize = -1;
+    struct plan_row *r = row_find(plan, bdb_state, oldgenid);
+    if (r) {
+        if (r->state == ROW_GONE)
+            return DB_NOTFOUND;
+        oldsize = r->state == ROW_PLAN ? r->op->datalen : r->size;
+    }
+
+    DBT packed;
+    void *freeptr = NULL;
+    if (bdb_prepare_put_pack_updateid(bdb_state, 0, dta, &packed, -1, &freeptr, NULL, odhready) != 0)
+        return bdb_plan_refuse(tran);
+
+    int inplace = 0;
+    int updateid = 0;
+    unsigned long long genid;
+    if (ip_updates_enabled(bdb_state)) {
+        int newupd = 1 + get_updateid_from_genid(bdb_state, oldgenid);
+        if (newupd <= max_updateid(bdb_state)) {
+            inplace = 1;
+            updateid = newupd;
+        }
+    }
+    /* a row that grows is moved, so that a page in the middle of the file
+     * does not split under a scan in page order */
+    if (inplace && bdb_attr_get(bdb_state->attr, BDB_ATTR_PAGE_ORDER_TABLESCAN) &&
+        (oldsize < 0 || packed.size > oldsize))
+        inplace = 0;
+
+    if (inplace) {
+        genid = set_updateid(bdb_state, updateid, oldgenid);
+    } else {
+        int newstripe = bdb_state->attr->disable_update_stripe_change ? get_dtafile_from_genid(oldgenid)
+                                                                      : bdb_get_active_stripe_int(bdb_state);
+        genid = get_genid(bdb_state, newstripe);
+    }
+    if (parent->attr->updategenids && participantstripid > 0)
+        genid = set_participant_stripeid(bdb_state, participantstripid, genid);
+    else
+        genid = set_participant_stripeid(bdb_state, 0, genid);
+
+    int rc = ENOMEM;
+    if (inplace) {
+        op = plan_new_op(plan, PLAN_DTA_UPD, bdb_state, &none, &packed);
+        if (op) {
+            op->dbp = dbp;
+            op->genid = oldgenid;
+            op->genid2 = genid;
+            op->dtastripe = dtastripe;
+            op->stripeid = participantstripid;
+            op->odhready = 1;
+            /* the genid is settled: apply must not choose another */
+            op->upd = PLAN_UPD_HAS_DTA | PLAN_UPD_USE_NEW_GENID;
+            rc = 0;
+        }
+    } else {
+        struct plan_op *del = plan_new_op(plan, PLAN_DTA_DEL, bdb_state, &none, &none);
+        DBT dbt_key = {0};
+        int addstripe = 0;
+        DB *dbp_add = get_dbp_from_genid(bdb_state, 0, genid, &addstripe);
+        dbt_key.data = &genid;
+        dbt_key.size = sizeof(genid);
+        op = del ? plan_new_op(plan, PLAN_DTA_ADD, bdb_state, &dbt_key, &packed) : NULL;
+        if (op) {
+            del->dbp = dbp;
+            del->genid = oldgenid;
+            del->dtastripe = dtastripe;
+            if (oldsize > 0)
+                plan->bytes += oldsize;
+            op->dbp = dbp_add;
+            op->genid = genid;
+            op->dtastripe = addstripe;
+            op->flags = DB_NOOVERWRITE;
+            op->odhready = 1;
+            poke_updateid((uint8_t *)(op + 1) + op->keylen, 0);
+            rc = 0;
+        }
+    }
+    free(freeptr);
+    if (rc == 0 && (row_note(plan, bdb_state, oldgenid, ROW_GONE, 0, NULL) != 0 ||
+                    row_note(plan, bdb_state, genid, ROW_PLAN, 0, op) != 0))
+        rc = ENOMEM;
+    if (rc == 0)
+        *newgenid = genid;
+    return rc;
+}
+
+/* A plan applied to the btrees fails this way when what it was built on is
+ * no longer there: a unique key it adds is in the index, or a row or key it
+ * changes is not. */
+static int rc_is_stale(int rc)
+{
+    return rc == DB_KEYEXIST || rc == DB_NOTFOUND;
+}
+
+static void count_stale(int rc)
+{
+    if (rc == DB_KEYEXIST)
+        ATOMIC_ADD64(gbl_ordered_apply_dup_retries, 1);
+    else
+        ATOMIC_ADD64(gbl_ordered_apply_stale_retries, 1);
 }
 
 static int apply_op(struct plan_op *op, tran_type *tran)
@@ -471,10 +989,30 @@ static int apply_op(struct plan_op *op, tran_type *tran)
     data.data = buf + op->keylen;
     data.size = data.ulen = op->datalen;
     data.flags = DB_DBT_USERMEM;
-    if (op->type == PLAN_DTA_ADD)
+    int rc;
+    switch (op->type) {
+    case PLAN_DTA_ADD:
         return ll_dta_add(op->bdb_state, op->genid, op->dbp, tran, op->dtafile, op->dtastripe, &key, &data, op->flags,
                           op->odhready);
-    return ll_key_add(op->bdb_state, op->genid, tran, op->ixnum, &key, &data);
+    case PLAN_KEY_ADD:
+        return ll_key_add(op->bdb_state, op->genid, tran, op->ixnum, &key, &data);
+    case PLAN_DTA_DEL:
+        rc = ll_dta_del(op->bdb_state, tran, 2, op->genid, op->dbp, op->dtafile, op->dtastripe, NULL);
+        /* a blob that is null is not stored */
+        return (rc == DB_NOTFOUND && op->dtafile > 0) ? 0 : rc;
+    case PLAN_KEY_DEL:
+        return ll_key_del(op->bdb_state, tran, op->ixnum, buf, op->keylen, 2, op->genid, NULL);
+    case PLAN_KEY_UPD:
+        return ll_key_upd(op->bdb_state, tran, op->bdb_state->name, op->genid, op->genid2, buf, op->ixnum, op->keylen,
+                          (op->upd & PLAN_UPD_HAS_DTA) ? buf + op->keylen : NULL, op->datalen);
+    case PLAN_DTA_UPD:
+        rc = ll_dta_upd_planned(op->bdb_state, op->genid, op->genid2, op->dbp, tran, op->dtafile, op->dtastripe,
+                                op->stripeid, (op->upd & PLAN_UPD_USE_NEW_GENID) != 0,
+                                (op->upd & PLAN_UPD_HAS_DTA) ? &data : NULL, (op->upd & PLAN_UPD_BLOB_OPT) != 0,
+                                op->odhready);
+        return (rc == DB_NOTFOUND && op->dtafile > 0) ? 0 : rc;
+    }
+    return EINVAL;
 }
 
 /*
@@ -571,7 +1109,13 @@ static int start_helpers(bdb_state_type *bdb_state)
 
 static DB *op_file(struct plan_op *op)
 {
-    return op->type == PLAN_DTA_ADD ? op->dbp : op->bdb_state->dbp_ix[op->ixnum];
+    switch (op->type) {
+    case PLAN_DTA_ADD:
+    case PLAN_DTA_DEL:
+    case PLAN_DTA_UPD:
+        return op->dbp;
+    }
+    return op->bdb_state->dbp_ix[op->ixnum];
 }
 
 static int plan_needs_one_chain(struct bdb_plan *plan)
@@ -595,7 +1139,7 @@ static int apply_parallel(bdb_state_type *bdb_state, tran_type *tran, struct bdb
 
     if (gbl_ordered_apply_threads <= 0 || plan->nops < gbl_ordered_apply_parallel_min_ops)
         return 0;
-    if (plan_needs_one_chain(plan))
+    if (plan->one_thread || plan_needs_one_chain(plan))
         return 0;
 
     for (struct plan_op *op = plan->first; op; op = op->next) {
@@ -630,6 +1174,7 @@ static int apply_parallel(bdb_state_type *bdb_state, tran_type *tran, struct bdb
         f->tran.tranclass = TRANCLASS_BERK;
         f->tran.parent = tran->parent;
         f->tran.threadid = tran->threadid;
+        f->tran.plan_verify = 1;
         if ((rc = dbenv->txn_begin(dbenv, tran->tid, &f->tran.tid, flags)) != 0)
             break;
     }
@@ -669,10 +1214,13 @@ static int apply_parallel(bdb_state_type *bdb_state, tran_type *tran, struct bdb
             Pthread_cond_wait(&helper_done, &helper_lk);
         Pthread_mutex_unlock(&helper_lk);
 
-        for (int i = 0; i < nfiles && rc == 0; i++) {
-            rc = files[i].rc;
-            if (rc != 0)
+        /* If several files failed, report one that says a plan was stale:
+         * that one names a request to send back. */
+        for (int i = 0; i < nfiles; i++) {
+            if (files[i].rc != 0 && (rc == 0 || (!rc_is_stale(rc) && rc_is_stale(files[i].rc)))) {
+                rc = files[i].rc;
                 *failed = files[i].failed;
+            }
         }
     }
 
@@ -688,6 +1236,48 @@ static int apply_parallel(bdb_state_type *bdb_state, tran_type *tran, struct bdb
     if (rc == 0)
         ATOMIC_ADD64(gbl_ordered_apply_parallel, 1);
     return rc;
+}
+
+/*
+ * The commit lock.
+ *
+ * The block processor has a lock that every request takes shared from the
+ * point where it can no longer fail to the end of its commit, and that a
+ * serializable or SELECTV request takes exclusively, so that nothing commits
+ * between its check of what it read and its own commit.  It is a pthread
+ * rwlock.  That was safe while a request took it with all its page locks
+ * already in hand and nothing left to wait for.  A request with a plan takes
+ * its page locks afterwards, itself or through the unit its plan is in.  So
+ * a request can now wait for a page while it holds the commit lock, and the
+ * holder of that page can be waiting for the commit lock; the deadlock
+ * detector sees neither end of that.
+ *
+ * With ordered apply on, a request therefore takes this lock first: the same
+ * lock in the lock manager, shared or exclusive in the same way, under its
+ * top-level transaction, which gives it up when it commits or aborts.  A
+ * wait for it is one the detector follows.  Once a request has it, the
+ * rwlock behind it can only be held by requests that have nothing left to
+ * wait for.
+ */
+static char commit_name[16] = "commit lock";
+
+int bdb_tran_commit_gate(bdb_state_type *bdb_state, tran_type *tran, int exclusive, int *bdberr)
+{
+    DBT name = {0};
+    DB_LOCK lk;
+
+    *bdberr = BDBERR_NOERROR;
+    if (tran == NULL || tran->tid == NULL)
+        return 0;
+    if (bdb_state->parent)
+        bdb_state = bdb_state->parent;
+    name.data = commit_name;
+    name.size = sizeof(commit_name);
+    int rc = berkdb_lock(bdb_state->dbenv, tran->tid->txnid, 0, &name, exclusive ? DB_LOCK_WRITE : DB_LOCK_READ, &lk);
+    if (rc == 0)
+        return 0;
+    *bdberr = (rc == BDBERR_DEADLOCK) ? BDBERR_DEADLOCK : BDBERR_MISC;
+    return -1;
 }
 
 static int holds_page_locks(bdb_state_type *bdb_state, tran_type *tran)
@@ -715,6 +1305,13 @@ int bdb_tran_plan_apply(bdb_state_type *bdb_state, tran_type *tran, int *bdberr)
         return 0;
     if (bdb_state->parent)
         bdb_state = bdb_state->parent;
+
+    /* Given up while the request ran, by something whose error did not
+     * make it back here: still not to be applied. */
+    if (plan->unsupported) {
+        *bdberr = BDBERR_DEADLOCK;
+        return -1;
+    }
 
     plan->applying = 1;
     if (plan->nops == 0)
@@ -751,6 +1348,7 @@ int bdb_tran_plan_apply(bdb_state_type *bdb_state, tran_type *tran, int *bdberr)
 
     int done = 0;
     struct plan_op *failed = NULL;
+    tran->plan_verify = 1;
     rc = apply_parallel(bdb_state, tran, plan, &done, &failed);
     if (!done) {
         for (struct plan_op *op = plan->first; op && rc == 0; op = op->next)
@@ -769,10 +1367,10 @@ int bdb_tran_plan_apply(bdb_state_type *bdb_state, tran_type *tran, int *bdberr)
         ATOMIC_ADD64(gbl_ordered_apply_ops, plan->nops);
         return 0;
     }
-    if (rc == DB_KEYEXIST) {
-        /* a unique key this plan adds is in the index: run without a plan,
-         * and let the put report it */
-        ATOMIC_ADD64(gbl_ordered_apply_dup_retries, 1);
+    if (rc_is_stale(rc)) {
+        /* a unique key this plan adds is in the index, or a row it changes
+         * is gone: run without a plan, and let that report it */
+        count_stale(rc);
         plan->unsupported = 1;
         *bdberr = BDBERR_DEADLOCK;
     } else if (rc == DB_LOCK_DEADLOCK || rc == DB_REP_HANDLE_DEAD) {
@@ -869,7 +1467,7 @@ struct unit_member {
     int rc;
     int bdberr;
     int dup;
-    int stale; /* a unique key it adds is in the index: left out, to run again without a plan */
+    int stale; /* its plan no longer fits the btrees: left out, to run again without a plan */
     DB_LSN lsn;
     int done;
     pthread_cond_t cond;
@@ -919,6 +1517,7 @@ static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch)
             unit_fail(batch, bdberr ? bdberr : BDBERR_MISC);
             return;
         }
+        tran->plan_verify = 1;
 
         /* members that have waited long wait for this; it goes with the
          * transaction's other locks when it commits or aborts */
@@ -953,6 +1552,7 @@ static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch)
                 all.first = m->plan->first;
             all.last = m->plan->last;
             all.nops += m->plan->nops;
+            all.one_thread |= m->plan->one_thread;
             nplans++;
         }
 
@@ -970,11 +1570,12 @@ static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch)
         }
         uint64_t applied = now_us();
 
-        if (rc == DB_KEYEXIST && failed) {
-            /* A unique key one member adds is in the index: another
-             * transaction added it after the member read, or an earlier
-             * member of this unit did.  That member goes back to run again;
-             * the rest are applied again without it. */
+        if (rc_is_stale(rc) && failed) {
+            /* A unique key one member adds is in the index, or a row one
+             * member changes is gone: another transaction did that after the
+             * member read, or an earlier member of this unit did.  That
+             * member goes back to run again; the rest are applied again
+             * without it. */
             struct unit_member *whose = NULL;
             for (struct unit_member *m = batch; m && !whose; m = m->next) {
                 if (m->stale || m->dup)
@@ -992,7 +1593,7 @@ static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch)
                 bdb_tran_abort(bdb_state, tran, &bdberr);
                 unit_drop_replays(batch);
                 whose->stale = 1;
-                ATOMIC_ADD64(gbl_ordered_apply_dup_retries, 1);
+                count_stale(rc);
                 continue;
             }
         }
@@ -1064,6 +1665,7 @@ static int unit_apply_own(bdb_state_type *bdb_state, tran_type *tran, struct uni
     }
     int done = 0;
     struct plan_op *failed = NULL;
+    tran->plan_verify = 1;
     rc = apply_parallel(bdb_state, tran, plan, &done, &failed);
     if (!done) {
         for (struct plan_op *op = plan->first; op && rc == 0; op = op->next)
@@ -1079,10 +1681,10 @@ static int unit_apply_own(bdb_state_type *bdb_state, tran_type *tran, struct uni
         ATOMIC_ADD64(gbl_ordered_apply_ops, plan->nops);
         return 0;
     }
-    if (rc == DB_KEYEXIST) {
-        /* a unique key this plan adds is in the index: run without a plan,
-         * and let the put report it */
-        ATOMIC_ADD64(gbl_ordered_apply_dup_retries, 1);
+    if (rc_is_stale(rc)) {
+        /* a unique key this plan adds is in the index, or a row it changes
+         * is gone: run without a plan, and let that report it */
+        count_stale(rc);
         *bdberr = BDBERR_ADD_DUPE;
     } else if (rc == DB_LOCK_DEADLOCK || rc == BDBERR_DEADLOCK || rc == DB_REP_HANDLE_DEAD) {
         *bdberr = BDBERR_DEADLOCK;

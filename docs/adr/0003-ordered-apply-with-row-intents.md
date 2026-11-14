@@ -4,9 +4,10 @@
 
 Proposed — 2026-11-11
 
-Stage 0, the first step of stage 1.1, a first form of commit units and
-inserts into tables with unique keys are implemented and measured on the
-`rowlocks-ideas` branch, behind tunables; see
+Stage 0, the first step of stage 1.1, a first form of commit units, inserts
+into tables with unique keys, and updates and deletes of rows in tables with
+no foreign keys are implemented and measured on the `rowlocks-ideas` branch,
+behind tunables; see
 [Implementation status](#implementation-status) for what exists, what it
 measured and where to resume. The measurements under Context describe the
 system before that work, and the numbers under
@@ -592,7 +593,7 @@ These are estimates from the measurements above, not results.
 
 ## Implementation status
 
-As of 2026-11-13. Everything below is on the `rowlocks-ideas` branch. PR 6144
+As of 2026-11-14. Everything below is on the `rowlocks-ideas` branch. PR 6144
 is merged there as a local merge commit, and the ordered-apply work is
 committed on top of it. Nothing has been pushed. Do not push this work to
 public GitHub; pushing to xeon is fine.
@@ -630,9 +631,12 @@ for measurement only, see
 [One node, and what the turn costs](#one-node-and-what-the-turn-costs)),
 `ordered_apply_unit` (off), `ordered_apply_unit_max_ops` (4096),
 `ordered_apply_unit_inline` (on) and `ordered_apply_unit_detect_ms` (100),
-for [Commit units](#commit-units), and `ordered_apply_unique` (on), for
-[Unique keys](#unique-keys). The code is `bdb/plan.c`, with hooks in
-`bdb/ll.c`, `bdb/tran.c`, `db/toblock.c`, `db/sltdbt.c` and `db/record.c`.
+for [Commit units](#commit-units), `ordered_apply_unique` (on), for
+[Unique keys](#unique-keys), and `ordered_apply_update` (on), for
+[Updates and deletes](#updates-and-deletes). The code is `bdb/plan.c`, with
+hooks in `bdb/ll.c`, `bdb/tran.c`, `db/toblock.c`, `db/sltdbt.c`,
+`db/glue.c`, `db/osqlcomm.c` and `db/record.c`. The first step is described
+as it was built; later sections say what has changed since.
 
 `ordered_apply` can be turned on only while `disable_tagged_api_writes` is
 on, and `disable_tagged_api_writes` cannot be turned off while
@@ -991,6 +995,153 @@ The shape is that of the tables without a unique key. The three-node
 run cannot say whether that is the unique key, the other changes since, or
 variation between runs.
 
+### Updates and deletes
+
+`ordered_apply_update` on. This is the rest of stage 1.1 for tables with no
+foreign keys. It needed reads laid over the plan. It did not need stamps.
+
+**The data file is the judge.** A genid names one version of one row. An
+update gives the row a new genid, and no genid is used twice. A plan updates
+or deletes a row by genid, and when it is applied the data file has that
+genid or it does not. If it has, the row is the one the plan read, and the
+keys the plan worked out from it are the keys in the indexes. If it has not,
+the request runs again without a plan and gets its answer under page locks:
+a verify error, as a rule. So an update or a delete is judged at apply as a
+unique key is, by the btree, and a plan can still be wrong only in the
+direction of running again. A stamp would save the aborted unit and nothing
+else. Foreign keys are different: a check that a parent key exists, or that
+no child row does, is a read of something the plan does not write, and the
+btree cannot judge it at apply.
+
+What it does:
+
+- **Reads over the plan.** A row is read by genid through
+  `bdb_tran_plan_fetch_genid()`, which stands in for the ordinary fetch
+  while a plan is recorded. The plan keeps a table of the rows it has met:
+  one it added or updated is returned from the plan, one it deleted or
+  updated away is not found, and otherwise the data file is read. That read
+  is under a transaction of its own that does not wait and is over at once.
+  A page that is locked is tried six times over about 1.5 ms, and then the
+  plan is given up.
+- **What is recorded.** A delete of a row, of each of its blobs and of each
+  key. An update in place as one operation with the new genid already
+  chosen, since the request builds keys from it. An update that moves the
+  row (the updateid has run out, or the row grows and page-order scans are
+  on) as a delete and an add, which can be in two stripes. A key whose value
+  does not change as an update of its genid. A blob update as it was called,
+  to be decided at apply, because what it does depends on whether the row
+  has that blob.
+- **Unique keys.** The plan remembers the last thing it did with each unique
+  key. A key it has deleted can be added again without looking in the
+  index, which is how a row gives its key to another in one transaction.
+- **Apply.** The same `ll_*` routines. A row is updated or deleted only if
+  its updateid is still the one in the plan's genid. `DB_NOTFOUND` from any
+  operation is treated as `DB_KEYEXIST` already was: in a unit, that member
+  goes back and the rest are applied again without it.
+- **One thread.** A plan with an update or a delete in it is not applied a
+  file per thread; see the fifth finding below.
+- **Inserts with constraint checking on** are planned now. Every insert in
+  a request that also updates or deletes runs that way, and adds its keys
+  at the end of the request from the row read back by genid, which the plan
+  now answers.
+
+What a plan must not be trusted with, each found by a test:
+
+- **An error it finds for itself**, once it has read rows. Nothing keeps a
+  row as the plan read it, so two reads can disagree. Two requests raced to
+  move a unique key from 179 to 180; the loser read the row, the winner
+  committed, and the loser's look for key 180 found the winner's. It
+  reported a duplicate key. Under page locks it would have found the row
+  changed, which the client library retries without the application seeing
+  it. A request that has read rows and fails with anything but a verify
+  error now runs again without a plan. A verify error can be believed: a
+  genid that is gone does not come back.
+- **An error after a read that went round the plan.** A read under the
+  request's transaction that is not by genid (a trigger's, a blob for an
+  index) takes a page lock and does not see the plan. A request that holds
+  a page lock when it fails runs again without a plan.
+- **`SELECTV`.** The rows it names must stay as they are until commit,
+  which the page lock of the check sees to. A request with a `SELECTV`
+  record gives its plan up.
+
+Not planned: tables with a foreign key in either direction, tables with an
+index on a blob, cascades, tagged requests, anything during a schema change
+of the table, and `replicate_local`.
+
+Three things found here were wrong before this step and are fixed:
+
+1. **The commit lock was left held.** The block processor takes a lock,
+   shared, from the point where a request can no longer fail to the end of
+   its commit; a serializable or `SELECTV` request takes it exclusively. A
+   request whose plan could not be applied went to the backout path with it
+   and never gave it up. The next exclusive request waited for ever.
+2. **A wait for that lock the detector cannot see.** It is a pthread
+   rwlock, which was safe while a request took it with all its page locks in
+   hand. A request with a plan takes its page locks afterwards, through its
+   unit, so it can wait for a page whose holder waits for the lock. With
+   ordered apply on, a request now takes a lock of the same name and mode in
+   the lock manager first (`bdb_tran_commit_gate()`), under its top-level
+   transaction.
+3. **A plan given up without an error reaching the block processor** was
+   applied anyway. `bdb_tran_plan_apply()` now refuses it.
+
+And one that is not understood. With a unit applied a file per thread, a
+reader and two threads of the unit stood in a cycle that the detector did
+not break: the thread for a blob file had finished and held a blob page, the
+thread for the data file waited for a data page the reader held, and the
+reader waited for the blob page. Children of one transaction are one node to
+the detector, so it should have seen this. Applying such plans on one thread
+takes pages in the order a page-lock transaction does, and the test passes.
+Plans of adds alone are still applied a file per thread and may have the
+same exposure when a reader is on the pages they add to.
+
+Checked: `tests/ordered_apply.test` has a section for this. The same
+statements (updates of plain, indexed and unique columns, a shift of a unique
+key along a range, rows that grow, deletes, a row that takes the key of one
+deleted in the same transaction, a transaction that fails and rolls back,
+blobs set, changed and cleared) are run on one table under page locks and on
+others with plans, in turn and in units, and must tell the client the same
+and leave the same table. Sixteen clients update the same 20 rows and
+overlapping ranges, and every update reported is in the table once; eight
+delete the same 400 rows, and each is deleted once; sixteen race to move a
+unique key and none is told of a duplicate; a `SELECTV` transaction after
+many failed applies finishes. It passes on macOS. Three kill -9 rounds under
+planned updates, deletes and blob changes, in units, a file per thread and in
+turn, recovered with data and indexes agreeing and verify clean.
+
+#### Results
+
+`results/stage1-updates.results`, run 18: three nodes, the benchmark table
+with a million rows, 32 clients unless said. `upd` changes a column with no
+index, `updk` an indexed one, `updhot` picks from the same 200 rows. A
+transaction of 100 rows is 100 statements.
+
+| Three nodes                   | Page locks    | Unit   |
+|-------------------------------|--------------:|-------:|
+| `upd`, 1 row, 1 client        | 474 txn/s     |    455 |
+| `upd`, 1 row                  | 10,468 txn/s  |  9,139 |
+| `upd`, 1 row, 64 clients      | 10,782 txn/s  | 11,061 |
+| `updk`, 1 row                 | 7,665 txn/s   |  7,512 |
+| `updhot`, 1 row               | 3,252 txn/s   |  6,323 |
+| `del`, 1 row                  | 6,792 txn/s   |  7,404 |
+| `upd`, 100 rows               | 6,191 rows/s  |  9,123 |
+| `updk`, 100 rows              | 3,811 rows/s  |  6,651 |
+| `del`, 100 rows               | 13,307 rows/s | 10,522 |
+
+- **Single rows that nobody else wants are level**, between 13% behind and
+  3% ahead, with the master on 6.2 to 7.7 cores where page locks use 8.1 to
+  9.0. Nothing fell back, and 8 plans of 256,000 were stale.
+- **The same rows from many clients are 1.9 times as fast.** 1,111 plans of
+  32,000 were stale at apply and 199 gave up on a locked read.
+- **Large updates gain 47% and 75%, and lose most of what they could
+  gain.** A third to two fifths of the transactions gave their plan up
+  because a row they read stayed behind a page lock, and 324 and 437 units
+  were aborted as deadlock victims. A unit holds its page locks until it
+  commits, and a 100-row plan reads 100 rows meanwhile. Short page locks in
+  apply, as the proposal has them, are what would remove this.
+- **Large deletes of ascending keys lose 21%**, for the same reason, on a
+  workload where page locks have little to wait for.
+
 ### The test suite
 
 The default suite, 789 tests, was run on one node with `ordered_apply`,
@@ -1037,30 +1188,50 @@ are the tests listed above, less one deadlock-count test that failed on
 `main` as well. None of the hangs came back. Nothing clustered has been
 run.
 
+With updates and deletes planned the suite was run twice more. The first
+run (run 16) is what found the five things under
+[Updates and deletes](#updates-and-deletes). The second, on the tree with
+them fixed and 20 tests at a time (`results/suite-run19.txt`, run 19): 571
+passed and 212 failed. 22 of the failures pass on `main`; run again with
+ordered apply, 16 of those pass and six fail. The six are `fingerprints`
+and `manual_partition_lgcy`, as before, and four tests that want deadlocks,
+two of them new to the list because their updates are now planned
+(`reorder_updates_noreorder_generated`, `index_deadlock_loop_print`).
+`upsert` passed. Two tests that failed repeatedly on the same code while it
+was being fixed passed in this run, and are not explained; see
+[Where to resume](#where-to-resume).
+
 ### Where to resume
 
-State at the end of the session of 2026-11-13:
+State at the end of the session of 2026-11-14:
 
-- **Code:** branch `rowlocks-ideas`, last code commit `065501ff6`. Commits
-  since the merge of PR 6144, oldest first: `7abd18b80` (plans and the
-  turn), `d9529dd95` (single node, profile, detector cost), `e27a9c411`
-  (commit units), `aa86f91e7` (a lone transaction applies its own plan;
-  benchmark log), `12131d4c2`, `065501ff6` (unique keys, the detector-visible
-  wait, the fixes from the test suite). Nothing is pushed.
+- **Code:** branch `rowlocks-ideas`, all committed. Updates and deletes,
+  and everything under [Updates and deletes](#updates-and-deletes), are
+  the commit on top of `466c093bc`. That one is from another session, after
+  which `ordered_apply` is refused unless `disable_tagged_api_writes` is on.
+  Neither the feature's test nor the suite has been run since `466c093bc`:
+  the measurements and suite runs here were made on builds without it, and
+  the suite's settings file (`/tmp/rltest-keep/oa.lrl` on xeon) needs that
+  line added. Nothing is pushed.
 - **To measure, use these settings:** `ordered_apply 1`,
-  `ordered_apply_unit 1`. Everything else is at its default. The turn
+  `ordered_apply_unit 1`, with `disable_tagged_api_writes` on as
+  `ordered_apply` now requires. Everything else is at its default. The turn
   variants (`serial`, `par`, `par-early`) are kept only for comparison.
-- **Every run is in `docs/adr/0003-bench/BENCHMARK-LOG.md`**, runs 1 to 15,
+- **Every run is in `docs/adr/0003-bench/BENCHMARK-LOG.md`**, runs 1 to 19,
   with what changed before each. Add an entry for each new run when it
   starts.
 - **A second branch, `rowlocks-adaptive`**, has the experiment on the
   existing rowlocks code. It is finished and nothing follows from it.
 - **On xeon** (all under `/tmp`, a RAM disk that a reboot empties): the
-  benchmark cluster in `/tmp/rlbench` (containers `rlbench-*`, idle), builds
-  for the test suite in `/tmp/rltest2` (this branch) and `/tmp/rltest-main`
-  (`main`), and a pmux of our own on port 19500. All can be removed;
-  `teardown-host.sh` removes the benchmark cluster, and
-  `suite-with-ordered-apply.sh` says how to set the suite up again.
+  benchmark cluster in `/tmp/rlbench` (containers `rlbench-*`, idle, built
+  from this tree), builds for the test suite in `/tmp/rltest2` and
+  `/tmp/rltest3` (this tree) and `/tmp/rltest-main` (`main`), and a pmux of
+  our own on port 19500. All can be removed; `teardown-host.sh` removes the
+  benchmark cluster, and `suite-with-ordered-apply.sh` says how to set the
+  suite up again.
+- **On the Mac** the disk was 97% full, which makes comdb2 refuse schema
+  changes on a scratch database (`sc_headroom`, 10% by default; set it to 1
+  on the scratch database).
 
 Things learned the hard way, which the next step must respect:
 
@@ -1072,44 +1243,66 @@ Things learned the hard way, which the next step must respect:
 - **A request can run twice**, once with a plan and again without. Anything
   it does outside its transaction must not happen in the first attempt:
   bpfuncs, counters, per-request limits and statistics.
-- **Only what goes through `ll_dta_add` and `ll_key_add` is planned.**
-  Anything that reads back what the request wrote sees nothing, since the
-  row is only in the plan. That is why inserts made with constraint checking
-  on are not planned, and it is the first thing updates and deletes run
-  into: reads laid over the plan do not exist yet.
+- **A plan may be wrong only in the direction of running again.** That
+  covers what it does (the btree judges it at apply) and now also what it
+  reports: an error found while planning is believed only if nothing the
+  plan read could have changed under it. Any new kind of read needs the
+  same question asked.
+- **Every wait has to be one the deadlock detector can follow**, or has to
+  be made by something that holds no lock. The commit lock was neither.
+  Look for other pthread locks taken between a request's first page lock
+  and its commit.
 - **Children of one transaction on several threads** are new to this code
   base. The lock manager assumed one thread for each transaction family in
-  one place that was found (the waiting flag); there may be others.
-- **The test suite finds what the benchmarks do not.** Every one of the six
-  bugs of run 13 was invisible to the insert benchmarks and to the feature's
-  own test as it then was.
+  one place that was found (the waiting flag); the cycle through two
+  threads of one unit says there is another.
+- **The test suite finds what the benchmarks do not**, and many of its
+  tests depend on timing: run it 20 at a time, and run a test alone before
+  believing that it fails.
 
-1. **Updates and deletes in plan mode**, the rest of stage 1.1. These need
-   the stamp array: a read of a row or key laid over the plan, a stamp
-   noted, and the stamps checked when the plan joins a unit. Then foreign
-   keys. It needs a decision on how writers outside plan mode take part once
-   names exist. The working idea is that such a writer bumps a generation
-   that makes every prepare in flight run again.
-2. **Run the suite on a cluster.** The single-node run with the fixes is
-   done.
-3. **Per-request accounting under units**: log bytes and write counts for
+1. **Two tests that failed with ordered apply and passed without**, causes
+   not found: `selectv_rcode_disable_svonly_nop_generated` (one transaction
+   reaches 50,001 statements in the snapshot phase) and
+   `commit_lsn_map_delete_generated` (the commit map after a log
+   truncation). Each failed every time it was run alone on the fixed code,
+   three and four times, and then passed once in the full run 19. Both
+   passed before updates were planned. Run each several times, with and
+   without ordered apply, before anything else.
+2. **The cycle the detector missed**, under
+   [Updates and deletes](#updates-and-deletes). Until it is understood, a
+   file per thread is not safe to rely on, for adds either. The live lock
+   table of the hang is in run 16 of the log.
+3. **Locked reads.** A third of 100-row update transactions give their plan
+   up because a page stayed locked by a unit. Either units stop holding page
+   locks to their commit, which is the proposal's short page locks and needs
+   commits ordered per page, or a read waits for the unit in a way that
+   cannot deadlock: a planning transaction holds nothing a unit can want
+   except table locks.
+4. **Foreign keys.** These are the reads the btree cannot judge at apply,
+   and where stamps, or a check under the unit's transaction, come in. It
+   needs a decision on how writers outside plan mode take part.
+5. **`SELECTV` as a planned check**: an operation that asserts at apply,
+   under the unit's transaction, that a genid is still there.
+6. **Run the suite on a cluster.**
+7. **Per-request accounting under units**: log bytes and write counts for
    request logging and fingerprints.
-4. **Decide whether a lone transaction should skip the plan altogether.**
+8. **Decide whether a lone transaction should skip the plan altogether.**
    It applies its own plan, which leaves it 4 to 12% behind page locks on
    one node for single-row inserts and level on three nodes.
-5. **Retire the turn.** With units on, the turn is used only by plans that
+9. **Retire the turn.** With units on, the turn is used only by plans that
    need logical log records. Once those go through units too, the turn, its
    lock, `ordered_apply_serial_commit` and `ordered_apply_turn_detect` can
    go.
-6. **Three nodes, large transactions:** find why units are behind early
-   release there, and whether a unique key costs anything.
-7. **Open items in what exists:** no prefetch; the replay path through a
-   unit and the victim path of a member's wait are untested; a failed member
-   fails its whole unit; a request that cannot be planned pays one aborted
-   attempt each time; a duplicate found at apply costs an aborted unit;
-   units are not used when logical logging (`llog`) or a logical live schema
-   change is on.
-8. **Not yet run:** any test on a real disk, and the Jepsen suite.
+10. **Three nodes, large transactions:** find why units are behind early
+    release for inserts there, and whether a unique key costs anything.
+11. **Open items in what exists:** no prefetch; the replay path through a
+    unit and the victim path of a member's wait are untested; a failed member
+    fails its whole unit; a request that cannot be planned pays one aborted
+    attempt each time; a stale plan or a duplicate found at apply costs an
+    aborted unit; units are not used when logical logging (`llog`) or a
+    logical live schema change is on; "thd_req mismatch" seen once on macOS
+    without ordered apply (run 16 of the log).
+12. **Not yet run:** any test on a real disk, and the Jepsen suite.
 
 ## Risks and open questions
 

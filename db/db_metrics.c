@@ -212,6 +212,8 @@ struct comdb2_metrics_store {
     int64_t ordered_apply_unit_kicks;
     int64_t ordered_apply_dup_retries;
     int64_t ordered_apply_dup_unread;
+    int64_t ordered_apply_stale_retries;
+    int64_t ordered_apply_read_locked;
 };
 
 static struct comdb2_metrics_store stats;
@@ -569,6 +571,10 @@ comdb2_metric gbl_metrics[] = {
      STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_dup_retries, NULL},
     {"ordered_apply_dup_unread", "Unique keys not looked for while planning because the page was locked",
      STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_dup_unread, NULL},
+    {"ordered_apply_stale_retries", "Planned requests run again without a plan because a row or key they change was gone when the plan was applied",
+     STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_stale_retries, NULL},
+    {"ordered_apply_read_locked", "Planned requests run again without a plan because a row they read stayed behind a page lock",
+     STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_read_locked, NULL},
 };
 
 const char *metric_collection_type_string(comdb2_collection_type t) {
@@ -602,6 +608,8 @@ extern int64_t gbl_ordered_apply_unit_slow_waits;
 extern int64_t gbl_ordered_apply_unit_kicks;
 extern int64_t gbl_ordered_apply_dup_retries;
 extern int64_t gbl_ordered_apply_dup_unread;
+extern int64_t gbl_ordered_apply_stale_retries;
+extern int64_t gbl_ordered_apply_read_locked;
 
 /* Legacy request metrics */
 int64_t gbl_fastsql_execute_inline_params;
@@ -806,6 +814,8 @@ int refresh_metrics(void)
     stats.ordered_apply_unit_kicks = gbl_ordered_apply_unit_kicks;
     stats.ordered_apply_dup_retries = gbl_ordered_apply_dup_retries;
     stats.ordered_apply_dup_unread = gbl_ordered_apply_dup_unread;
+    stats.ordered_apply_stale_retries = gbl_ordered_apply_stale_retries;
+    stats.ordered_apply_read_locked = gbl_ordered_apply_read_locked;
     stats.fstraps = n_fstrap;
     stats.nonsql = n_fstrap                  /* legacy protocol over socketrequest */
                    + n_qtrap                 /* legacy protocol */

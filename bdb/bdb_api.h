@@ -719,6 +719,20 @@ int bdb_tran_plan_start(tran_type *tran);
 int bdb_tran_plan_active(tran_type *tran);
 int64_t bdb_tran_plan_bytes(tran_type *tran);
 int bdb_tran_plan_unsupported(tran_type *tran);
+/* True if a transaction recording a plan has read or written a btree in the
+ * ordinary way, around the plan.  A request that then fails may have failed
+ * on what such a read could not see, and is to run again without a plan. */
+int bdb_tran_plan_dirty(bdb_state_type *bdb_state, tran_type *tran);
+/* True if a transaction recording a plan has read rows from a data file.  No
+ * lock keeps them as they were read, so an error the request then finds,
+ * other than that a row is not there, is to be found again without a plan. */
+int bdb_tran_plan_has_reads(tran_type *tran);
+/* A row by genid for a transaction recording a plan: from the plan if the
+ * plan wrote it, otherwise from the data file, read without waiting for a
+ * lock and without keeping one.  Returns as bdb_fetch_by_rrn_and_genid_tran()
+ * does; BDBERR_DEADLOCK means the plan was given up. */
+int bdb_tran_plan_fetch_genid(bdb_state_type *bdb_state, tran_type *tran, unsigned long long genid, void *dta,
+                              int dtalen, int *reqdtalen, uint8_t *ver, int *bdberr);
 void bdb_tran_plan_set_unsupported(tran_type *tran);
 int bdb_tran_plan_apply(bdb_state_type *bdb_state, tran_type *tran, int *bdberr);
 /* Commit units (ordered_apply_unit).  bdb_tran_plan_apply() leaves the plan
@@ -726,9 +740,16 @@ int bdb_tran_plan_apply(bdb_state_type *bdb_state, tran_type *tran, int *bdberr)
  * then hands the plan and its blkseq record to the unit thread and waits for
  * the unit they went into to commit.  Returns 0, IX_DUP if the blkseq key was
  * already there (nothing of this plan was applied), or -1 with bdberr set:
- * BDBERR_ADD_DUPE means a unique key the plan adds is already in the index,
- * nothing was applied, and the request is to run again without a plan. */
+ * BDBERR_ADD_DUPE means the plan no longer fits the btrees (a unique key it
+ * adds is in the index, or a row or key it changes is gone), nothing was
+ * applied, and the request is to run again without a plan. */
 int bdb_tran_plan_pending(tran_type *tran);
+/* The block processor's commit lock, taken in the lock manager so that a
+ * wait for it can be seen by the deadlock detector: shared, or exclusive for
+ * a request that must have nothing commit before it does.  Held by the
+ * transaction until it commits or aborts.  Returns 0, or -1 with bdberr
+ * BDBERR_DEADLOCK if the transaction is to be aborted and run again. */
+int bdb_tran_commit_gate(bdb_state_type *bdb_state, tran_type *tran, int exclusive, int *bdberr);
 int bdb_tran_plan_unit_commit(bdb_state_type *bdb_state, tran_type *tran, void *bskey, int bskeylen, void *bsdata,
                               int bsdatalen, void **replay_data, int *replay_len, int *bdberr);
 

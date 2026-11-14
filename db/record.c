@@ -135,6 +135,7 @@ static inline int has_constraint(int flags)
  * them (bdb/plan.c); an insert that reads the index to decide what to do,
  * as ON CONFLICT does, is not planned. */
 extern int gbl_ordered_apply_unique;
+extern int gbl_ordered_apply_update;
 static int plan_can_add(const struct dbtable *db, int flags, int rec_flags)
 {
     if (db == NULL || is_event_from_sc(flags) || db->n_constraints > 0 || db->sc_to || db->sc_from ||
@@ -142,11 +143,12 @@ static int plan_can_add(const struct dbtable *db, int flags, int rec_flags)
         return 0;
     if (rec_flags & (OSQL_IGNORE_FAILURE | OSQL_FORCE_VERIFY))
         return 0;
-    /* With constraint checking on, which is also how every insert runs while
-     * a schema change is in progress, the keys are added at the end of the
-     * request from the row as read back from the data file.  A planned row
-     * is not there to be read. */
-    if (has_constraint(flags))
+    /* With constraint checking on, which is how every insert runs in a
+     * request that also updates or deletes, and while a schema change is in
+     * progress, the keys are added at the end of the request from the row as
+     * read back by genid.  That read is laid over the plan when plans hold
+     * updates; without them a planned row is not there to be read. */
+    if (has_constraint(flags) && !gbl_ordered_apply_update)
         return 0;
     if (!gbl_ordered_apply_unique) {
         for (int i = 0; i < db->nix; i++) {
@@ -154,6 +156,27 @@ static int plan_can_add(const struct dbtable *db, int flags, int rec_flags)
                 return 0;
         }
     }
+    return 1;
+}
+
+/* Ordered apply plans an update or a delete of a row in a table that has no
+ * foreign key in either direction and that no schema change is converting.
+ * The row is read by genid, laid over the plan, and the data file judges the
+ * plan when it is applied (bdb/plan.c).  What else the request reads under
+ * its transaction, for a trigger or an index on a blob, the plan does not
+ * see; such a request holds a page lock by the time it is to be applied, and
+ * runs again without a plan. */
+static int plan_can_change(const struct dbtable *db, int flags)
+{
+    if (!gbl_ordered_apply_update || db == NULL || is_event_from_sc(flags) || is_event_from_cascade(flags) ||
+        flags == RECFLAGS_UPGRADE_RECORD)
+        return 0;
+    if (db->n_constraints > 0 || db->n_rev_constraints > 0 || db->sc_to || db->sc_from || db->sc_live_logical ||
+        db->doing_conversion || db->doing_upgrade)
+        return 0;
+    /* these read blobs or write another table as they go */
+    if (db->ix_blob || gbl_replicate_local)
+        return 0;
     return 1;
 }
 
@@ -885,6 +908,11 @@ int upd_record(struct ireq *iq, void *trans, void *primkey, int rrn,
     const char *ondisktag = (is_event_from_sc(flags)) ? ".NEW..ONDISK" : ".ONDISK";
 
     *ixfailnum = -1;
+
+    if (trans && bdb_tran_plan_active(trans) && (primkey || p_buf_vrec || !plan_can_change(iq->usedb, flags))) {
+        bdb_tran_plan_set_unsupported(trans);
+        return RC_INTERNAL_RETRY;
+    }
 
     EVENTLOG_DEBUG (
         if (!(vrecord || primkey)) {
@@ -1757,7 +1785,7 @@ int upd_record(struct ireq *iq, void *trans, void *primkey, int rrn,
     dbglog_record_db_write(iq, "update");
 
     if (!retrc && !is_event_from_sc(flags) && gbl_max_wr_logbytes_per_txn &&
-        (iq->written_logbytes_count > gbl_max_wr_logbytes_per_txn)) {
+        (iq->written_logbytes_count + bdb_tran_plan_bytes(trans) > gbl_max_wr_logbytes_per_txn)) {
         reqerrstr(iq, COMDB2_CSTRT_RC_TRN_TOO_BIG, "Transaction exceeds max log-bytes limit");
         retrc = ERR_TRAN_TOO_BIG;
         ERR("exceeds max log-bytes limit %llu", iq->written_logbytes_count);
@@ -1822,6 +1850,11 @@ int del_record(struct ireq *iq, void *trans, void *primkey, int rrn,
     blob_buffer_t *del_idx_blobs = NULL;
 
     *ixfailnum = -1;
+
+    if (trans && bdb_tran_plan_active(trans) && (primkey || !plan_can_change(iq->usedb, flags))) {
+        bdb_tran_plan_set_unsupported(trans);
+        return RC_INTERNAL_RETRY;
+    }
 
     if (iq->debug) {
         reqpushprefixf(iq, "del_record: ");
@@ -2091,7 +2124,7 @@ int del_record(struct ireq *iq, void *trans, void *primkey, int rrn,
     }
 
     if (!retrc && !is_event_from_sc(flags) && gbl_max_wr_logbytes_per_txn &&
-        (iq->written_logbytes_count > gbl_max_wr_logbytes_per_txn)) {
+        (iq->written_logbytes_count + bdb_tran_plan_bytes(trans) > gbl_max_wr_logbytes_per_txn)) {
         reqerrstr(iq, COMDB2_CSTRT_RC_TRN_TOO_BIG, "Transaction exceeds max log-bytes limit");
         retrc = ERR_TRAN_TOO_BIG;
         goto err;

@@ -3024,6 +3024,12 @@ REGISTER_TUNABLE("ordered_apply_unique",
                  "without a plan. Off, such requests run without a plan from the start. "
                  "(Default: on)",
                  TUNABLE_BOOLEAN, &gbl_ordered_apply_unique, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("ordered_apply_update",
+                 "With ordered_apply, plan updates and deletes of rows in tables that have no "
+                 "foreign keys. A request whose row turns out to have changed when its plan is "
+                 "applied runs again without a plan. Off, such requests run without a plan from "
+                 "the start. (Default: on)",
+                 TUNABLE_BOOLEAN, &gbl_ordered_apply_update, EXPERIMENTAL, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("ordered_apply_unit",
                  "With ordered_apply, one thread applies the plans that are waiting under a single "
                  "transaction and commits them as a unit; the transactions that made them wait for "

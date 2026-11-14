@@ -405,6 +405,195 @@ second.
   found passed. Not compared with `main`, which did not run those tests.
 - **Not covered:** single node only.
 
+### 16. Test suite with updates and deletes planned
+
+- **When:** started 2026-11-13 22:38 UTC. Not a timed benchmark.
+- **Change before:** updates and deletes in plan mode
+  (`ordered_apply_update`, on by default). A plan now holds deletes and
+  updates of rows, blobs and keys as well as adds. A row is read by genid
+  with the plan laid over the data file, by a read that keeps no lock; the
+  data file judges the plan at apply, by genid and updateid, and a plan
+  that fails there sends its request back to run under page locks. A
+  request that fails while it holds a page lock taken around the plan runs
+  again without one. Inserts made with constraint checking on are planned
+  too, since the row they read back at the end of the request is now found
+  in the plan. Tables with a foreign key in either direction, or an index
+  on a blob, are still not planned for updates and deletes. Uncommitted,
+  on top of `67a7f016e`.
+- **Setup:** as run 15: native build on xeon in `/tmp/rltest2`, private pmux
+  on port 19500, single-node databases, `ordered_apply 1` and
+  `ordered_apply_unit 1` added to every test database, `-j40`. Script:
+  `suite-with-ordered-apply.sh run16`, output in `/tmp/rltest-keep/run16`.
+- **Results:** none kept as a file: the run was stopped by hand at 23:53 UTC,
+  after the first pass, because the code had changed under it. First pass:
+  573 passed and 207 failed of 789. Of the failures, 14 had not failed in
+  the pass of run 15.
+- **Found:** five things, all fixed in the tree before run 18; each test
+  named was run again on the fixed build (`/tmp/rltest3`) and passed unless
+  said otherwise.
+  - **A commit lock left behind**, from before this session. A request whose
+    plan could not be applied went to the backout path still holding the
+    block processor's commit lock, shared, and never gave it up. The next
+    SELECTV or serializable request, which takes that lock exclusively,
+    waited for ever, and its database stalled until the watchdog aborted it.
+    Not seen before because those requests used to give up their plan at
+    their first update, before the lock. `selectv_rcode` and its four
+    variants.
+  - **SELECTV rows not held.** A SELECTV row is checked by reading it, and
+    the page lock that read takes holds the row until commit. A plan's read
+    keeps no lock. Such a request now gives its plan up when it meets the
+    record.
+  - **A wait on the commit lock that the detector cannot see.** The lock is
+    a pthread rwlock. A request with a plan takes its page locks after it,
+    through its unit, so it could wait for a page held by a request that was
+    waiting for the lock. With ordered apply on, a request now takes a lock
+    of the same name and mode in the lock manager first. `selectv_rcode` in
+    its serializable phase, `deadlock_load` (which failed with error 402
+    after ten minutes).
+  - **A duplicate-key error that page locks would not give.**
+    `parenttran_fail` and `ptranfail_socksql` race to move a unique key on
+    by one. A loser read the row, the winner committed, and the loser's
+    check of the new key then found the winner's: "duplicate key", where
+    under page locks the loser finds the row changed and the client library
+    retries. A request with a plan that has read rows and then fails with
+    anything but a verify error now runs again without a plan.
+  - **A deadlock between a reader and two threads of one unit.**
+    `recovdlock_emptyblob` hung with a unit applied a file per thread: the
+    thread for a blob file was done and held a blob page; the thread for the
+    data file waited for a page a reader held; the reader waited for the blob
+    page. The detector did not break it; why not was not found. Plans that
+    update or delete are now applied on one thread, which takes pages in the
+    order a page-lock transaction does. Plans of adds alone are still
+    applied a file per thread and may have the same exposure with readers.
+  - **Still failing with ordered apply, passing without:**
+    `selectv_rcode_disable_svonly_nop_generated`, alone or with others: in
+    its snapshot phase one transaction reaches 50,001 statements
+    ("transaction too big"). `commit_lsn_map_delete_generated`, three times
+    of three: `comm` reports its input unsorted when comparing the
+    transactions in the commit map after a log truncation; the lists
+    looked right when printed. Both passed in run 15. Causes not found.
+  - **Expected:** `reorder_updates_noreorder_generated` and
+    `index_deadlock_loop_print` want deadlocks that planned updates no
+    longer have. `ordered_apply` itself fails with the settings forced on.
+  - **Load:** `selectv_deadlock` ("too many deadlocks") passed when run with
+    fewer tests beside it.
+  - **Elsewhere:** on the Mac, once, a database running without ordered
+    apply aborted with "thd_req mismatch thd id 0x0" in `db/handle_buf.c`
+    under 36 clients. That check reads the thread id that `pthread_create`
+    stores for the new thread, from the new thread. Not looked into.
+
+### 17. Updates and deletes
+
+- **When:** started 2026-11-13 23:54 UTC (image build), three nodes.
+- **Change before:** everything under run 16, with its fixes. Uncommitted.
+- **Setup:** the benchmark table with 1,000,000 rows loaded with `a` =
+  1..1,000,000 (`ordered-apply-updates.sh`, new). New workloads in
+  `bench_cluster.py`: `upd` (a column with no index), `updk` (column `b`,
+  indexed), `updhot` (every client picks from the same 200 rows), `del`.
+  A transaction of 100 rows is 100 statements between `begin` and `commit`.
+  `pg` and `unit`.
+- **Command:** `./ordered-apply-updates.sh`.
+- **Results:** none kept. The run finished (23:56–00:03 UTC) with the three
+  nodes identical and verify clean, but its comparison is not valid: the
+  delete workload of the `pg` pass removed the rows with `a` up to 256,000,
+  among them the 200 that `updhot` uses, so in the `unit` pass `updhot`
+  updated nothing and a quarter of the other updates found no row.
+- **Found:** a mistake in the benchmark, fixed before run 18: updates now
+  pick from the upper half of the keys, deletes take theirs from 1,001 to
+  the middle, and `updhot` keeps 1 to 200.
+
+### 18. Updates and deletes, with the key ranges apart
+
+- **When:** 2026-11-14 00:03–00:12 UTC, three nodes.
+- **Change before:** the benchmark only, as under run 17. Code as run 17.
+- **Setup and command:** as run 17. The last cell, 100-row deletes with
+  plans, ran out of delete keys and was run by hand afterwards with
+  `KEYS=1100000`, which only lifts that limit.
+- **Results:** `stage1-updates.results`.
+
+  | 32 clients unless said        | Page locks    | Unit   |
+  |-------------------------------|--------------:|-------:|
+  | `upd`, 1 row, 1 client        | 474 txn/s     |    455 |
+  | `upd`, 1 row                  | 10,468 txn/s  |  9,139 |
+  | `upd`, 1 row, 64 clients      | 10,782 txn/s  | 11,061 |
+  | `updk`, 1 row                 | 7,665 txn/s   |  7,512 |
+  | `updhot`, 1 row               | 3,252 txn/s   |  6,323 |
+  | `del`, 1 row                  | 6,792 txn/s   |  7,404 |
+  | `upd`, 100 rows               | 6,191 rows/s  |  9,123 |
+  | `updk`, 100 rows              | 3,811 rows/s  |  6,651 |
+  | `del`, 100 rows               | 13,307 rows/s | 10,522 |
+
+- **Found:**
+  - Single-row updates of rows nobody else wants are level with page locks:
+    13% behind with 32 clients on a column with no index, 2% behind on an
+    indexed one, 3% ahead with 64 clients. The master uses 6.2 to 7.7 cores
+    where page locks use 8.1 to 9.0. No request fell back; 8 plans of
+    256,000 were stale.
+  - Updates of the same 200 rows are 1.9 times as fast. Of 32,000 requests,
+    1,111 plans were stale at apply and 199 gave up on a locked read; each
+    ran again under page locks. Page locks had 53,779 lock waits there.
+  - 100-row updates gain 47% and 75%, with a third fewer deadlocks, but
+    most of the possible gain is lost: 711 and 607 of 1,920 transactions
+    gave up their plan because a row they read stayed behind a page lock,
+    and 324 and 437 units were aborted as deadlock victims and applied
+    again. A unit holds its page locks to its commit, and a 100-row plan
+    reads 100 rows while units are being applied.
+  - 100-row deletes lose 21%: 497 of 1,920 gave up on a locked read. Page
+    locks do well here because the keys are ascending and each client's
+    rows are apart.
+  - After the run the three nodes held identical tables and verify
+    succeeded.
+
+### 19. Test suite on the fixed tree, 20 tests at a time
+
+- **When:** started 2026-11-14 00:12 UTC. Not a timed benchmark.
+- **Change before:** the five fixes under run 16. Uncommitted.
+- **Setup:** as run 16, but `-j20`: many tests depend on timing.
+  `suite-with-ordered-apply.sh run19 20`, output in
+  `/tmp/rltest-keep/run19`.
+- **When ended:** 02:15 UTC, stopped by hand: the pass on `main` was down
+  to seven long tests that need a cluster.
+- **Results:** `suite-run19.txt`.
+  - The pass: 571 passed and 212 failed of 789 (run 15: 584 and 198).
+  - The 211 failures other than `ordered_apply` itself, on `main`: 22 pass
+    there; of the rest 182 fail and seven were still running.
+  - Those 22 again with ordered apply, eight at a time, on the second build
+    of the same tree (`/tmp/rltest3`): 16 pass and 6 fail.
+- **Found:** no failure caused by ordered apply beyond the differences
+  already known. The six that fail twice with it and pass on `main`:
+  `fingerprints` (a request in a unit reports no writes),
+  `manual_partition_lgcy` (row order from a select with no `ORDER BY`),
+  and four that want deadlocks which plans do not have
+  (`reorder_inserts_noreorder_generated`,
+  `nodeadlock_table_noreorder_generated`, and now
+  `reorder_updates_noreorder_generated` and `index_deadlock_loop_print`).
+  `upsert`, on that list in run 15, passed this time.
+- **Failures in the pass that were not ordered apply:**
+  - `deadlock_load` and `selectv_deadlock`: the harness found the
+    `.failexit` files of run 16 in the test directory, which was not
+    emptied between the runs. Both passed again in a clean directory.
+  - `alias`, `consistent_hash_bench`, `diskspace_nollmeta` and its variant,
+    `early_verify`, `manual_partition`, `pmux` and its two variants,
+    `sc_rebuilds` and its two variants, `sp_twofiles_generated`: passed the
+    second time. During the pass I was running other tests and the
+    benchmark's control runs on the same machine and through the same pmux.
+  - `reads_follows_writes_sc`: "failed physical verify" of a data file of a
+    dropped table. Not a damaged file: the test creates and drops thousands
+    of tables, and the database deleted the file while the harness was going
+    through the directory. It fails the same way on this build without
+    ordered apply when run alone.
+- **The two tests left unexplained in run 16 passed here**
+  (`selectv_rcode_disable_svonly_nop_generated` and
+  `commit_lsn_map_delete_generated`), in the pass, once each. They failed
+  three and four times of as many on the same code before, so they are not
+  settled.
+- **Watchdog stalls:** the same four databases as run 15, at shutdown
+  (`electbug2`, `logarchive`, `spemitrace`, `sslpartialwritehang`).
+- **Not covered:** single node only. This run's build predates commit
+  `466c093bc`, after which `ordered_apply` is refused unless
+  `disable_tagged_api_writes` is on; the settings file for the suite
+  (`oa.lrl`) will need that line too.
+
 ## Elsewhere
 
 - **Adaptive mode on the existing rowlocks code**, by a second agent, on

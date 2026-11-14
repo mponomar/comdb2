@@ -548,6 +548,7 @@ extern int gbl_ordered_apply_threads;
 extern int gbl_ordered_apply_turn_detect;
 extern int gbl_ordered_apply_unit;
 extern int gbl_ordered_apply_unique;
+extern int gbl_ordered_apply_update;
 extern int gbl_ordered_apply_unit_inline;
 extern int gbl_ordered_apply_unit_detect_ms;
 extern int gbl_ordered_apply_unit_max_ops;

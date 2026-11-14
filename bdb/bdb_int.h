@@ -328,6 +328,9 @@ struct tran_tag {
      * unit_lsn is then the commit LSN of the unit it went into. */
     struct bdb_plan *unit_plan;
     DB_LSN unit_lsn;
+    /* Applying a plan: a row is updated or deleted only if it is still the
+     * version the plan read, which ll.c checks by its updateid. */
+    int plan_verify;
     int plan_turn_held;
     DB_LOCK plan_turn_lock;
     uint64_t plan_turn_start_us;
@@ -1218,6 +1221,19 @@ int bdb_plan_dta_add(bdb_state_type *bdb_state, unsigned long long genid, DB *db
                      int dtastripe, DBT *dbt_key, DBT *dbt_data, int flags, int odhready);
 int bdb_plan_key_add(bdb_state_type *bdb_state, unsigned long long genid, tran_type *tran, int ixnum, DBT *dbt_key,
                      DBT *dbt_data);
+int bdb_plan_dta_del(bdb_state_type *bdb_state, tran_type *tran, unsigned long long genid, DB *dbp, int dtafile,
+                     int dtastripe, DBT *dta_out);
+int bdb_plan_key_del(bdb_state_type *bdb_state, tran_type *tran, int ixnum, void *key, int keylen,
+                     unsigned long long genid);
+int bdb_plan_key_upd(bdb_state_type *bdb_state, tran_type *tran, unsigned long long oldgenid,
+                     unsigned long long genid, void *key, int ixnum, int keylen, void *dta, int dtalen);
+int bdb_plan_dta_upd(bdb_state_type *bdb_state, unsigned long long oldgenid, unsigned long long *newgenid, DB *dbp,
+                     tran_type *tran, int dtafile, int dtastripe, int participantstripid, int use_new_genid,
+                     DBT *verify_dta, DBT *dta, DBT *old_dta_out, int has_blob_update_optimization,
+                     int keep_genid_intact, int odhready);
+int ll_dta_upd_planned(bdb_state_type *bdb_state, unsigned long long oldgenid, unsigned long long newgenid, DB *dbp,
+                       tran_type *tran, int dtafile, int dtastripe, int participantstripid, int use_new_genid,
+                       DBT *dta, int has_blob_update_optimization, int odhready);
 void bdb_plan_tran_done(tran_type *tran);
 void bdb_plan_check_commit(tran_type *tran);
 

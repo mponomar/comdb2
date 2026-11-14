@@ -2,7 +2,7 @@
 # Tests ordered_apply (docs/adr/0003): the master records a write request's
 # btree operations in a plan and applies the plans one transaction at a time.
 # Turning it on must not change what clients see.  Requests a plan cannot hold
-# (unique keys, foreign keys, updates, deletes) must run as before.
+# (foreign keys, schema changes, triggers) must run as before.
 bash -n "$0" || exit 1
 
 set -e
@@ -277,8 +277,9 @@ set_tunable ordered_apply_unique 1
 ################################################################
 # 5d. Inserts while a schema change runs.  They take the path that
 #     adds keys at the end of the request from the row read back
-#     from the data file, which a planned row is not in; they must
-#     run without a plan and none may fail.
+#     by genid.  A planned row is not in the data file, so that read
+#     has to be answered from the plan, or the request has to run
+#     without one; either way none may fail.
 ################################################################
 set_tunable ordered_apply_unit 1
 sql "create table sc(a int primary key, b int)" >/dev/null
@@ -301,6 +302,218 @@ scfailed=$(cat ${TMPDIR:-/tmp}/oa_sc_*.out | grep -ci "failed" || true)
 master_sql "exec procedure sys.cmd.verify('sc')" | grep -q "Verify succeeded" || fail "verify of sc failed"
 rm -f ${TMPDIR:-/tmp}/oa_sc_*.out
 set_tunable ordered_apply_unit 0
+
+################################################################
+# 5e. Updates and deletes.  The same statements are run on one table
+#     under page locks and on others with plans, in turn and in
+#     commit units; the clients must be told the same things and the
+#     tables must end up the same.  Then many clients change the same
+#     rows at once.
+################################################################
+ud_script() {
+    cat <<SQL
+insert into ud$1 select value, value % 10, value, 'row' from generate_series(1, 1000)
+update ud$1 set pad = 'changed' where a = 5
+update ud$1 set b = b + 100 where a <= 100
+update ud$1 set c = c + 100000 where a = 7
+update ud$1 set c = 8 where a = 9
+delete from ud$1 where a between 400 and 499
+delete from ud$1 where a = 400
+update ud$1 set c = c + 1 where a between 300 and 399
+update ud$1 set c = c + 1 where a between 200 and 250
+update ud$1 set a = a + 5000 where a between 600 and 650
+update ud$1 set pad = 'a much longer value than the row had before, so that it grows where it is or moves' where a between 700 and 720
+update ud$1 set pad = 'x' where a between 700 and 710
+begin
+delete from ud$1 where a = 1
+insert into ud$1 values(1, 5, 1, 'again')
+commit
+begin
+update ud$1 set b = 77 where a = 2
+update ud$1 set c = 200002 where a = 3
+delete from ud$1 where a = 4
+insert into ud$1 values(3001, 1, 4, 'takes the key of a deleted row')
+insert into ud$1 select 4000 + value, 3, 4000 + value, 'with the rest' from generate_series(1, 50)
+commit
+begin
+insert into ud$1 values(3002, 1, 3002, 'rolled back')
+update ud$1 set c = 10 where a = 11
+commit
+begin
+update ud$1 set b = 1 where a = 12
+update ud$1 set b = 2 where a = 12
+commit
+begin
+delete from ud$1 where a = 13
+update ud$1 set b = 2 where a = 13
+commit
+delete from ud$1 where a > 900
+insert into bu$1 values(1, x'$(printf 'ab%.0s' $(seq 1 3000))', 'one'), (2, null, 'two'), (3, x'$(printf 'cd%.0s' $(seq 1 2000))', 'three'), (4, x'00', 'four')
+update bu$1 set b = x'$(printf 'ef%.0s' $(seq 1 5000))' where a = 1
+update bu$1 set b = null where a = 3
+update bu$1 set c = 'new' where a = 1
+update bu$1 set b = x'$(printf '12%.0s' $(seq 1 100))' where a = 2
+update bu$1 set a = a + 10, c = 'moved' where a = 4
+delete from bu$1 where a = 1
+SQL
+}
+ud_tables() {
+    sql "create table ud$1(a int, b int, c int, pad varchar(120))" >/dev/null
+    sql "create unique index ud$1_a on ud$1(a)" >/dev/null
+    sql "create index ud$1_b on ud$1(b)" >/dev/null
+    sql "create unique index ud$1_c on ud$1(c)" >/dev/null
+    sql "create table bu$1(a int, b blob, c varchar(8))" >/dev/null
+    sql "create unique index bu$1_a on bu$1(a)" >/dev/null
+}
+ud_state() {
+    sql "select a, b, c, pad from ud$1 order by a"
+    sql "select count(*) from ud$1 where b >= 0"
+    sql "select count(*), sum(c) from ud$1 where c >= 0"
+    sql "select a, length(b), c from bu$1 order by a"
+    sql "select count(*) from bu$1 where a >= 0"
+}
+# what the client was told, less the table's name and the genids
+ud_norm() {
+    local u=$(echo $1 | tr a-z A-Z)
+    sed -e "s/ud$1/ud/g; s/bu$1/bu/g; s/UD$u/UD/g; s/BU$u/BU/g; s/genid=[0-9a-f]*/genid=X/"
+}
+udtmp=${TMPDIR:-/tmp}/oa_ud_$$
+
+set_tunable ordered_apply 0
+ud_tables r
+ud_script r | cdb2sql ${CDB2_OPTIONS} $dbname default - 2>&1 | ud_norm r > $udtmp.r.out || true
+ud_state r > $udtmp.r.state
+[ "$(sql 'select count(*) from udr')" -gt 500 ] || fail "the update script did not run"
+grep -qi "duplicate" $udtmp.r.out || fail "the update script should hit a duplicate key"
+set_tunable ordered_apply 1
+
+for unit in 0 1; do
+    set_tunable ordered_apply_unit $unit
+    txns_before=$(counter txns)
+    fb_before=$(counter fallbacks)
+    ud_tables $unit
+    ud_script $unit | cdb2sql ${CDB2_OPTIONS} $dbname default - 2>&1 | ud_norm $unit > $udtmp.$unit.out || true
+    ud_state $unit > $udtmp.$unit.state
+    diff $udtmp.r.out $udtmp.$unit.out >&2 || fail "updates and deletes told the client something else with plans (unit $unit)"
+    diff $udtmp.r.state $udtmp.$unit.state >&2 || fail "updates and deletes left a different table with plans (unit $unit)"
+    [ "$(($(counter txns) - txns_before))" -ge 15 ] || fail "updates and deletes were not planned (unit $unit): $(($(counter txns) - txns_before)) plans"
+    echo "updates and deletes, unit $unit: $(($(counter txns) - txns_before)) planned, $(($(counter fallbacks) - fb_before)) fell back"
+    master_sql "exec procedure sys.cmd.verify('ud$unit')" | grep -q "Verify succeeded" || fail "verify of ud$unit failed"
+    master_sql "exec procedure sys.cmd.verify('bu$unit')" | grep -q "Verify succeeded" || fail "verify of bu$unit failed"
+done
+
+# off: updates and deletes are not planned
+set_tunable ordered_apply_update 0
+fb_before=$(counter fallbacks)
+sql "update ud1 set b = b + 1 where a = 20" >/dev/null
+sql "delete from ud1 where a = 21" >/dev/null
+[ "$(($(counter fallbacks) - fb_before))" = "2" ] || fail "ordered_apply_update off still planned an update or a delete"
+set_tunable ordered_apply_update 1
+
+# Many clients, the same rows.  Every update that the client is told
+# succeeded is in the table once; every row is deleted by exactly one client.
+sql "create table hot(a int primary key, b int, c int)" >/dev/null
+sql "create index hotc on hot(c)" >/dev/null
+for mode in turn unit unitpar; do
+    case $mode in
+    turn) set_tunable ordered_apply_unit 0; set_tunable ordered_apply_parallel_min_ops 64 ;;
+    unit) set_tunable ordered_apply_unit 1; set_tunable ordered_apply_parallel_min_ops 64 ;;
+    unitpar) set_tunable ordered_apply_unit 1; set_tunable ordered_apply_parallel_min_ops 1 ;;
+    esac
+    sql "delete from hot where 1" >/dev/null
+    sql "insert into hot select value, 0, 0 from generate_series(1, 400)" >/dev/null
+    stale_before=$(counter stale_retries)
+    locked_before=$(counter read_locked)
+    for w in $(seq 1 16); do
+        (
+            for i in $(seq 1 150); do
+                echo "update hot set b = b + 1, c = c + 1 where a = $(( (i * 7 + w) % 20 + 1 ))"
+                echo "update hot set b = b + 1 where a between $(( 100 + (i + w) % 50 )) and $(( 104 + (i + w) % 50 ))"
+            done | cdb2sql ${CDB2_OPTIONS} $dbname default - > $udtmp.hot.$w.out 2>&1
+        ) &
+    done
+    wait
+    one=$(cat $udtmp.hot.*.out | grep -c "rows updated=1)" || true)
+    five=$(cat $udtmp.hot.*.out | grep -c "rows updated=5)" || true)
+    bad=$(cat $udtmp.hot.*.out | grep -v "rows updated=[15])" | grep -v "\] rc 0\$" | grep -vci "failed" || true)
+    failed=$(cat $udtmp.hot.*.out | grep -ci "failed" || true)
+    [ "$bad" = "0" ] || fail "updates of the same rows reported something unexpected ($mode): $(cat $udtmp.hot.*.out | grep -v 'rows updated=[15])' | grep -v '\] rc 0$' | grep -vi failed | head -1)"
+    [ "$((one + five + failed))" = "4800" ] || fail "expected 4800 answers, got $((one + five + failed)) ($mode)"
+    [ "$(sql 'select sum(b) from hot')" = "$((one + five * 5))" ] || fail "updates of the same rows were lost or applied twice ($mode): sum $(sql 'select sum(b) from hot'), told $((one + five * 5))"
+    [ "$(sql 'select sum(c) from hot where c >= 0')" = "$one" ] || fail "index hotc is wrong after updates of the same rows ($mode)"
+    echo "hot rows, $mode: $one + $five updates, $failed failed, $(($(counter stale_retries) - stale_before)) stale plans, $(($(counter read_locked) - locked_before)) reads gave up"
+
+    for w in $(seq 1 8); do
+        (
+            for i in $(seq 1 400); do
+                echo "delete from hot where a = $i"
+            done | cdb2sql ${CDB2_OPTIONS} $dbname default - > $udtmp.hot.$w.out 2>&1
+        ) &
+    done
+    wait
+    deleted=$(cat $udtmp.hot.*.out | grep -c "rows deleted=1)" || true)
+    failed=$(cat $udtmp.hot.*.out | grep -ci "failed" || true)
+    [ "$deleted" = "400" ] || fail "expected each of 400 rows to be deleted once, got $deleted ($mode, $failed failed)"
+    [ "$(sql 'select count(*) from hot')" = "0" ] || fail "rows left after concurrent deletes ($mode)"
+    [ "$(sql 'select count(*) from hot where c >= 0')" = "0" ] || fail "index entries left after concurrent deletes ($mode)"
+    master_sql "exec procedure sys.cmd.verify('hot')" | grep -q "Verify succeeded" || fail "verify of hot failed ($mode)"
+done
+
+# Many clients race to move one row's unique key on by one.  One wins each
+# step.  The others find the row changed, which the client library retries
+# and which ends with no row to update; none may be told the key is a
+# duplicate, though the winner's new key is in the index by the time a loser
+# gets to adding its own.
+sql "create table seq(name varchar(8), seed int)" >/dev/null
+sql "create unique index seq_k on seq(name, seed)" >/dev/null
+for unit in 0 1; do
+    set_tunable ordered_apply_unit $unit
+    sql "delete from seq where 1" >/dev/null
+    sql "insert into seq values('x', 0)" >/dev/null
+    fb_before=$(counter fallbacks)
+    for w in $(seq 1 16); do
+        (
+            for i in $(seq 0 149); do
+                echo "update seq set seed = $((i + 1)) where name = 'x' and seed = $i"
+            done | cdb2sql ${CDB2_OPTIONS} $dbname default - > $udtmp.seq.$w.out 2>&1
+        ) &
+    done
+    wait
+    failed=$(cat $udtmp.seq.*.out | grep -ci "failed" || true)
+    won=$(cat $udtmp.seq.*.out | grep -c "rows updated=1)" || true)
+    [ "$failed" = "0" ] || fail "$failed racing updates of a unique key failed (unit $unit): $(cat $udtmp.seq.*.out | grep -i failed | head -1)"
+    [ "$(sql 'select seed from seq')" = "150" ] || fail "racing updates of a unique key ended at $(sql 'select seed from seq') (unit $unit)"
+    [ "$won" = "150" ] || fail "expected 150 winning updates of a unique key, got $won (unit $unit)"
+    echo "racing updates of a unique key, unit $unit: $(($(counter fallbacks) - fb_before)) requests ran again without a plan"
+done
+set_tunable ordered_apply_unit 0
+set_tunable ordered_apply_parallel_min_ops 64
+
+# SELECTV.  The rows it reads must stay as they are until the transaction
+# commits, which a plan's reads do not see to: such a transaction runs without
+# a plan.  And it takes the commit lock for itself, so it must not find that
+# lock left behind by a request whose plan could not be applied, of which the
+# updates of the same rows above made many.
+fb_before=$(counter fallbacks)
+cdb2sql --tabs ${CDB2_OPTIONS} $dbname default - > $udtmp.selectv.out 2>&1 <<SQL &
+begin
+selectv a from ud0 where a = 30
+update ud0 set b = 99 where a = 30
+commit
+SQL
+svpid=$!
+for i in $(seq 1 60); do
+    kill -0 $svpid 2>/dev/null || break
+    sleep 1
+done
+if kill -0 $svpid 2>/dev/null; then
+    kill $svpid
+    fail "a SELECTV transaction did not finish in a minute"
+fi
+wait $svpid || fail "a SELECTV transaction failed: $(cat $udtmp.selectv.out)"
+[ "$(sql 'select b from ud0 where a = 30')" = "99" ] || fail "a SELECTV transaction's update was lost"
+[ "$(($(counter fallbacks) - fb_before))" -ge 1 ] || fail "a SELECTV transaction was planned"
+rm -f $udtmp.*
 
 ################################################################
 # 6. Every node has the same table, and it verifies.

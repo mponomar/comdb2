@@ -263,9 +263,8 @@ int ll_dta_del(bdb_state_type *bdb_state, tran_type *tran, int rrn,
                unsigned long long genid, DB *dbp, int dtafile, int dtastripe,
                DBT *dta_out)
 {
-    /* ordered apply plans only adds so far */
     if (bdb_plan_recording(tran))
-        return bdb_plan_refuse(tran);
+        return bdb_plan_dta_del(bdb_state, tran, genid, dbp, dtafile, dtastripe, dta_out);
 
     int rc;
     DBT dbt_key = {0};
@@ -279,7 +278,7 @@ int ll_dta_del(bdb_state_type *bdb_state, tran_type *tran, int rrn,
      * the luxury of letting ix_find* to protect the row from changing because
      * we may have released the page lock before getting the row lock. So the
      * row may have been changed in this gap and we need to verify here again */
-    int verify_updateid = ((tran->verify_updateid || tran->logical_tran) && dtafile == 0);
+    int verify_updateid = ((tran->verify_updateid || tran->logical_tran || tran->plan_verify) && dtafile == 0);
 
     if (dta_out) {
         bzero(dta_out, sizeof(DBT));
@@ -460,9 +459,11 @@ done:
 int ll_key_del(bdb_state_type *bdb_state, tran_type *tran, int ixnum, void *key,
                int keylen, int rrn, unsigned long long genid, int *payloadsz)
 {
-    /* ordered apply plans only adds so far */
-    if (bdb_plan_recording(tran))
-        return bdb_plan_refuse(tran);
+    if (bdb_plan_recording(tran)) {
+        if (payloadsz)
+            *payloadsz = 0;
+        return bdb_plan_key_del(bdb_state, tran, ixnum, key, keylen, genid);
+    }
 
     int rc = 0;
     DB *dbp;
@@ -605,9 +606,8 @@ int ll_key_upd(bdb_state_type *bdb_state, tran_type *tran, char *table_name,
                unsigned long long oldgenid, unsigned long long genid, void *key,
                int ixnum, int keylen, void *dta, int dtalen)
 {
-    /* ordered apply plans only adds so far */
     if (bdb_plan_recording(tran))
-        return bdb_plan_refuse(tran);
+        return bdb_plan_key_upd(bdb_state, tran, oldgenid, genid, key, ixnum, keylen, dta, dtalen);
 
     int rc = 0;
     DB *dbp;
@@ -844,9 +844,10 @@ static int ll_dta_upd_int(bdb_state_type *bdb_state, int rrn,
                           int is_blob, int has_blob_update_optimization,
                           int keep_genid_intact, int odhready)
 {
-    /* ordered apply plans only adds so far */
     if (bdb_plan_recording(tran))
-        return bdb_plan_refuse(tran);
+        return bdb_plan_dta_upd(bdb_state, oldgenid, newgenid, dbp, tran, dtafile, dtastripe, participantstripid,
+                                use_new_genid, verify_dta, dta, old_dta_out, has_blob_update_optimization,
+                                keep_genid_intact, odhready);
 
     int rc = 0;
     int inplace = 0;
@@ -873,9 +874,11 @@ static int ll_dta_upd_int(bdb_state_type *bdb_state, int rrn,
     int oldsz = -1;
     int newstripe = 0;
 
-    /* Verify updateid for ondisk data in rowlocks mode.
-     * see ll_dta_del() */
-    int verify_updateid = (tran->logical_tran && dtafile == 0);
+    /* Verify updateid for ondisk data in rowlocks mode, see ll_dta_del(),
+     * and when an ordered-apply plan is applied: the plan read the row
+     * without keeping a lock on it, and the row it finds now must be the
+     * same version. */
+    int verify_updateid = ((tran->logical_tran || tran->plan_verify) && dtafile == 0);
 
     if (bdb_state->parent)
         parent = bdb_state->parent;
@@ -1368,6 +1371,16 @@ int ll_dta_upd(bdb_state_type *bdb_state, int rrn, unsigned long long oldgenid,
                           dtafile, dtastripe, participantstripid, use_new_genid,
                           verify_dta, dta, old_dta_out, (dtafile != 0), 0, 0,
                           odhready);
+}
+
+/* Ordered apply: an update recorded in a plan, with the arguments it was
+ * recorded with and the new genid already chosen. */
+int ll_dta_upd_planned(bdb_state_type *bdb_state, unsigned long long oldgenid, unsigned long long newgenid, DB *dbp,
+                       tran_type *tran, int dtafile, int dtastripe, int participantstripid, int use_new_genid,
+                       DBT *dta, int has_blob_update_optimization, int odhready)
+{
+    return ll_dta_upd_int(bdb_state, 2, oldgenid, &newgenid, dbp, tran, dtafile, dtastripe, participantstripid,
+                          use_new_genid, NULL, dta, NULL, (dtafile != 0), has_blob_update_optimization, 0, odhready);
 }
 
 int ll_dta_upd_blob(bdb_state_type *bdb_state, int rrn,

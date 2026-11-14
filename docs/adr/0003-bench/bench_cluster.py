@@ -1,7 +1,20 @@
 #!/usr/bin/env python3
 """Concurrent-writer benchmark against the docker cluster (compose project rlbench), three nodes or one.
 
-usage: bench_cluster.py <workload: mono|rand> <writers K> <rows per txn M> <txns per writer T>
+usage: bench_cluster.py <workload> <writers K> <rows per txn M> <txns per writer T>
+
+Workloads:
+  mono    inserts, ascending keys
+  rand    inserts, random keys
+  upd     updates of a column with no index, rows picked at random by key a in the
+          upper half of 1..KEYS
+  updk    updates of column b, which has an index, rows picked the same way
+  updhot  as updk, but every client picks from the rows with a = 1..200
+  del     deletes by key a, each key once: takes the next keys on each run, from
+          1001 up to KEYS/2, so that it never removes a row the others update
+The update and delete workloads need rows with a = 1..KEYS (the environment
+variable, default 1000000), which ordered-apply-updates.sh loads.  A transaction
+of M rows is M statements between begin and commit.
 
 Clients run inside the dev container and connect to the cluster ("default" tier),
 so SQL runs on replicants and the bplog is applied by the master.  Lock metrics
@@ -85,15 +98,43 @@ def main():
     for old in glob.glob(sdir + "/c.w*.sql"):
         os.unlink(old)
     rnd = random.Random(run)
+    keys = int(os.environ.get("KEYS", "1000000"))
+    delnext = 1001
+    if workload == "del":
+        # each key is deleted once: carry on from where the last run stopped
+        try:
+            delnext = int(open(sdir + "/del.next").read())
+        except (OSError, ValueError):
+            delnext = 1001
+        if delnext + K * T * M - 1 > keys // 2:
+            sys.exit("del: not enough keys left (next %d of %d)" % (delnext, keys))
+        with open(sdir + "/del.next", "w") as f:
+            f.write("%d\n" % (delnext + K * T * M))
     for w in range(K):
         with open("%s/c.w%d.sql" % (sdir, w), "w") as f:
             for t in range(T):
-                rows = []
-                for r in range(M):
-                    seq = (t * M + r) * K + w
-                    a = run * 100000000 + seq if workload == "mono" else rnd.getrandbits(62)
-                    rows.append("(%d,%d,%d,'%s')" % (a, rnd.getrandbits(62), rnd.getrandbits(62), "x" * 40))
-                f.write("insert into t(a,b,c,pad) values %s\n" % ",".join(rows))
+                if workload in ("mono", "rand"):
+                    rows = []
+                    for r in range(M):
+                        seq = (t * M + r) * K + w
+                        a = run * 100000000 + seq if workload == "mono" else rnd.getrandbits(62)
+                        rows.append("(%d,%d,%d,'%s')" % (a, rnd.getrandbits(62), rnd.getrandbits(62), "x" * 40))
+                    f.write("insert into t(a,b,c,pad) values %s\n" % ",".join(rows))
+                    continue
+                stmts = []
+                if workload == "del":
+                    for r in range(M):
+                        stmts.append("delete from t where a = %d" % (delnext + (t * M + r) * K + w))
+                else:
+                    picked = rnd.sample(range(1, 201) if workload == "updhot" else range(keys // 2 + 1, keys + 1), M)
+                    for a in picked:
+                        if workload == "upd":
+                            stmts.append("update t set pad = '%s' where a = %d" % ("y" * rnd.randint(30, 40), a))
+                        else:
+                            stmts.append("update t set b = %d where a = %d" % (rnd.getrandbits(62), a))
+                if M > 1:
+                    stmts = ["begin"] + stmts + ["commit"]
+                f.write("\n".join(stmts) + "\n")
     m = master()
     before = metrics(m)
     c0 = cputicks()

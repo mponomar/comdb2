@@ -1,0 +1,1016 @@
+# Suite run 19: one node, ordered_apply 1 and ordered_apply_unit 1 on every test database, -j20, 2026-11-14
+## first pass
+!abort_copy_on_recovery: failed
+!active_connections: success
+!alias: failed rc=1
+!allow_incoherent_sql: success
+!analyze: success
+!analyze_exit: failed rc=126
+!analyze_exit_immediately: failed rc=1
+!analyze_fastinit_race: failed rc=255
+!analyze_insert_burst: success
+!analyze_partial_index_off_generated: success
+!analyze_recover_deadlock: failed rc=1
+!analyze_sample: success
+!analyze_timepart_inversion: success
+!api_events: failed rc=1
+!api_tst: success
+!appsock: success
+!async_dist_commit: success
+!auth: success
+!auth_cleanup: success
+!auth_dba: success
+!auth_queueodh_generated: success
+!auth_twofiles_generated: success
+!autoanalyze: success
+!backup_logfiles: success
+!basic: success
+!basic_nogenid48_generated: success
+!basic_off_osql_odh_blob_generated: success
+!basic_protobuf_connectmsg_generated: success
+!basic_rowlocks_generated: success
+!basic_rowset_generated: success
+!basic_singlenode_generated: success
+!basic_snapshot_generated: success
+!basic_ssl_generated: success
+!basic_sslnoproto_generated: success
+!bb_getopt_long: success
+!berkdb_file_leaks: success
+!berkdb_file_leaks_rep: success
+!biginplace: success
+!bind_query_plan: success
+!blkseq: success
+!blkseq_logdel: success
+!blkseq_nocnonce_generated: success
+!blkseq_race: failed rc=255
+!blkseq_serial_generated: success
+!blob2: success
+!blob_cache_shrink: success
+!blob_sanity: success
+!blob_size_limit: success
+!bloballoc: success
+!blockaccess: success
+!blockops_forward: failed rc=1
+!bplog_leaks: failed rc=1
+!builtin_ruleset: failed rc=1
+!bulk_overflow: success
+!bulkimport: failed rc=1
+!bulkimport_mismatched_blobstripe_generated: failed rc=1
+!bulkimport_mismatched_dtastripe_generated: failed rc=1
+!cachehits: success
+!cancel_sql: success
+!catchup: failed rc=125
+!catchup_idle: failed rc=125
+!catchup_noearly_generated: failed rc=125
+!cdb2_admin: success
+!cdb2_close: success
+!cdb2_coltype: success
+!cdb2_open: success
+!cdb2_sqlreplay_externalauth: success
+!cdb2api: success
+!cdb2api_2pc: failed
+!cdb2api_addl_cfg: success
+!cdb2api_chunk: failed rc=1
+!cdb2api_effects_on_chunk_error: success
+!cdb2api_local_pooled: success
+!cdb2api_pooled_open: failed
+!cdb2api_random_room_dr1: success
+!cdb2api_retry: success
+!cdb2api_retry_pooled: failed
+!cdb2api_rollback_rc: failed rc=126
+!cdb2api_unit: success
+!cdb2api_wrongstate: success
+!cdb2bind: success
+!cdb2dump: success
+!cdb2dump_bigblob: success
+!cdb2jdbc: failed rc=127
+!cdb2sql: success
+!cdb2sql_auth: success
+!cdb2sql_chunk: success
+!cdb2sql_options: success
+!cdb2sql_queueodh_generated: success
+!checkconstr: success
+!chunk_txn_effects: success
+!chunk_txn_effects_snapshot_generated: success
+!cinsert_linearizable: success
+!cldeadlock: success
+!clientstats_leaks: success
+!clnt_logdel_toggle: success
+!close_old_connections: success
+!cluster_allow_list: success
+!column_names_length: success
+!comdb2_files: failed
+!comdb2_schemas: success
+!comdb2_snapshot_lsn: success
+!comdb2_unused_files: success
+!comdb2expert: success
+!comdb2expert_snapshot_generated: success
+!comdb2sys: failed rc=1
+!comdb2sys_pagesize_generated: failed rc=1
+!comdb2sys_queueodh_generated: failed rc=1
+!comdb2sys_sc_history: failed rc=1
+!commit_delay_on_copy: failed rc=255
+!commit_lsn_map: success
+!commit_lsn_map_delete_generated: success
+!commit_restart_recover_deadlock: success
+!committed_lsn_order: success
+!concurrent_sql: success
+!conn: failed rc=125
+!consistent_hash: success
+!consistent_hash_bench: failed rc=255
+!constraints: success
+!constraints_noreorder_generated: success
+!constraints_partial_index_off_generated: success
+!consumer: success
+!consumer_blob_deadlock: success
+!consumer_snapshot_generated: success
+!copyschema_timepart: failed rc=1
+!cost: success
+!crc32c: success
+!create_db_validate_table_name: success
+!crle: failed rc=126
+!csvcopy: success
+!curmoves: success
+!datacopy: success
+!datetime: failed rc=1
+!datetime_mifid2: success
+!datetimeusec: success
+!db_open_tracker: failed rc=1
+!dbcreate: failed
+!dbinfo_legacy: success
+!dbreg_race: success
+!dbreg_race_ufid_on_generated: success
+!dc: failed rc=1
+!ddl_analyze: success
+!ddl_csc2: success
+!ddl_dryrun: success
+!ddl_no_cascade_drop: success
+!ddl_no_csc2: success
+!ddlk-perf-ab: success
+!deadlock: success
+!deadlock_load: failed
+!deadlock_load_noreorder_generated: failed
+!deadlock_policy: success
+!decimal: success
+!decimal_new: success
+!delfile_block: success
+!delfile_block_reproleak_generated: failed rc=125
+!destroy_sql_pool_overflow: success
+!disable_delete_during_copy: failed
+!disable_snapshot_isolation: success
+!diskspace_nollmeta: failed rc=1
+!diskspace_nollmeta_nostripe_generated: failed rc=1
+!disttxn: failed rc=125
+!dohsql_clnt_flags: success
+!dohsql_fastsql_compat: success
+!dohsql_fastsql_compat_nosurprise_generated: success
+!dohsql_leaks: failed rc=126
+!dohsql_overload: success
+!dohsql_pack: success
+!dohsql_race: success
+!downgrade: success
+!downgrade_loop: failed
+!drop_tblnum: success
+!dropaddtable: success
+!dupewrite: failed rc=1
+!early_verify: failed rc=1
+!elect_retry_known_master: failed
+!electbug2: success
+!electbug: failed rc=255
+!election_timeout_cleanup: success
+!emit_timeout: success
+!enospc: success
+!epochms_rollover: failed rc=255
+!eventlog: failed
+!excludefp: failed
+!explain: success
+!fail: success
+!fdb_compare: failed
+!fdb_compare_rte_connect_generated: failed
+!fdb_compat: failed rc=1
+!fdb_compat_rte_connect_generated: failed rc=1
+!fdb_push: success
+!fdb_push_bindparams: failed rc=1
+!fdb_push_lua: success
+!fdb_push_redirect_generated: failed rc=1
+!fdb_push_rte_connect_generated: failed rc=1
+!fdb_push_trigger: failed
+!fdb_push_txn: success
+!fdb_read_no_remtran: failed rc=1
+!fdb_read_no_remtran_fdbpush_generated: failed rc=1
+!fdb_stat_rootpage_race: success
+!fileperms: success
+!final_non_durable_retry: success
+!final_non_durable_retry_recom_generated: success
+!final_non_durable_retry_recom_transaction_generated: success
+!final_non_durable_retry_serial_generated: success
+!final_non_durable_retry_serial_transaction_generated: success
+!final_non_durable_retry_snapshot_generated: success
+!final_non_durable_retry_snapshot_transaction_generated: success
+!final_non_durable_retry_socksql_transaction_generated: success
+!fingerprints: failed rc=1
+!fldvercache: success
+!forbid_remote_repopnewlrl: failed
+!force_writesql: failed rc=1
+!force_writesql_failwrite_generated: failed rc=1
+!func: success
+!genid48: success
+!genid48snapisol: success
+!grace_period_on_exit: success
+!growlogregion: success
+!guid: success
+!hasql_require_snapshot: success
+!hasql_require_snapshot_legacy_generated: success
+!idxexpr_alltypes: success
+!ignore_bad_table: success
+!incoh_remsql: failed rc=125
+!incoh_remsql_rte_connect_generated: success
+!incoherent_slow: failed rc=255
+!incoherent_sql: failed rc=1
+!incoherent_startup: failed rc=125
+!incremental_backup: failed rc=255
+!incremental_backup_usenames: failed rc=255
+!incrementalcopy: success
+!index_deadlock_loop_print: failed
+!init_sc_race: failed rc=255
+!insert_lots: success
+!insert_lots_ssl_generated: success
+!insert_maxindex: success
+!insert_maxindex_old_logic_generated: success
+!instant_sc: success
+!instant_sc_logicalsc_generated: success
+!int_overflow: success
+!interval: success
+!intervalds: success
+!ioerror_remsql: success
+!ioerror_remsql_fdbpush_generated: success
+!ioerror_remsql_fdbpushredirect_generated: success
+!ioerror_remsql_rte_connect_generated: success
+!isolation_metrics: success
+!ixentry_order: success
+!ixflags_overflow: success
+!ixmap: success
+!jsonify: success
+!keycompr: success
+!largecsc2: success
+!largeindex: success
+!largetxn: failed
+!latest_commit_gen: success
+!lc_cache_leaks: success
+!leakcheck: success
+!limitsortingtbl: success
+!lkmgr: success
+!load_cache: failed rc=125
+!load_cache_autocache_generated: failed rc=125
+!load_cache_dumpmax_generated: failed rc=125
+!load_remsql: failed rc=1
+!load_remsql_fdbpush_generated: failed rc=1
+!load_remsql_fdbpushredirect_generated: failed rc=1
+!load_remsql_rte_connect_generated: failed rc=1
+!lock_clientinfo: success
+!lock_clientinfo_serialrep_generated: success
+!lock_fingerprint: success
+!lock_maxid: success
+!lock_stat_inversion: success
+!lock_views: failed rc=255
+!lockstack: success
+!log_cksum_prev: success
+!log_trigger: failed rc=255
+!logarchive: success
+!logdelete: success
+!logdelete_snapshot_generated: success
+!logfill: success
+!logfill_logput_window_generated: success
+!logical_ops: success
+!logical_sc_empty_blob: success
+!logreq_lock_desired: failed
+!long_db_name: success
+!longreq_sanity: success
+!longreq_stats: failed rc=255
+!lostwrite: failed rc=125
+!lua_fdb_func: failed
+!mallocresize: success
+!manual_partition: failed rc=1
+!manual_partition_lgcy: failed rc=1
+!master_load_commit: success
+!max_wr_rows: success
+!max_wr_rows_partial_index_off_generated: success
+!maxtable: success
+!mem_be_nice: success
+!mem_protobuf: failed rc=1
+!mem_tracker: success
+!mismatch_class_remsql: failed rc=1
+!mismatch_class_remsql_fdbpush_generated: failed rc=1
+!mismatch_class_remsql_fdbpushredirect_generated: failed rc=1
+!mismatch_class_remsql_rte_connect_generated: failed rc=1
+!misstable_remsql: failed rc=1
+!misstable_remsql_rte_connect_generated: failed rc=1
+!morestripe: success
+!multichunk: success
+!multiddl: success
+!multithd: success
+!netmem: success
+!newsi_on_master: success
+!newsqlreplay: success
+!nextsequence: success
+!nextsequence_nullsort_high_generated: success
+!nightmare_recovery: failed
+!nodeadlock_table: success
+!nodeadlock_table_manystripes_generated: success
+!nodeadlock_table_noreorder_generated: failed
+!nogen_full_recovery: failed
+!nogen_full_recovery_enableddowngrade_generated: failed
+!nogen_full_recovery_rollout_generated: failed
+!nogensc: success
+!nophyswrite: failed rc=125
+!nophyswrite_dontignore_generated: failed rc=125
+!noresetgen: success
+!nowritetimeout: success
+!objpool: success
+!obsolete_upgrade_ahead: success
+!occ_selectv: success
+!odh_blobs: success
+!odh_pack_fail: success
+!oflowaddrem: success
+!onconflict: success
+!one_pass_delete_update: success
+!op_makerecord: failed rc=1
+!ordered_apply: failed rc=1
+!osql_cleanup: failed
+!osql_net_queuefull: success
+!osql_reply_race: success
+!outofrange_queries: success
+!parenttran_fail: success
+!parserdiagnose: success
+!part_setval: success
+!partial_datacopy: success
+!partial_index: success
+!partition_set_malformed: success
+!partitiondb: success
+!permitdowngrade: success
+!pg_free_recovery: success
+!phys_rep: failed
+!phys_rep_tiered: failed rc=125
+!phys_rep_tiered_firstfile_generated: failed rc=125
+!phys_rep_tiered_nosource_generated: failed rc=125
+!phys_rep_via_comdb2_files_generated: failed
+!physrep_cksum_anchor: failed rc=1
+!physrep_ignore_table: failed rc=125
+!physrep_load_cache_race: failed rc=1
+!physrep_metadb_sp: success
+!pmuv_appsock: success
+!pmux: failed
+!pmux_secure_route: success
+!pmux_sqlite_file_generated: failed
+!pmux_sqlite_memory_generated: failed
+!prefix_foreign_keys_rev: success
+!prefix_foreign_keys_rev_no_nullfkey_generated: success
+!prepare: failed rc=255
+!printlog: success
+!protobuf_connectmsg_dbname_check: failed rc=255
+!protobuf_connectmsg_mix: failed rc=255
+!protobuf_connectmsg_physrep_check: success
+!protobuf_to_fd: failed rc=126
+!ptranfail_socksql: success
+!put_logical_cron: success
+!qcopy: failed rc=1
+!qget_curtran: success
+!qinit: failed rc=1
+!queue_depth: failed rc=1
+!queue_recno_wrap: failed rc=1
+!queue_scan_limit: success
+!queuedb_locks: success
+!queuedb_multimeta: success
+!queuedb_rollover: success
+!queuedb_rollover_noroll1_generated: success
+!queueing_sql: failed rc=125
+!random_osql_replay: success
+!rawindex: success
+!read_committed: success
+!read_committed_unique: success
+!read_intrans_results: success
+!readonly: success
+!reads_follows_writes_sc: failed physical-verify
+!rebuild_table_options: success
+!recnum: success
+!reco-ddlk-sql: success
+!recom_replay: success
+!recovdlock: success
+!recovdlock_emptyblob: success
+!recover_ddlk_sp: success
+!recover_deadlock: success
+!recovertolsn: success
+!recovery_pages: success
+!register_linearizable: failed rc=1
+!rem: success
+!remotecreate: failed rc=255
+!remotecreate_twopc_generated: success
+!remsql: failed rc=1
+!remsql_auth_parallel: failed rc=1
+!remsql_commit_errstr: failed rc=1
+!remsql_fdbpush_generated: failed rc=1
+!remsql_fdbpushredirect_generated: failed rc=1
+!remsql_locks: failed rc=1
+!remsql_locks_rte_connect_generated: failed rc=1
+!remsql_rte_connect_generated: failed rc=1
+!remsqltimeout: failed rc=1
+!remtran_origin: failed rc=1
+!rename_populate: success
+!renametable: success
+!renametable_lightweight_generated: success
+!reorder_deletes: success
+!reorder_deletes_noreorder_generated: failed
+!reorder_inserts: success
+!reorder_inserts_noreorder_generated: failed
+!reorder_updates: success
+!reorder_updates_noreorder_generated: failed
+!rep_blocker: success
+!rep_log_write: failed
+!repeated_downgrades: success
+!repeated_downgrades_replicant_retry_generated: success
+!repeated_downgrades_socksql_generated: success
+!repl_ack_time: success
+!repl_stats: success
+!replay_eventlog: success
+!replay_history: success
+!replay_trans: success
+!repopulate_queues: failed rc=1
+!repopulate_queues_twofiles_generated: failed rc=1
+!reqlog_fingerprints: success
+!reqlog_init_last_lsn: failed rc=125
+!reqlog_logbyte: failed
+!reqlog_netwait: success
+!reqlog_update_during_sc: success
+!restart_node: success
+!restart_socksql: success
+!revscan_reposition: success
+!rowlock_update: success
+!rtcpu_drtest: failed
+!ruleset: success
+!sanctioned_cleanstop: success
+!sanctioned_coherency: success
+!sanctioned_durable: success
+!sanctioned_election: success
+!sanctioned_empty_list: success
+!sanctioned_evensplit: success
+!sanctioned_evensplit_lease_generated: success
+!sanctioned_twonode: success
+!sanctioned_votes: success
+!sc_add_vutf8: success
+!sc_add_vutf8_logicalsc_generated: success
+!sc_add_vutf8_off_osql_odh_blob_generated: success
+!sc_addcolumn_remsql: success
+!sc_addcolumn_remsql_fdbpush_generated: success
+!sc_addcolumn_remsql_fdbpushredirect_generated: success
+!sc_addcolumn_remsql_logicalsc_generated: success
+!sc_addcolumn_remsql_rte_connect_generated: success
+!sc_addfield: success
+!sc_addfield_logicalsc_generated: success
+!sc_blob_update: success
+!sc_blob_update_logicalsc_generated: success
+!sc_constraint_bugs: success
+!sc_constraints: success
+!sc_constraints_logicalsc_generated: success
+!sc_datacopy: success
+!sc_datacopy_logicalsc_generated: success
+!sc_dbstore_func: success
+!sc_ddl_backout: failed rc=1
+!sc_ddl_backout_rowlocks_generated: failed rc=1
+!sc_desc_idx: success
+!sc_downgrade: failed rc=255
+!sc_drop: success
+!sc_dryrun_dbstore_func: success
+!sc_dup_create: success
+!sc_dups: success
+!sc_dups_logicalsc_generated: success
+!sc_fieldlarger: success
+!sc_fieldlarger_logicalsc_generated: success
+!sc_force: success
+!sc_inserts: success
+!sc_inserts_deletes: success
+!sc_inserts_deletes_logicalsc_generated: success
+!sc_inserts_deletes_partial_index_off_generated: success
+!sc_inserts_logicalsc_generated: success
+!sc_load_cache_race: failed rc=1
+!sc_lock_inversion: success
+!sc_lotsoftables: success
+!sc_lotsoftables_logicalsc_generated: success
+!sc_multitable: success
+!sc_newuniq: success
+!sc_newuniq_logicalsc_generated: success
+!sc_parallel: success
+!sc_parallel_logicalsc_generated: success
+!sc_partcollres: success
+!sc_partial_datacopy: success
+!sc_partial_datacopy_logicalsc_generated: success
+!sc_race_timepart: success
+!sc_rebuild_ufid: success
+!sc_rebuilds: failed
+!sc_rebuilds_extralock_generated: failed
+!sc_rebuilds_logicalsc_generated: failed
+!sc_redo: success
+!sc_redo_logicalsc_generated: success
+!sc_redo_start_lsn: success
+!sc_redo_step: success
+!sc_remsql: failed rc=1
+!sc_remsql_fdbpush_generated: failed rc=1
+!sc_remsql_fdbpushredirect_generated: failed rc=1
+!sc_repeated_updates: success
+!sc_repeated_updates_logicalsc_generated: success
+!sc_resume2: success
+!sc_resume: success
+!sc_resume_dead_sclist: success
+!sc_resume_logicalsc_generated: success
+!sc_resume_partition: success
+!sc_setrunning_race: success
+!sc_swapfields: success
+!sc_swapfields_logicalsc_generated: success
+!sc_tableversion: success
+!sc_tableversion_logicalsc_generated: success
+!sc_timepart: success
+!sc_timepart_logicalsc_generated: success
+!sc_timepart_multiddl_generated: success
+!sc_transactional: success
+!sc_transactional_logicalsc_generated: success
+!sc_transactional_rowlocks_generated: success
+!sc_truncate: failed rc=125
+!sc_truncate_lockorder_generated: failed rc=125
+!sc_truncate_multiddl_generated: failed rc=125
+!sc_txn_downgrade: success
+!sc_upsert: failed rc=1
+!sc_validate_table_name: success
+!sc_versmismatch: success
+!sc_versmismatch_logicalsc_generated: success
+!sc_vutf8_blob2: success
+!sc_vutf8_blob2_logicalsc_generated: success
+!sc_vutf8_blob2_off_osql_odh_blob_generated: success
+!sc_vutf8_blob2_upd_behind_cursor: failed rc=1
+!sc_vutf8_max_update: success
+!sc_vutf8_to_cstring: success
+!sc_vutf8_validate: success
+!sc_vutf8_validate_off_osql_odh_blob_generated: success
+!schemalk: success
+!schemalk_extralock_generated: success
+!schemalk_logicalsc_generated: success
+!schemaversions: success
+!scindex: success
+!scindex_deadlock: success
+!scindex_deadlock_logicalsc_generated: success
+!scindex_logicalsc_generated: success
+!scupdates: success
+!scupdates_logicalsc_generated: success
+!seekscan: failed rc=1
+!select_one: success
+!selectv: success
+!selectv_deadlock: failed
+!selectv_dup: success
+!selectv_partial_index_off_generated: success
+!selectv_range: success
+!selectv_rcode: success
+!selectv_rcode_disable_svonly_nop_generated: success
+!selectv_rcode_force_commit_generated: success
+!selectv_rcode_serialize_reads_like_writes_generated: success
+!selectv_rcode_serialretry_generated: success
+!selectv_recom: success
+!selectv_recom_range: success
+!selectv_timepart: success
+!seqno_ix_delete: success
+!serial_ha_retry: success
+!serial_mixedkeylen: success
+!serial_randtest2: success
+!serialstep: success
+!si_sc_race: success
+!siasof: success
+!siasofbounce: failed rc=1
+!siasofupdate: success
+!sicomplex2: success
+!sicomplex3: success
+!sicomplex: success
+!sicountbug2: success
+!sicountbug: success
+!sidupidx3: success
+!silogdel: success
+!simple_remsql: failed rc=1
+!simple_remsql_cdb2api_generated: failed rc=1
+!simple_remsql_fdbpush_generated: failed rc=1
+!simple_remsql_fdbpushredirect_generated: failed rc=1
+!simple_remsql_rte_connect_generated: failed rc=1
+!simple_remsql_whitelist_generated: failed rc=1
+!simple_ssl: failed rc=1
+!simple_timepart: success
+!simple_timepart_reptimeout_generated: success
+!simpleauth: success
+!simpleauth_password: success
+!sirace: success
+!sirandtest2: success
+!sirandtest: success
+!skipscan: success
+!smartbeats: success
+!snap_ha_retry: success
+!snapblob: success
+!snapblob_off_osql_odh_blob_generated: success
+!snapcur_ovfl: success
+!snapcur_ovfl_key: success
+!snapcur_ovfl_race: success
+!snapcur_pagelock: success
+!snapcur_reorg: success
+!snapisol: success
+!snapisol_noearly_generated: success
+!snapisol_partial_index_off_generated: success
+!snapisol_smallpages_generated: success
+!snapshot_during_truncate: success
+!sockpool_remsql: success
+!sockpool_remsql_fdbpush_generated: success
+!sockpool_remsql_fdbpushredirect_generated: success
+!sockpool_remsql_rte_connect_generated: success
+!socksql: success
+!socksql_master_swings: success
+!sorese_tran: success
+!sort_lockhold: success
+!sorter_tmpdir_race: failed rc=1
+!sp: success
+!sp_emit_race: success
+!sp_longreqs: failed rc=1
+!sp_perf: failed
+!sp_queueodh_generated: success
+!sp_snapshot_generated: success
+!sp_sql_tran: success
+!sp_thread_tmptbl: success
+!sp_timeout: success
+!sp_twofiles_generated: failed rc=1
+!sql: success
+!sql_cost: success
+!sql_datetime_interval_arithmetic_leak: failed rc=1
+!sql_dump_race: failed rc=1
+!sql_func_mem_leak: success
+!sql_logfill_autodisable: failed
+!sql_logfill_capacity_autodisable: failed
+!sql_logfill_exit: failed
+!sqlite: success
+!sqlite_bugs: success
+!sqllogfill_reset_gen: success
+!sqlwriter_trickle: success
+!ssl_bad_rand_engine: success
+!ssl_comdb2ar: success
+!ssl_crl: success
+!ssl_dbname: success
+!ssl_partial_write_hang: success
+!ssl_prefer: success
+!ssl_prefer_nossl_generated: success
+!ssl_remsql: success
+!ssl_remsql_fdbpush_generated: failed rc=1
+!ssl_remsql_fdbpushredirect_generated: failed rc=1
+!ssl_remsql_rte_connect_generated: failed rc=1
+!ssl_rep: success
+!ssl_san: success
+!ssl_set_cmd: success
+!ssl_userschema: success
+!stale_rep_verify: failed
+!str2intv: success
+!strict_dbl_quotes: success
+!string_tunable_update: success
+!stringrefs: success
+!stripe_order_inserts: success
+!superset_foreign_keys: success
+!svc_time_per_clnt: success
+!sync_log_delete_off_reenable: failed rc=126
+!sync_osql_cancel: success
+!sync_source_osql: failed rc=1
+!sys_cmd_access: success
+!systable_locking: success
+!systbl_proc_leak: success
+!tablelocks: success
+!tagged_bounds: failed rc=1
+!temp_table_cursor_leak: failed rc=126
+!temp_table_truncate_leak: failed rc=1
+!temptable-truncate: success
+!temptable_size: success
+!threadpool: success
+!timepart_auth: success
+!timepart_changeretention: success
+!timepart_constraints: success
+!timepart_create_deadlock: success
+!timepart_events: failed rc=125
+!timepart_frgncnst: success
+!timepart_lookup_perf: success
+!timepart_manual_stale_version: success
+!timepart_name_lifetime: success
+!timepart_noneres: success
+!timepart_rc: success
+!timepart_readonly: success
+!timepart_retention1: success
+!timepart_retention_alter: success
+!timepart_retro: success
+!timepart_retro_genid48: success
+!timepart_trunc: success
+!timepart_trunc_multiddl_generated: success
+!timepart_trunc_serialsc_generated: success
+!tmptbl: success
+!tmptbl_deadlock: success
+!tmptbl_deadlock_bigpool_generated: success
+!tmptbl_deadlock_starve_generated: success
+!tmptbl_deadlock_zeropool_generated: success
+!tmptbl_leak: success
+!tmptbl_leak_bigpool_generated: success
+!tmptbl_leak_megapool_generated: success
+!tmptbl_leak_starve_generated: success
+!tmptbl_leak_zeropool_generated: success
+!tmptbl_starve: success
+!tolerate_missing_keys: failed verify
+!tpcrash: success
+!trangrace: success
+!trans: success
+!transchunk: success
+!transchunk_manyins: success
+!transchunk_tablelocks: success
+!transchunk_tempcursor: success
+!trigger: success
+!trigger_lock_inversion: failed rc=1
+!trigger_remtran_simpleauth: failed
+!triggersc_latency: success
+!truncate_queue_reload: success
+!truncate_queue_reload_offline_generated: success
+!truncate_stale_cursor: failed rc=1
+!truncatesc: failed
+!truncatesc_offline_generated: failed
+!truncoplog: success
+!truncoplog_timebased_generated: success
+!truncstat: success
+!tunables: failed rc=1
+!txn_queuing: success
+!typessql: success
+!udf: failed rc=1
+!udp_ack_miss: success
+!ufid_recovery: success
+!ufid_reopen: success
+!ulonglong: success
+!unifiedcancel: success
+!union_parallel: success
+!unionpar_maxqueue: success
+!update_datetime: success
+!updater_latency: success
+!updcolsbug: success
+!upsert: failed rc=1
+!upsert_nomaster: success
+!userschema: success
+!userschema_queueodh_generated: success
+!utils: success
+!verify_atomics: failed rc=126
+!verify_db: success
+!verify_db_parallel_generated: success
+!verify_error: success
+!verify_error_partial_index_off_generated: success
+!verify_fix_keys: success
+!verify_index_data: success
+!verify_upgrade: failed rc=255
+!verify_writes: success
+!vutf8_dbstore: success
+!vutf8_dbstore_off_osql_odh_blob_generated: success
+!vutf8_rowlocks: success
+!vutf8_rowlocks_off_osql_odh_blob_generated: success
+!watchdog_sql: failed rc=1
+!window: success
+!writes_remsql: success
+!writes_remsql_fdbpush_generated: success
+!writes_remsql_fdbpushredirect_generated: success
+!writes_remsql_names: failed rc=1
+!writes_remsql_names_fdbpush_generated: failed rc=1
+!writes_remsql_names_fdbpushredirect_generated: failed rc=1
+!writes_remsql_names_negativerowid_generated: failed rc=1
+!writes_remsql_names_partial_index_off_generated: failed rc=1
+!writes_remsql_names_rte_connect_generated: failed rc=1
+!writes_remsql_partial_index_off_generated: success
+!writes_remsql_rte_connect_generated: success
+!yast: success
+!yast_stat4scan_generated: success
+## the failures, on main (stopped by hand before its last seven long tests ended)
+!abort_copy_on_recovery: failed
+!alias: success
+!analyze_exit: failed rc=126
+!analyze_exit_immediately: failed rc=1
+!analyze_fastinit_race: success
+!analyze_recover_deadlock: failed rc=1
+!api_events: failed rc=1
+!blkseq_race: failed rc=255
+!blockops_forward: failed rc=1
+!bplog_leaks: failed rc=1
+!builtin_ruleset: failed rc=1
+!bulkimport: failed rc=1
+!bulkimport_mismatched_blobstripe_generated: failed rc=1
+!bulkimport_mismatched_dtastripe_generated: failed rc=1
+!catchup: failed rc=125
+!catchup_noearly_generated: failed rc=125
+!cdb2api_2pc: failed
+!cdb2api_chunk: failed rc=1
+!cdb2api_pooled_open: failed
+!cdb2api_retry_pooled: failed
+!cdb2api_rollback_rc: failed rc=126
+!cdb2jdbc: failed rc=127
+!comdb2_files: failed
+!comdb2sys: failed rc=1
+!comdb2sys_pagesize_generated: failed rc=1
+!comdb2sys_queueodh_generated: failed rc=1
+!comdb2sys_sc_history: failed rc=1
+!commit_delay_on_copy: failed rc=255
+!conn: failed rc=125
+!consistent_hash_bench: success
+!copyschema_timepart: failed rc=1
+!crle: failed rc=126
+!datetime: failed rc=1
+!db_open_tracker: failed rc=1
+!dbcreate: failed
+!dc: failed rc=1
+!deadlock_load: success
+!deadlock_load_noreorder_generated: failed
+!delfile_block_reproleak_generated: failed rc=125
+!disable_delete_during_copy: failed
+!diskspace_nollmeta: success
+!diskspace_nollmeta_nostripe_generated: success
+!disttxn: failed rc=125
+!dohsql_leaks: failed rc=126
+!downgrade_loop: failed
+!dupewrite: failed rc=1
+!early_verify: success
+!elect_retry_known_master: failed
+!electbug: failed rc=255
+!epochms_rollover: failed rc=255
+!eventlog: failed
+!excludefp: failed
+!fdb_compare: failed
+!fdb_compare_rte_connect_generated: failed
+!fdb_compat: failed rc=1
+!fdb_compat_rte_connect_generated: failed rc=1
+!fdb_push_bindparams: failed rc=1
+!fdb_push_redirect_generated: failed rc=1
+!fdb_push_rte_connect_generated: failed rc=1
+!fdb_push_trigger: failed
+!fdb_read_no_remtran: failed rc=1
+!fdb_read_no_remtran_fdbpush_generated: failed rc=1
+!fingerprints: success
+!forbid_remote_repopnewlrl: failed
+!force_writesql: failed rc=1
+!force_writesql_failwrite_generated: failed rc=1
+!incoh_remsql: failed rc=125
+!incoherent_slow: failed rc=255
+!incoherent_sql: failed rc=1
+!incoherent_startup: failed rc=125
+!incremental_backup: failed rc=255
+!incremental_backup_usenames: failed rc=255
+!index_deadlock_loop_print: success
+!init_sc_race: failed rc=255
+!largetxn: failed
+!load_cache: failed rc=125
+!load_cache_autocache_generated: failed rc=125
+!load_cache_dumpmax_generated: failed rc=125
+!load_remsql: failed rc=1
+!load_remsql_fdbpush_generated: failed rc=1
+!load_remsql_fdbpushredirect_generated: failed rc=1
+!load_remsql_rte_connect_generated: failed rc=1
+!lock_views: failed rc=255
+!log_trigger: failed rc=255
+!logreq_lock_desired: failed
+!longreq_stats: failed rc=255
+!lostwrite: failed rc=125
+!lua_fdb_func: failed
+!manual_partition: success
+!manual_partition_lgcy: success
+!mem_protobuf: failed rc=1
+!mismatch_class_remsql: failed rc=1
+!mismatch_class_remsql_fdbpush_generated: failed rc=1
+!mismatch_class_remsql_fdbpushredirect_generated: failed rc=1
+!mismatch_class_remsql_rte_connect_generated: failed rc=1
+!misstable_remsql: failed rc=1
+!misstable_remsql_rte_connect_generated: failed rc=1
+!nightmare_recovery: failed
+!nodeadlock_table_noreorder_generated: success
+!nogen_full_recovery: failed
+!nogen_full_recovery_enableddowngrade_generated: failed
+!nogen_full_recovery_rollout_generated: failed
+!nophyswrite: failed rc=125
+!nophyswrite_dontignore_generated: failed rc=125
+!op_makerecord: failed rc=1
+!osql_cleanup: failed
+!phys_rep: failed
+!phys_rep_via_comdb2_files_generated: failed
+!physrep_cksum_anchor: failed rc=1
+!physrep_ignore_table: failed rc=125
+!physrep_load_cache_race: failed rc=1
+!pmux: success
+!pmux_sqlite_file_generated: success
+!pmux_sqlite_memory_generated: success
+!prepare: failed rc=255
+!protobuf_connectmsg_dbname_check: failed rc=255
+!protobuf_connectmsg_mix: failed rc=255
+!protobuf_to_fd: failed rc=126
+!qcopy: failed rc=1
+!qinit: failed rc=1
+!queue_depth: failed rc=1
+!queue_recno_wrap: failed rc=1
+!queueing_sql: failed rc=125
+!reads_follows_writes_sc: failed physical-verify
+!register_linearizable: failed rc=1
+!remotecreate: failed rc=255
+!remsql: failed rc=1
+!remsql_auth_parallel: failed rc=1
+!remsql_commit_errstr: failed rc=1
+!remsql_fdbpush_generated: failed rc=1
+!remsql_fdbpushredirect_generated: failed rc=1
+!remsql_locks: failed rc=1
+!remsql_locks_rte_connect_generated: failed rc=1
+!remsql_rte_connect_generated: failed rc=1
+!remsqltimeout: failed rc=1
+!remtran_origin: failed rc=1
+!reorder_deletes_noreorder_generated: failed
+!reorder_inserts_noreorder_generated: success
+!reorder_updates_noreorder_generated: success
+!rep_log_write: failed
+!repopulate_queues: failed rc=1
+!repopulate_queues_twofiles_generated: failed rc=1
+!reqlog_init_last_lsn: failed rc=125
+!reqlog_logbyte: failed
+!rtcpu_drtest: failed
+!sc_ddl_backout: failed rc=1
+!sc_ddl_backout_rowlocks_generated: failed rc=1
+!sc_downgrade: failed rc=255
+!sc_load_cache_race: failed rc=1
+!sc_rebuilds: success
+!sc_rebuilds_extralock_generated: success
+!sc_rebuilds_logicalsc_generated: success
+!sc_remsql: failed rc=1
+!sc_remsql_fdbpush_generated: failed rc=1
+!sc_remsql_fdbpushredirect_generated: failed rc=1
+!sc_truncate: failed rc=125
+!sc_truncate_lockorder_generated: failed rc=125
+!sc_truncate_multiddl_generated: failed rc=125
+!sc_upsert: failed rc=1
+!sc_vutf8_blob2_upd_behind_cursor: failed rc=1
+!seekscan: failed rc=1
+!selectv_deadlock: success
+!siasofbounce: failed rc=1
+!simple_remsql: failed rc=1
+!simple_remsql_cdb2api_generated: failed rc=1
+!simple_remsql_fdbpush_generated: failed rc=1
+!simple_remsql_fdbpushredirect_generated: failed rc=1
+!simple_remsql_rte_connect_generated: failed rc=1
+!simple_remsql_whitelist_generated: failed rc=1
+!simple_ssl: failed rc=1
+!sorter_tmpdir_race: failed rc=1
+!sp_longreqs: failed rc=1
+!sp_perf: failed rc=1
+!sp_twofiles_generated: success
+!sql_datetime_interval_arithmetic_leak: failed rc=1
+!sql_dump_race: failed rc=1
+!sql_logfill_autodisable: failed
+!sql_logfill_capacity_autodisable: failed
+!sql_logfill_exit: failed
+!ssl_remsql_fdbpush_generated: failed rc=1
+!ssl_remsql_fdbpushredirect_generated: failed rc=1
+!ssl_remsql_rte_connect_generated: failed rc=1
+!stale_rep_verify: failed
+!sync_log_delete_off_reenable: failed rc=126
+!sync_source_osql: failed rc=1
+!tagged_bounds: failed rc=1
+!temp_table_cursor_leak: failed rc=126
+!temp_table_truncate_leak: failed rc=1
+!timepart_events: failed rc=125
+!tolerate_missing_keys: failed verify
+!trigger_lock_inversion: failed rc=1
+!trigger_remtran_simpleauth: failed
+!truncate_stale_cursor: failed rc=1
+!truncatesc: failed
+!truncatesc_offline_generated: failed
+!tunables: failed rc=1
+!udf: failed rc=1
+!upsert: success
+!verify_atomics: failed rc=126
+!verify_upgrade: failed rc=255
+!watchdog_sql: failed rc=1
+!writes_remsql_names: failed rc=1
+!writes_remsql_names_fdbpush_generated: failed rc=1
+!writes_remsql_names_fdbpushredirect_generated: failed rc=1
+!writes_remsql_names_negativerowid_generated: failed rc=1
+!writes_remsql_names_partial_index_off_generated: failed rc=1
+!writes_remsql_names_rte_connect_generated: failed rc=1
+## the ones that pass on main, again with ordered apply, -j8, second build of the same tree
+!alias: success
+!consistent_hash_bench: success
+!deadlock_load: success
+!diskspace_nollmeta: success
+!diskspace_nollmeta_nostripe_generated: success
+!early_verify: success
+!fingerprints: failed rc=1
+!index_deadlock_loop_print: failed
+!manual_partition: success
+!manual_partition_lgcy: failed rc=1
+!nodeadlock_table_noreorder_generated: failed
+!pmux: success
+!pmux_sqlite_file_generated: success
+!pmux_sqlite_memory_generated: success
+!reorder_inserts_noreorder_generated: failed
+!reorder_updates_noreorder_generated: failed
+!sc_rebuilds: success
+!sc_rebuilds_extralock_generated: success
+!sc_rebuilds_logicalsc_generated: success
+!selectv_deadlock: success
+!sp_twofiles_generated: success
+!upsert: success
