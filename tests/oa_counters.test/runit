@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+bash -n "$0" || exit 1
+source ${TESTSROOTDIR}/tools/oa_common.sh
+
+# Lost and doubled updates.  CLIENTS clients add one to counters in ROWS rows,
+# half of them a statement a transaction and half five statements between
+# begin and commit.  Each update also moves the row's entry in an index and
+# every tenth rewrites its blob.  When they are done the counters must add up
+# to the updates the clients were told had committed: one fewer is a lost
+# update, one more is a request applied twice.
+oa_init "$1" oa_counters
+CLIENTS=${CLIENTS:-16}
+N=${N:-2000}
+ROWS=${ROWS:-20}
+
+oa_sql "create table c(id int primary key, n bigint, k bigint, b blob)" > /dev/null
+oa_sql "create index ck on c(k)" > /dev/null
+
+for mode in $OA_MODES; do
+    oa_mode $mode
+    dir=$OA_DIR/$mode
+    mkdir -p $dir
+    oa_sql "delete from c where 1" > /dev/null
+    oa_sql "insert into c select value, 0, value * 1000000, randomblob(200) from generate_series(1, $ROWS)" > /dev/null
+    for w in $(seq 1 $CLIENTS); do
+        awk -v w=$w -v n=$N -v rows=$ROWS 'BEGIN {
+            srand(w * 7919)
+            for (i = 1; i <= n; i++) {
+                if (w % 2 == 0 && i % 5 == 1) { print "begin"; split("", seen) }
+                set = "n = n + 1, k = k + 1"
+                if (i % 10 == 0) set = set ", b = randomblob(" 50 + int(rand() * 400) ")"
+                # a transaction that updates a row twice cannot commit: its
+                # second update is of the row as it was before the first
+                do { r = 1 + int(rand() * rows) } while (w % 2 == 0 && (r in seen))
+                seen[r] = 1
+                print "update c set " set " where id = " r
+                if (w % 2 == 0 && i % 5 == 0) print "commit"
+            }
+        }' > $dir/c$w.sql
+    done
+    oa_run_clients $dir
+    acked=$(oa_acked $dir/c*.out)
+    failures=$(oa_failures $dir/c*.out)
+    sum=$(oa_sql "select sum(n) from c")
+    moved=$(oa_sql "select sum(k - id * 1000000) from c where k >= 0")
+    oa_report $dir counters $(oa_committed $dir/c*.out) acked=$acked sum=$sum failures=$failures
+    [ $failures = 0 ] || oa_failure_kinds $dir/c*.out
+    [ "$sum" = "$acked" ] || oa_fail "oa_counters $mode: the counters add up to $sum, the clients were told $acked updates committed"
+    [ "$moved" = "$acked" ] || oa_fail "oa_counters $mode: the index says $moved updates, the clients were told $acked"
+    [ "$(oa_sql "select count(*) from c where k >= 0")" = "$ROWS" ] || oa_fail "oa_counters $mode: rows missing from the index"
+    [ $acked -gt 0 ] || oa_fail "oa_counters $mode: nothing committed"
+    oa_expect_planned $dir
+done
+oa_check_table c "select count(*), sum(n), sum(k), sum(length(b)) from c"
+oa_done

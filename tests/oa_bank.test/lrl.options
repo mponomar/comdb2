@@ -1,0 +1,2 @@
+disable_tagged_api_writes 1
+enable_snapshot_isolation

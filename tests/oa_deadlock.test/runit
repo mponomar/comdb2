@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+bash -n "$0" || exit 1
+source ${TESTSROOTDIR}/tools/oa_common.sh
+
+# Made to deadlock.  CLIENTS clients run transactions that each update four
+# rows of a small table, in an order of their own, every update moving an
+# index entry and rewriting a blob, while READERS clients scan the table by
+# the data file and by the index.  The counters must add up to what committed
+# (a transaction that finds a row it read changed fails at commit, and is
+# counted as failed), and it must not stop: a database where nothing commits
+# for OA_STALL_SECS with clients waiting fails the test, with its lock table
+# kept.
+oa_init "$1" oa_deadlock
+CLIENTS=${CLIENTS:-16}
+N=${N:-600}
+ROWS=${ROWS:-40}
+READERS=${READERS:-3}
+
+oa_sql "create table d(id int primary key, n bigint, k bigint, b blob)" > /dev/null
+oa_sql "create index dk on d(k)" > /dev/null
+
+for mode in $OA_MODES; do
+    oa_mode $mode
+    dir=$OA_DIR/$mode
+    mkdir -p $dir
+    oa_sql "delete from d where 1" > /dev/null
+    oa_sql "insert into d select value, 0, value * 1000000, randomblob(300) from generate_series(1, $ROWS)" > /dev/null
+    for w in $(seq 1 $CLIENTS); do
+        awk -v w=$w -v n=$N -v rows=$ROWS 'BEGIN {
+            srand(w * 15485863)
+            for (i = 1; i <= n; i++) {
+                print "begin"
+                split("", seen)
+                for (j = 1; j <= 4; j++) {
+                    do { r = 1 + int(rand() * rows) } while (r in seen)
+                    seen[r] = 1
+                    print "update d set n = n + 1, k = k + 1, b = randomblob(" 100 + int(rand() * 600) ") where id = " r
+                }
+                print "commit"
+            }
+        }' > $dir/c$w.sql
+    done
+    for r in $(seq 1 $READERS); do
+        for i in $(seq 1 $((N * 3))); do
+            case $((r % 3)) in
+            0) echo "select count(*), sum(length(b)) from d" ;;
+            1) echo "select id, n, length(b) from d where k > 0 order by k" ;;
+            2) echo "select x.id, length(y.b) from d x join d y on y.k = x.k where x.k > 0" ;;
+            esac
+        done > $dir/r$r.sql
+    done
+    oa_run_clients $dir
+    committed=$(oa_committed $dir/c*.out)
+    acked=$(oa_acked $dir/c*.out)
+    failures=$(oa_failures $dir/c*.out $dir/r*.out)
+    sum=$(oa_sql "select sum(n) from d")
+    oa_report $dir opposite-order $committed of=$((CLIENTS * N)) acked=$acked sum=$sum failures=$failures
+    [ $failures = 0 ] || oa_failure_kinds $dir/c*.out $dir/r*.out
+    [ "$sum" = "$acked" ] || oa_fail "oa_deadlock $mode: the counters add up to $sum, the clients were told $acked updates committed"
+    [ "$committed" -gt 0 ] || oa_fail "oa_deadlock $mode: nothing committed"
+    [ "$(oa_sql "select sum(k - id * 1000000) from d where k >= 0")" = "$acked" ] || oa_fail "oa_deadlock $mode: the index disagrees with the counters"
+    oa_expect_planned $dir
+done
+oa_check_table d "select count(*), sum(n), sum(k), sum(length(b)) from d"
+oa_done

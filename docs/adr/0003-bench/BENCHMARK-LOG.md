@@ -811,8 +811,55 @@ second.
   `ordered_apply_parallel_updates` is off, as it is by default, so what
   this run tries is the detector under every other transaction and under
   plans of adds, which are applied a file per thread.
-- **Results:** pending. `status` there gets `PASS-DONE` after the first
-  pass and `MAIN-DONE` after the failures have run on `main`.
+- **Results:** none. Stopped by hand at 16:01 UTC, 42 tests into the first
+  pass (9 failed, all tests that need a cluster or fail on any build
+  here), and its test databases stopped. The suite is put off until the
+  implementation is done; until then the tests of run 25 are what is run.
+
+### 25. The tests written for this work, first run
+
+- **When:** 2026-11-14 16:10–16:25 UTC. One node.
+- **Change before:** none to the database (the tree of run 24, which is
+  commit `6327ced0f`). New: `tests/oa_counters.test`, `oa_bank`,
+  `oa_unique`, `oa_deadlock`, `oa_queue`, `oa_throughput`,
+  `tests/tools/oa_common.sh` and `adr-tests.sh`, which runs them. Each test
+  runs its workload under page locks (`pg`), with commit units (`unit`) and
+  with units applied a file per thread (`unitpar`), and checks an
+  invariant; see "Tests for iterating" in the ADR.
+- **Setup:** xeon, the build in `/tmp/rltest3`, our pmux on 19500, nothing
+  else running. `adr-tests.sh /tmp/rltest3/src`: the five checking tests
+  five at a time, then `oa_throughput` alone.
+- **Results:** `adr-tests-run25.txt`. All six pass in all three modes. The
+  five checking tests take 93 s together and `oa_throughput` 319 s.
+  `oa_throughput`, 16 clients, transactions a second:
+
+  | Cell     | Page locks | Unit           | Unit, a file per thread |
+  |----------|-----------:|---------------:|------------------------:|
+  | `ins1`   |      9,732 | 11,158 (+15%)  | 11,220 (+15%)           |
+  | `ins100` |         97 | 431 (+344%)    | 431 (+344%)             |
+  | `upd1`   |      9,456 | 9,768 (+3%)    | 9,512 (+1%)             |
+  | `updk1`  |      9,040 | 9,281 (+3%)    | 9,259 (+2%)             |
+  | `updhot` |      1,735 | 2,889 (+67%)   | 2,955 (+70%)            |
+  | `upd20`  |        418 | 543 (+30%)     | 507 (+21%)              |
+  | `del1`   |      8,811 | 7,859 (−11%)   | 7,882 (−11%)            |
+
+- **Found:**
+  - Nothing wrong with the database. The first runs failed on the tests
+    themselves: errors and output of `cdb2sql` are not written in step, so
+    they are now kept apart; a count carried over from one client's file to
+    the next; and `oa_counters` updated a row twice in one transaction,
+    which cannot commit ("uncommittable txn").
+  - A transaction of several statements that finds a row it read changed
+    fails at commit and is not run again by `cdb2sql`. The tests count it
+    as failed and check their invariants on what committed.
+  - Single-row deletes with units are 11% behind page locks on one node,
+    with 1,363 and 1,789 units aborted on a deadlock and applied again in
+    80,000 deletes, where page locks had 776 deadlocks. Each client deletes
+    rows of its own, sixteen keys apart, so they meet on pages. Not looked
+    into.
+  - One node, one run of each cell, 4 to 46 s a cell: good for seeing a
+    change of a fifth, not of a twentieth. The three-node numbers are run
+    23's.
 
 ## Elsewhere
 

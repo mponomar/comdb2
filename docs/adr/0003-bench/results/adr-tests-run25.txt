@@ -1,0 +1,57 @@
+# run 25: docs/adr/0003-bench/adr-tests.sh on xeon, one node, 2026-11-14 16:10-16:25 UTC
+# the five checking tests, five at a time (93 s); oa_counters as it is now, from a run of its own:
+test=oa_bank work=transfers mode=pg txns=16000 secs=11.27 txn/s=1420 deadlocks=6494 retries=6494 verify_replays=6400 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 ledger=16000 total=100000 reads=8000 reads_wrong=0 failures=0 read_failures=0
+test=oa_bank work=transfers mode=unit txns=16000 secs=6.55 txn/s=2443 deadlocks=205 retries=38 verify_replays=5456 planned=15751 units=11809 unit_retries=167 unit_serial=0 parallel=0 fallbacks=368 ledger=16000 total=100000 reads=8000 reads_wrong=0 failures=0 read_failures=0
+test=oa_bank work=transfers mode=unitpar txns=16000 secs=8.46 txn/s=1891 deadlocks=407 retries=51 verify_replays=5582 planned=15895 units=11478 unit_retries=235 unit_serial=239 parallel=10938 fallbacks=162 ledger=16000 total=100000 reads=8000 reads_wrong=0 failures=0 read_failures=0
+test=oa_deadlock work=opposite-order mode=pg txns=9600 secs=19.42 txn/s=494 deadlocks=2659 retries=2657 verify_replays=15339 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 of=9600 acked=38400 sum=38400 failures=0
+test=oa_deadlock work=opposite-order mode=unit txns=9600 secs=18.58 txn/s=517 deadlocks=1982 retries=765 verify_replays=15043 planned=9367 units=9724 unit_retries=1218 unit_serial=0 parallel=0 fallbacks=919 of=9600 acked=38400 sum=38400 failures=0
+test=oa_deadlock work=opposite-order mode=unitpar txns=9600 secs=16.98 txn/s=565 deadlocks=1179 retries=363 verify_replays=14688 planned=9519 units=9884 unit_retries=588 unit_serial=600 parallel=8998 fallbacks=326 of=9600 acked=38400 sum=38400 failures=0
+test=oa_queue work=produce-consume mode=pg txns=11000 secs=5.03 txn/s=2187 deadlocks=23 retries=23 verify_replays=0 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 produced=10000 consumed=10000 left=10000 failures=0
+test=oa_queue work=produce-consume mode=unit txns=11000 secs=5.45 txn/s=2018 deadlocks=3 retries=3 verify_replays=0 planned=11000 units=6678 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 produced=10000 consumed=10000 left=10000 failures=0
+test=oa_queue work=produce-consume mode=unitpar txns=11000 secs=4.98 txn/s=2209 deadlocks=1 retries=0 verify_replays=0 planned=11000 units=6691 unit_retries=1 unit_serial=0 parallel=2910 fallbacks=0 produced=10000 consumed=10000 left=10000 failures=0
+test=oa_unique work=insert-race mode=pg txns=1500 secs=1.34 txn/s=1119 deadlocks=3 retries=3 verify_replays=0 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 rows=1500 duplicates=16500 other_failures=0
+test=oa_unique work=delete-race mode=pg txns=1500 secs=0.94 txn/s=1596 deadlocks=11 retries=11 verify_replays=9 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 rows=0 failures=0
+test=oa_unique work=insert-race mode=pg txns=1500 secs=1.60 txn/s=938 deadlocks=3 retries=3 verify_replays=0 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 rows=1500 duplicates=16500 other_failures=0
+test=oa_unique work=delete-race mode=pg txns=1500 secs=0.96 txn/s=1562 deadlocks=4 retries=4 verify_replays=3 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 rows=0 failures=0
+test=oa_unique work=insert-race mode=unit txns=1500 secs=1.59 txn/s=943 deadlocks=0 retries=0 verify_replays=0 planned=1500 units=1263 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 rows=1500 duplicates=16500 other_failures=0
+test=oa_unique work=delete-race mode=unit txns=1500 secs=0.95 txn/s=1579 deadlocks=3 retries=0 verify_replays=7 planned=1500 units=1119 unit_retries=3 unit_serial=0 parallel=0 fallbacks=0 rows=0 failures=0
+test=oa_unique work=insert-race mode=unit txns=1500 secs=1.59 txn/s=943 deadlocks=0 retries=0 verify_replays=0 planned=1500 units=1241 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 rows=1500 duplicates=16500 other_failures=0
+test=oa_unique work=delete-race mode=unit txns=1500 secs=1.16 txn/s=1293 deadlocks=7 retries=3 verify_replays=6 planned=1500 units=1066 unit_retries=4 unit_serial=0 parallel=0 fallbacks=0 rows=0 failures=0
+test=oa_unique work=insert-race mode=unitpar txns=1500 secs=1.61 txn/s=932 deadlocks=0 retries=0 verify_replays=0 planned=1500 units=1178 unit_retries=0 unit_serial=0 parallel=252 fallbacks=0 rows=1500 duplicates=16500 other_failures=0
+test=oa_unique work=delete-race mode=unitpar txns=1500 secs=0.95 txn/s=1579 deadlocks=3 retries=1 verify_replays=9 planned=1500 units=1105 unit_retries=2 unit_serial=1 parallel=284 fallbacks=0 rows=0 failures=0
+test=oa_unique work=insert-race mode=unitpar txns=1500 secs=1.37 txn/s=1095 deadlocks=0 retries=0 verify_replays=0 planned=1500 units=1141 unit_retries=0 unit_serial=0 parallel=267 fallbacks=0 rows=1500 duplicates=16500 other_failures=0
+test=oa_unique work=delete-race mode=unitpar txns=1500 secs=0.97 txn/s=1546 deadlocks=10 retries=8 verify_replays=3 planned=1500 units=1113 unit_retries=2 unit_serial=0 parallel=273 fallbacks=0 rows=0 failures=0
+test=oa_counters work=counters mode=pg txns=19200 secs=18.90 txn/s=1016 deadlocks=0 retries=0 verify_replays=12411 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 acked=32000 sum=32000 failures=0
+test=oa_counters work=counters mode=unit txns=19200 secs=13.84 txn/s=1387 deadlocks=0 retries=0 verify_replays=10040 planned=18965 units=16216 unit_retries=0 unit_serial=0 parallel=0 fallbacks=423 acked=32000 sum=32000 failures=0
+test=oa_counters work=counters mode=unitpar txns=19200 secs=13.57 txn/s=1415 deadlocks=221 retries=83 verify_replays=9908 planned=19069 units=15785 unit_retries=98 unit_serial=99 parallel=15034 fallbacks=331 acked=32000 sum=32000 failures=0
+# oa_throughput alone (319 s):
+test=oa_throughput work=ins1 mode=pg txns=80000 secs=8.22 txn/s=9732 deadlocks=440 retries=440 verify_replays=0 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 failures=0
+test=oa_throughput work=ins100 mode=pg txns=1600 secs=16.57 txn/s=97 deadlocks=1093 retries=1093 verify_replays=0 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 failures=0
+test=oa_throughput work=upd1 mode=pg txns=80000 secs=8.46 txn/s=9456 deadlocks=0 retries=0 verify_replays=1 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 failures=0
+test=oa_throughput work=updk1 mode=pg txns=80000 secs=8.85 txn/s=9040 deadlocks=0 retries=0 verify_replays=5 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 failures=0
+test=oa_throughput work=updhot mode=pg txns=80000 secs=46.12 txn/s=1735 deadlocks=0 retries=0 verify_replays=46817 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 failures=0
+test=oa_throughput work=upd20 mode=pg txns=3991 secs=9.55 txn/s=418 deadlocks=1012 retries=1012 verify_replays=158 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 failures=9
+test=oa_throughput work=del1 mode=pg txns=80000 secs=9.08 txn/s=8811 deadlocks=776 retries=776 verify_replays=0 planned=0 units=0 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 failures=0
+test=oa_throughput work=ins1 mode=unit txns=80000 secs=7.17 txn/s=11158 deadlocks=0 retries=0 verify_replays=0 planned=80000 units=42655 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 failures=0
+test=oa_throughput work=ins100 mode=unit txns=1600 secs=3.71 txn/s=431 deadlocks=0 retries=0 verify_replays=0 planned=1600 units=403 unit_retries=0 unit_serial=0 parallel=403 fallbacks=0 failures=0
+test=oa_throughput work=upd1 mode=unit txns=80000 secs=8.19 txn/s=9768 deadlocks=0 retries=0 verify_replays=4 planned=80000 units=50066 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 failures=0
+test=oa_throughput work=updk1 mode=unit txns=80000 secs=8.62 txn/s=9281 deadlocks=0 retries=0 verify_replays=4 planned=80000 units=42462 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 failures=0
+test=oa_throughput work=updhot mode=unit txns=80000 secs=27.69 txn/s=2889 deadlocks=1 retries=0 verify_replays=38091 planned=70146 units=46169 unit_retries=1 unit_serial=0 parallel=0 fallbacks=18029 failures=0
+test=oa_throughput work=upd20 mode=unit txns=3991 secs=7.35 txn/s=543 deadlocks=52 retries=33 verify_replays=151 planned=3896 units=2396 unit_retries=19 unit_serial=0 parallel=0 fallbacks=107 failures=9
+test=oa_throughput work=del1 mode=unit txns=80000 secs=10.18 txn/s=7859 deadlocks=1394 retries=31 verify_replays=0 planned=79997 units=36787 unit_retries=1363 unit_serial=0 parallel=0 fallbacks=3 failures=0
+test=oa_throughput work=ins1 mode=unitpar txns=80000 secs=7.13 txn/s=11220 deadlocks=0 retries=0 verify_replays=0 planned=80000 units=45780 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 failures=0
+test=oa_throughput work=ins100 mode=unitpar txns=1600 secs=3.71 txn/s=431 deadlocks=0 retries=0 verify_replays=0 planned=1600 units=403 unit_retries=0 unit_serial=0 parallel=403 fallbacks=0 failures=0
+test=oa_throughput work=upd1 mode=unitpar txns=80000 secs=8.41 txn/s=9512 deadlocks=0 retries=0 verify_replays=2 planned=80000 units=49465 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 failures=0
+test=oa_throughput work=updk1 mode=unitpar txns=80000 secs=8.64 txn/s=9259 deadlocks=0 retries=0 verify_replays=8 planned=80000 units=43105 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 failures=0
+test=oa_throughput work=updhot mode=unitpar txns=80000 secs=27.07 txn/s=2955 deadlocks=1 retries=0 verify_replays=37531 planned=70971 units=47472 unit_retries=1 unit_serial=0 parallel=0 fallbacks=16909 failures=0
+test=oa_throughput work=upd20 mode=unitpar txns=3991 secs=7.87 txn/s=507 deadlocks=145 retries=63 verify_replays=138 planned=3807 units=2440 unit_retries=56 unit_serial=56 parallel=2387 fallbacks=207 failures=9
+test=oa_throughput work=del1 mode=unitpar txns=80000 secs=10.15 txn/s=7882 deadlocks=1841 retries=52 verify_replays=0 planned=79999 units=36609 unit_retries=1789 unit_serial=0 parallel=0 fallbacks=1 failures=0
+transactions a second, and against page locks
+cell                   pg             unit          unitpar
+ins1                 9732    11158 ( +15%)    11220 ( +15%)
+ins100                 97      431 (+344%)      431 (+344%)
+upd1                 9456     9768 (  +3%)     9512 (  +1%)
+updk1                9040     9281 (  +3%)     9259 (  +2%)
+updhot               1735     2889 ( +67%)     2955 ( +70%)
+upd20                 418      543 ( +30%)      507 ( +21%)
+del1                 8811     7859 ( -11%)     7882 ( -11%)

@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+bash -n "$0" || exit 1
+source ${TESTSROOTDIR}/tools/oa_common.sh
+
+# Transfers.  CLIENTS clients move money between ACCOUNTS accounts, each
+# transfer a transaction of two updates and an insert into a ledger.  The
+# money must add up at the end, the ledger must have a row for every transfer
+# a client was told committed and no other, and readers under snapshot
+# isolation must see the same total every time they look while it goes on.
+oa_init "$1" oa_bank
+CLIENTS=${CLIENTS:-16}
+N=${N:-1000}
+ACCOUNTS=${ACCOUNTS:-100}
+READERS=${READERS:-2}
+TOTAL=$((ACCOUNTS * 1000))
+
+oa_sql "create table a(id int primary key, bal bigint, note varchar(40))" > /dev/null
+oa_sql "create index abal on a(bal)" > /dev/null
+oa_sql "create table ledger(client int, seq int, src int, dst int, amt int)" > /dev/null
+oa_sql "create unique index lcs on ledger(client, seq)" > /dev/null
+
+for mode in $OA_MODES; do
+    oa_mode $mode
+    dir=$OA_DIR/$mode
+    mkdir -p $dir
+    oa_sql "delete from a where 1" > /dev/null
+    oa_sql "truncate ledger" > /dev/null
+    oa_sql "insert into a select value, 1000, 'new' from generate_series(1, $ACCOUNTS)" > /dev/null
+    for w in $(seq 1 $CLIENTS); do
+        awk -v w=$w -v n=$N -v acc=$ACCOUNTS 'BEGIN {
+            srand(w * 104729)
+            for (i = 1; i <= n; i++) {
+                s = 1 + int(rand() * acc)
+                do { d = 1 + int(rand() * acc) } while (d == s)
+                x = 1 + int(rand() * 50)
+                print "begin"
+                print "update a set bal = bal - " x ", note = \047c" w "s" i "\047 where id = " s
+                print "update a set bal = bal + " x " where id = " d
+                print "insert into ledger values(" w ", " i ", " s ", " d ", " x ")"
+                print "commit"
+            }
+        }' > $dir/c$w.sql
+    done
+    for r in $(seq 1 $READERS); do
+        {
+            echo "set transaction snapshot isolation"
+            for i in $(seq 1 $((N * 4))); do echo "select sum(bal) from a"; done
+        } > $dir/r$r.sql
+    done
+    oa_run_clients $dir
+    committed=$(oa_committed $dir/c*.out)
+    failures=$(oa_failures $dir/c*.out)
+    read_failures=$(oa_failures $dir/r*.out)
+    sum=$(oa_sql "select sum(bal) from a")
+    rows=$(oa_sql "select count(*) from ledger")
+    looks=$(grep -c "sum(bal)=" $dir/r*.out | awk -F: '{ s += $2 } END { print s + 0 }')
+    wrong=$(cat $dir/r*.out | grep "sum(bal)=" | grep -vc "sum(bal)=$TOTAL)")
+    oa_report $dir transfers $committed ledger=$rows total=$sum reads=$looks reads_wrong=$wrong failures=$failures read_failures=$read_failures
+    [ $((failures + read_failures)) = 0 ] || oa_failure_kinds $dir/c*.out $dir/r*.out
+    [ "$sum" = "$TOTAL" ] || oa_fail "oa_bank $mode: the accounts add up to $sum, not $TOTAL"
+    [ "$rows" = "$committed" ] || oa_fail "oa_bank $mode: the ledger has $rows rows, the clients were told $committed transfers committed"
+    [ "$wrong" = 0 ] || oa_fail "oa_bank $mode: $wrong of $looks snapshot reads saw a total other than $TOTAL"
+    [ $looks -gt 0 ] || oa_fail "oa_bank $mode: the readers read nothing"
+    [ $committed -gt 0 ] || oa_fail "oa_bank $mode: nothing committed"
+    oa_expect_planned $dir
+done
+oa_check_table a "select count(*), sum(bal), sum(id * bal) from a"
+oa_check_table ledger "select count(*), sum(amt), sum(src * 31 + dst) from ledger"
+oa_done

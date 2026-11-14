@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+bash -n "$0" || exit 1
+source ${TESTSROOTDIR}/tools/oa_common.sh
+
+# A unique key under a race.  CLIENTS clients each try to insert every key
+# from 1 to KEYS, each in an order of its own.  One must win each key and the
+# rest be told it is a duplicate.  Then each tries to delete every key, and
+# one must be told it deleted each.  ROUNDS times over.
+oa_init "$1" oa_unique
+CLIENTS=${CLIENTS:-12}
+KEYS=${KEYS:-1500}
+ROUNDS=${ROUNDS:-2}
+
+oa_sql "create table s(k int, who int, pad varchar(30))" > /dev/null
+oa_sql "create unique index sk on s(k)" > /dev/null
+oa_sql "create index swho on s(who)" > /dev/null
+
+shuffled() { # client, round, statement with K for the key
+    awk -v w=$1 -v r=$2 -v keys=$KEYS -v stmt="$3" 'BEGIN {
+        srand(w * 31 + r * 1009)
+        for (i = 1; i <= keys; i++) k[i] = i
+        for (i = keys; i > 1; i--) { j = 1 + int(rand() * i); t = k[i]; k[i] = k[j]; k[j] = t }
+        for (i = 1; i <= keys; i++) { s = stmt; gsub("K", k[i], s); print s }
+    }'
+}
+
+for mode in $OA_MODES; do
+    oa_mode $mode
+    oa_sql "truncate s" > /dev/null
+    for round in $(seq 1 $ROUNDS); do
+        dir=$OA_DIR/$mode.ins$round
+        mkdir -p $dir
+        for w in $(seq 1 $CLIENTS); do
+            shuffled $w $round "insert into s values(K, $w, 'r$round')" > $dir/c$w.sql
+        done
+        oa_run_clients $dir
+        won=$(oa_rows inserted $dir/c*.out)
+        failures=$(oa_failures $dir/c*.out)
+        dups=$(cat $dir/c*.err | grep "failed with rc" | grep -ci "dup")
+        rows=$(oa_sql "select count(*) from s")
+        oa_report $dir insert-race $won rows=$rows duplicates=$dups other_failures=$((failures - dups))
+        [ $failures = $dups ] || oa_failure_kinds $dir/c*.out
+        [ "$won" = "$KEYS" ] || oa_fail "oa_unique $mode: $won inserts were told they succeeded for $KEYS keys"
+        [ "$rows" = "$KEYS" ] || oa_fail "oa_unique $mode: $rows rows for $KEYS keys"
+        [ "$(oa_sql "select count(distinct k) from s where k > 0")" = "$KEYS" ] || oa_fail "oa_unique $mode: the index does not have each key once"
+        [ $failures = $dups ] || oa_fail "oa_unique $mode: $((failures - dups)) inserts failed with something other than a duplicate"
+        [ $dups = $((KEYS * (CLIENTS - 1))) ] || oa_fail "oa_unique $mode: $dups duplicates reported, expected $((KEYS * (CLIENTS - 1)))"
+        oa_expect_planned $dir
+
+        dir=$OA_DIR/$mode.del$round
+        mkdir -p $dir
+        for w in $(seq 1 $CLIENTS); do
+            shuffled $w $((round + 50)) "delete from s where k = K" > $dir/c$w.sql
+        done
+        oa_run_clients $dir
+        gone=$(oa_rows deleted $dir/c*.out)
+        failures=$(oa_failures $dir/c*.out)
+        rows=$(oa_sql "select count(*) from s")
+        oa_report $dir delete-race $gone rows=$rows failures=$failures
+        [ $failures = 0 ] || oa_failure_kinds $dir/c*.out
+        [ "$gone" = "$KEYS" ] || oa_fail "oa_unique $mode: clients were told they deleted $gone rows of $KEYS"
+        [ "$rows" = 0 ] || oa_fail "oa_unique $mode: $rows rows left"
+        [ $failures = 0 ] || oa_fail "oa_unique $mode: $failures deletes failed"
+    done
+done
+oa_check_table s "select count(*), sum(k) from s"
+oa_done

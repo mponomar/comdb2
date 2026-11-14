@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+bash -n "$0" || exit 1
+source ${TESTSROOTDIR}/tools/oa_common.sh
+
+# A queue.  PRODUCERS clients add rows with ascending keys, ten to a
+# transaction, while CONSUMERS clients each try to delete every row that was
+# there before they started, oldest first.  Each of those rows must be deleted
+# by exactly one consumer, and every row a producer was told it added must be
+# there afterwards.  Inserts at the high end of an index against deletes at
+# the low end is the shape a queue table has.
+oa_init "$1" oa_queue
+PRODUCERS=${PRODUCERS:-4}
+CONSUMERS=${CONSUMERS:-8}
+BACKLOG=${BACKLOG:-10000}
+N=${N:-2500}
+
+oa_sql "create table q(id bigint primary key, who int, payload varchar(60))" > /dev/null
+oa_sql "create index qwho on q(who, id)" > /dev/null
+
+for mode in $OA_MODES; do
+    oa_mode $mode
+    dir=$OA_DIR/$mode
+    mkdir -p $dir
+    oa_sql "truncate q" > /dev/null
+    oa_sql "insert into q select value, 0, 'backlog' from generate_series(1, $BACKLOG)" > /dev/null
+    for w in $(seq 1 $PRODUCERS); do
+        awk -v w=$w -v n=$N -v p=$PRODUCERS -v base=$BACKLOG 'BEGIN {
+            for (i = 0; i < n; i++) {
+                if (i % 10 == 0) print "begin"
+                print "insert into q values(" base + 1 + i * p + (w - 1) ", " w ", \047produced by " w "\047)"
+                if (i % 10 == 9 || i == n - 1) print "commit"
+            }
+        }' > $dir/p$w.sql
+    done
+    for w in $(seq 1 $CONSUMERS); do
+        # each consumer starts at a different place, so they meet all along the queue
+        awk -v w=$w -v c=$CONSUMERS -v n=$BACKLOG 'BEGIN {
+            start = int((w - 1) * n / c)
+            for (i = 0; i < n; i++) print "delete from q where id = " 1 + (start + i) % n
+        }' > $dir/c$w.sql
+    done
+    oa_run_clients $dir
+    consumed=$(oa_rows deleted $dir/c*.out)
+    produced=$(oa_acked $dir/p*.out)
+    failures=$(oa_failures $dir/c*.out $dir/p*.out)
+    left=$(oa_sql "select count(*) from q")
+    backlog_left=$(oa_sql "select count(*) from q where id <= $BACKLOG")
+    oa_report $dir produce-consume $(($(oa_committed $dir/p*.out) + consumed)) produced=$produced consumed=$consumed left=$left failures=$failures
+    [ $failures = 0 ] || oa_failure_kinds $dir/c*.out $dir/p*.out
+    [ "$consumed" = "$BACKLOG" ] || oa_fail "oa_queue $mode: consumers were told they deleted $consumed of the $BACKLOG rows of the backlog"
+    [ "$backlog_left" = 0 ] || oa_fail "oa_queue $mode: $backlog_left rows of the backlog are still there"
+    [ "$left" = "$produced" ] || oa_fail "oa_queue $mode: $left rows left, producers were told they added $produced"
+    [ "$produced" = "$((PRODUCERS * N))" ] || oa_fail "oa_queue $mode: producers added $produced of $((PRODUCERS * N))"
+    [ "$(oa_sql "select count(*) from q where who > 0")" = "$produced" ] || oa_fail "oa_queue $mode: the index on who disagrees with the table"
+    oa_expect_planned $dir
+done
+oa_check_table q "select count(*), sum(id), sum(who) from q"
+oa_done

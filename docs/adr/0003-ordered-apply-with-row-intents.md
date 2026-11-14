@@ -1246,6 +1246,50 @@ more than 8,192 bytes from a pipe as unsorted, and
 `selectv_rcode_disable_svonly_nop_generated` with "transaction too big" on
 `main` as well. Neither is ordered apply's.
 
+### Tests for iterating
+
+While this work is going on, only the tests written for it are run. The
+whole suite takes two hours a pass on one node and several passes to tell
+its own noise from a real failure, and most of it is about other things. It
+is to be run, a few times, once the implementation is done; run 24, the
+suite on the detector changes, was stopped after 42 tests for that reason.
+
+The tests are `tests/oa_*.test`, with `tests/tools/oa_common.sh`, and
+`docs/adr/0003-bench/adr-tests.sh <tree>` runs them: about seven minutes on
+one node. Each runs its workload three times in one database, under page
+locks, with commit units, and with commit units applied a file per thread,
+and checks something that must hold whichever it is:
+
+- `oa_counters`: clients add one to counters, alone and five to a
+  transaction. The counters must add up to the updates the clients were told
+  committed: a lost update is one fewer, a request applied twice one more.
+- `oa_bank`: transfers between accounts with a ledger row each. The money
+  adds up, the ledger has a row for each transfer that committed and no
+  other, and readers under snapshot isolation see the same total every time.
+- `oa_unique`: every client tries to insert every key, then to delete it.
+  One wins each key, the rest are told it is a duplicate; one deletes each.
+- `oa_deadlock`: transactions that update four rows in orders of their own,
+  with an index entry and a blob each, against readers by data file and by
+  index. Counters as above.
+- `oa_queue`: producers add at the high end of a key while consumers race to
+  delete the low end. Each row is deleted once and nothing produced is lost.
+- `oa_throughput`: single-row and 100-row inserts, updates, hot rows,
+  20-row transactions and deletes, timed. It prints transactions a second by
+  mode and against page locks, and fails only if something fails.
+
+All of them end by verifying their tables and comparing them across nodes,
+and all are watched: a database that commits nothing for 60 s while clients
+are running fails its test, with the lock table kept. That is the check
+that would have caught the stall of run 21 at once. The mode applied a file
+per thread splits a unit from four operations up in the five checking
+tests, where the default is 64, so that small transactions run on several
+threads; `oa_throughput` leaves the default.
+
+What they do not cover: schema changes, foreign keys and the other things a
+plan cannot hold, which `tests/ordered_apply.test` covers by statement; any
+failure of a node; and everything the suite found that was not about
+transactions under contention.
+
 ### Where to resume
 
 State at the end of the second session of 2026-11-14:
@@ -1256,13 +1300,14 @@ State at the end of the second session of 2026-11-14:
   `ordered_apply_parallel_updates` and `ordered_apply_parallel_retries`
   with the counter `ordered_apply_unit_serial`, and the benchmark scripts
   of runs 20 to 23. The feature's own test passed on `80d2ea75d` (run 20).
-  The suite on the detector changes (run 24) was still running when this
-  was committed; see the log for how it ended. Nothing is pushed.
+  The commit after that adds the tests under
+  [Tests for iterating](#tests-for-iterating), which pass (run 25). Nothing
+  is pushed.
 - **To measure, use these settings:** `ordered_apply 1`,
   `ordered_apply_unit 1`, with `disable_tagged_api_writes` on as
   `ordered_apply` now requires. Everything else is at its default. The turn
   variants (`serial`, `par`, `par-early`) are kept only for comparison.
-- **Every run is in `docs/adr/0003-bench/BENCHMARK-LOG.md`**, runs 1 to 23,
+- **Every run is in `docs/adr/0003-bench/BENCHMARK-LOG.md`**, runs 1 to 25,
   with what changed before each. Add an entry for each new run when it
   starts.
 - **A second branch, `rowlocks-adaptive`**, has the experiment on the
@@ -1308,9 +1353,10 @@ Things learned the hard way, which the next step must respect:
   tests depend on timing: run it 20 at a time, and run a test alone before
   believing that it fails.
 
-1. **Run the test suite with the detector changes.** They are in the lock
-   manager, under every transaction; only `recovdlock_emptyblob` and the
-   benchmarks have run on them.
+1. **Run the test suite, when the implementation is done.** The detector
+   changes are in the lock manager, under every transaction, and the suite
+   has not run on them: see [Tests for iterating](#tests-for-iterating).
+   Until then, `adr-tests.sh` after each change.
 2. **Locked reads.** A third of 100-row update transactions give their plan
    up because a page stayed locked by a unit. Either units stop holding page
    locks to their commit, which is the proposal's short page locks and needs

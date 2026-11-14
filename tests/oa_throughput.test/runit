@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+bash -n "$0" || exit 1
+source ${TESTSROOTDIR}/tools/oa_common.sh
+
+# Throughput by mode.  The same cells for each mode, CLIENTS clients each:
+# single-row and 100-row inserts, single-row updates of a column with no
+# index, of an indexed column and of 20 hot rows, 20-row update transactions,
+# and single-row deletes.  It fails only if a statement fails (other than a
+# commit that found a row changed), rows go missing, or a mode with ordered
+# apply plans nothing; the rates are printed, and at the end each mode
+# against page locks.
+oa_init "$1" oa_throughput
+# rates are wanted for the settings as they would be used, so a unit is split
+# by file only from the default number of operations
+OA_PAR_MIN_OPS=64
+CLIENTS=${CLIENTS:-16}
+N=${N:-5000}
+ROWS=${ROWS:-100000}
+SUMMARY=$OA_DIR/summary
+: > $SUMMARY
+
+oa_sql "create table t(a bigint, b bigint, c bigint, pad varchar(64))" > /dev/null
+oa_sql "create index ta on t(a)" > /dev/null
+oa_sql "create index tb on t(b)" > /dev/null
+oa_sql "create index tc on t(c)" > /dev/null
+
+# cell <name> <transactions each client runs> <awk program printing one client's statements>
+cell() {
+    local name=$1 txns=$2 prog=$3 dir=$OA_DIR/$OA_MODE.$1 w failures committed other
+    mkdir -p $dir
+    for w in $(seq 1 $CLIENTS); do
+        awk -v w=$w -v n=$txns -v rows=$ROWS -v clients=$CLIENTS -v base=$BASE "$prog" > $dir/c$w.sql
+    done
+    oa_run_clients $dir
+    failures=$(oa_failures $dir/c*.out)
+    committed=$(oa_committed $dir/c*.out)
+    oa_report $dir $name $committed failures=$failures | tee -a $SUMMARY
+    # a transaction of several statements may fail at commit when another
+    # changed a row it read; anything else that fails is a failure
+    other=$(cat $dir/c*.err | grep "failed with rc" | grep -vc "uncommittable txn")
+    [ $other = 0 ] || {
+        oa_failure_kinds $dir/c*.out
+        oa_fail "oa_throughput $OA_MODE $name: $other statements failed"
+    }
+    [ "$((committed + failures))" = "$((CLIENTS * txns))" ] || oa_fail "oa_throughput $OA_MODE $name: $committed committed and $failures failed of $((CLIENTS * txns)) transactions"
+    oa_expect_planned $dir
+    rm -rf $dir
+}
+
+pass=0
+for mode in $OA_MODES; do
+    oa_mode $mode
+    oa_sql "truncate t" > /dev/null
+    for lo in $(seq 1 20000 $ROWS); do
+        oa_sql "insert into t select value, (value * 7919) % 1000003, (value * 104729) % 1000033, 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' from generate_series($lo, $((lo + 19999)))" > /dev/null
+    done
+    pass=$((pass + 1))
+    BASE=$((ROWS * 10 * pass)) # keys the insert cells add, above the loaded rows
+
+    cell ins1 $N 'BEGIN { srand(w); for (i = 0; i < n; i++)
+        print "insert into t values(" base + i * clients + w ", " int(rand() * 1e9) ", " int(rand() * 1e9) ", \047inserted one at a time\047)" }'
+    cell ins100 $((N / 50)) 'BEGIN { srand(w + 100); for (i = 0; i < n; i++) {
+        s = "insert into t values"
+        for (j = 0; j < 100; j++) s = s (j ? "," : "") "(" base * 2 + (i * 100 + j) * clients + w ", " int(rand() * 1e9) ", " int(rand() * 1e9) ", \047inserted a hundred at a time\047)"
+        print s } }'
+    cell upd1 $N 'BEGIN { srand(w + 200); for (i = 0; i < n; i++)
+        print "update t set pad = \047updated " i "\047 where a = " 1 + int(rand() * rows) }'
+    cell updk1 $N 'BEGIN { srand(w + 300); for (i = 0; i < n; i++)
+        print "update t set b = " int(rand() * 1e9) " where a = " 1 + int(rand() * rows) }'
+    cell updhot $N 'BEGIN { srand(w + 400); for (i = 0; i < n; i++)
+        print "update t set b = " int(rand() * 1e9) " where a = " 1 + int(rand() * 20) }'
+    cell upd20 $((N / 20)) 'BEGIN { srand(w + 500); for (i = 0; i < n; i++) {
+        print "begin"
+        for (j = 0; j < 20; j++) print "update t set b = " int(rand() * 1e9) " where a = " 1 + int(rand() * rows)
+        print "commit" } }'
+    # every client deletes rows of its own, among the ones loaded
+    cell del1 $N 'BEGIN { for (i = 0; i < n; i++) print "delete from t where a = " 1000 + i * clients + w }'
+
+    want=$((ROWS + CLIENTS * N + CLIENTS * (N / 50) * 100 - CLIENTS * N))
+    [ "$(oa_sql "select count(*) from t")" = "$want" ] || oa_fail "oa_throughput $mode: $(oa_sql "select count(*) from t") rows, expected $want"
+    [ "$(oa_sql "select count(*) from t where b >= 0")" = "$want" ] || oa_fail "oa_throughput $mode: index tb has not $want entries"
+done
+
+echo "OA-SUMMARY transactions a second, and against page locks"
+awk '{
+    for (i = 1; i <= NF; i++) { split($i, kv, "="); f[kv[1]] = kv[2] }
+    if (!(f["work"] in seen)) { seen[f["work"]] = 1; order[++nw] = f["work"] }
+    if (!(f["mode"] in mseen)) { mseen[f["mode"]] = 1; modes[++nm] = f["mode"] }
+    rate[f["work"], f["mode"]] = f["txn/s"]
+} END {
+    printf "OA-SUMMARY %-8s", "cell"
+    for (m = 1; m <= nm; m++) printf " %16s", modes[m]
+    printf "\n"
+    for (i = 1; i <= nw; i++) {
+        printf "OA-SUMMARY %-8s", order[i]
+        for (m = 1; m <= nm; m++) {
+            r = rate[order[i], modes[m]]; p = rate[order[i], "pg"]
+            if (modes[m] == "pg" || p == 0) printf " %16d", r
+            else printf " %8d (%+4.0f%%)", r, 100 * (r - p) / p
+        }
+        printf "\n"
+    }
+}' $SUMMARY
+oa_check_table t "select count(*), sum(a % 1000003), sum(b % 1000003), sum(c % 1000003), sum(length(pad)) from t"
+oa_done
