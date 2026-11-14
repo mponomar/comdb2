@@ -2358,6 +2358,7 @@ __lock_get_internal_int(lt, locker, in_locker, flags, obj, lock_mode, timeout,
 	int verbose_waiter = gbl_lock_get_verbose_waiter;;
 	int grant_dirty, no_dd, ret, t_ret;
 	u_int32_t *wait_counted = NULL;
+	u_int32_t *family_waits = NULL;
 	extern int gbl_locks_check_waiters;
 
 	/*
@@ -3160,6 +3161,7 @@ upgrade:
 		/* awake: granted, aborted or expired, this locker waits no more */
 		if (wait_counted) {
 			__sync_fetch_and_sub(wait_counted, 1);
+			family_waits = wait_counted;
 			wait_counted = NULL;
 		}
 
@@ -3331,6 +3333,25 @@ expired:			obj_ndx = sh_obj->index;
 	unlock_locker_partition(region, lpartition);
 	if (holdarr)
 		__os_free(dbenv, holdarr);
+
+	/*
+	 * A lock granted after a wait can complete a deadlock.  The detector
+	 * runs when a wait begins, and its graph has an edge from a waiter to
+	 * each holder, none to a waiter ahead of it in the queue.  Lockers
+	 * queued behind this one came to wait for it only now, when it was
+	 * promoted, and nothing ran the detector for that.  With one thread
+	 * to a transaction family it does not matter: this thread is running,
+	 * and no cycle goes through its family until it waits again, which
+	 * runs the detector.  With children of one transaction on several
+	 * threads another of the family may be waiting already, for a lock
+	 * that one of those lockers holds.  So if any of the family waits now,
+	 * look.  The count is read after the lock is marked held, because the
+	 * detector does not count a pending lock as held: a child that began
+	 * to wait before that may have looked too early.
+	 */
+	if (family_waits && *family_waits > 0 &&
+	    region->detect != DB_LOCK_NORUN)
+		__lock_detect(dbenv, region->detect, NULL);
 
 	return (0);
 

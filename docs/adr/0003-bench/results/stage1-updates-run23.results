@@ -1,0 +1,231 @@
+# run 23, first pass: KEYS=2000000 VARIANTS="pg unit unit-p" ./ordered-apply-updates.sh, 2026-11-14 15:04-15:16 UTC
+master=node3
+(name='maxwt', value='32')
+(name='cachekb', value='4194304')
+(out='rowlocks is             disabled')
+## load 2000000 rows, a = 1..2000000
+loaded in 179s: 2000000 rows
+## config=pg
+STEP 1/27 upd 1 1 2000
+upd  K=1   M=1    txns=2000   secs=   4.28 txn/s=      468 rows/s=      468 ms/txn=  2.14 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=18.0 master=node3 cpu(cores) master=1.45 replicants=1.59,0.55
+     master-events n=2000 avg-ms total=0.8 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+STEP 2/27 upd 32 1 2000
+upd  K=32  M=1    txns=64000  secs=   7.27 txn/s=     8800 rows/s=     8800 ms/txn=  3.64 | commits=64000 deadlocks=0 retries=0 lockwaits=39 lockwait_ms=4 lockreq/row=17.8 master=node3 cpu(cores) master=6.60 replicants=20.07,1.18
+     master-events n=64002 avg-ms total=1.2 queue=0.0 processing=1.2 lockwait=0.0 | avg-concurrent queued=0.1 processing=10.2 lockwaiting=0.00
+STEP 3/27 updk 32 1 2000
+updk K=32  M=1    txns=64000  secs=   8.47 txn/s=     7553 rows/s=     7553 ms/txn=  4.24 | commits=64000 deadlocks=29 retries=29 lockwaits=3190 lockwait_ms=778 lockreq/row=27.7 master=node3 cpu(cores) master=7.22 replicants=16.32,1.09
+     master-events n=64001 avg-ms total=2.0 queue=0.0 processing=2.0 lockwait=0.0 | avg-concurrent queued=0.2 processing=15.0 lockwaiting=0.09
+STEP 4/27 upd 64 1 2000
+upd  K=64  M=1    txns=128000 secs=  11.29 txn/s=    11339 rows/s=    11339 ms/txn=  5.64 | commits=128000 deadlocks=0 retries=0 lockwaits=102 lockwait_ms=12 lockreq/row=20.0 master=node3 cpu(cores) master=10.38 replicants=18.76,1.54
+     master-events n=128001 avg-ms total=3.4 queue=0.0 processing=3.4 lockwait=0.0 | avg-concurrent queued=0.2 processing=38.5 lockwaiting=0.00
+STEP 5/27 upd 32 100 60
+upd  K=32  M=100  txns=1920   secs=  21.62 txn/s=       89 rows/s=     8880 ms/txn=360.37 | commits=1920 deadlocks=744 retries=744 lockwaits=3365 lockwait_ms=13066 lockreq/row=21.2 master=node3 cpu(cores) master=2.16 replicants=16.22,1.38
+     master-events n=2269 avg-ms total=86.2 queue=70.9 processing=15.4 lockwait=5.8 | avg-concurrent queued=7.4 processing=1.6 lockwaiting=0.60
+STEP 6/27 updk 32 100 60
+updk K=32  M=100  txns=1920   secs=  43.81 txn/s=       44 rows/s=     4383 ms/txn=730.16 | commits=1920 deadlocks=1437 retries=1437 lockwaits=4477 lockwait_ms=17306 lockreq/row=35.5 master=node3 cpu(cores) master=1.57 replicants=4.26,1.65
+     master-events n=2373 avg-ms total=197.9 queue=178.0 processing=19.9 lockwait=7.3 | avg-concurrent queued=9.6 processing=1.1 lockwaiting=0.40
+STEP 7/27 updhot 32 1 1000
+updhot K=32  M=1    txns=32000  secs=   9.47 txn/s=     3378 rows/s=     3378 ms/txn=  9.47 | commits=32000 deadlocks=0 retries=0 lockwaits=53943 lockwait_ms=206773 lockreq/row=29.2 master=node3 cpu(cores) master=5.00 replicants=6.73,3.28
+     master-events n=36350 avg-ms total=6.7 queue=0.0 processing=6.7 lockwait=5.7 | avg-concurrent queued=0.1 processing=25.6 lockwaiting=21.87
+STEP 8/27 del 32 1 2000
+del  K=32  M=1    txns=64000  secs=  10.11 txn/s=     6329 rows/s=     6329 ms/txn=  5.06 | commits=64000 deadlocks=58 retries=58 lockwaits=20316 lockwait_ms=9682 lockreq/row=25.8 master=node3 cpu(cores) master=6.59 replicants=13.51,0.63
+     master-events n=64000 avg-ms total=2.9 queue=0.0 processing=2.8 lockwait=0.2 | avg-concurrent queued=0.3 processing=17.9 lockwaiting=0.97
+STEP 9/27 del 32 100 60
+del  K=32  M=100  txns=1920   secs=  18.95 txn/s=      101 rows/s=    10134 ms/txn=315.78 | commits=1920 deadlocks=62 retries=62 lockwaits=1038 lockwait_ms=19430 lockreq/row=25.1 master=node3 cpu(cores) master=2.43 replicants=21.09,0.56
+     master-events n=1920 avg-ms total=58.4 queue=12.1 processing=46.4 lockwait=10.1 | avg-concurrent queued=1.2 processing=4.7 lockwaiting=1.03
+## config=unit
+STEP 10/27 upd 1 1 2000
+upd  K=1   M=1    txns=2000   secs=   4.41 txn/s=      454 rows/s=      454 ms/txn=  2.20 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=19.0 master=node3 cpu(cores) master=1.38 replicants=1.53,0.44
+     master-events n=2000 avg-ms total=0.9 queue=0.0 processing=0.9 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+     plan: txns=2000 units=2000 parallel=0 fallbacks=0 stale=0 read-locked=0 dup=0 unit-retries=0 apply-us/txn=144
+STEP 11/27 upd 32 1 2000
+upd  K=32  M=1    txns=64000  secs=   8.06 txn/s=     7939 rows/s=     7939 ms/txn=  4.03 | commits=64000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=19.2 master=node3 cpu(cores) master=5.88 replicants=16.76,0.52
+     master-events n=64002 avg-ms total=1.6 queue=0.0 processing=1.6 lockwait=0.0 | avg-concurrent queued=0.1 processing=12.6 lockwaiting=0.00
+     plan: txns=64000 units=20865 parallel=0 fallbacks=0 stale=1 read-locked=0 dup=0 unit-retries=0 apply-us/txn=86
+STEP 12/27 updk 32 1 2000
+updk K=32  M=1    txns=64000  secs=   9.01 txn/s=     7103 rows/s=     7103 ms/txn=  4.51 | commits=64000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=29.2 master=node3 cpu(cores) master=5.61 replicants=15.25,0.47
+     master-events n=64002 avg-ms total=2.1 queue=0.0 processing=2.1 lockwait=0.0 | avg-concurrent queued=0.1 processing=14.6 lockwaiting=0.00
+     plan: txns=64000 units=17431 parallel=0 fallbacks=0 stale=1 read-locked=0 dup=0 unit-retries=0 apply-us/txn=104
+STEP 13/27 upd 64 1 2000
+upd  K=64  M=1    txns=128000 secs=  12.06 txn/s=    10618 rows/s=    10618 ms/txn=  6.03 | commits=128000 deadlocks=0 retries=0 lockwaits=28 lockwait_ms=8 lockreq/row=21.1 master=node3 cpu(cores) master=9.75 replicants=15.53,0.54
+     master-events n=128001 avg-ms total=3.3 queue=0.0 processing=3.3 lockwait=0.0 | avg-concurrent queued=0.2 processing=35.0 lockwaiting=0.00
+     plan: txns=128000 units=13156 parallel=0 fallbacks=0 stale=0 read-locked=0 dup=0 unit-retries=0 apply-us/txn=80
+STEP 14/27 upd 32 100 60
+upd  K=32  M=100  txns=1920   secs=  19.07 txn/s=      101 rows/s=    10068 ms/txn=317.84 | commits=1920 deadlocks=216 retries=168 lockwaits=1024 lockwait_ms=4859 lockreq/row=18.9 master=node3 cpu(cores) master=1.97 replicants=22.44,0.64
+     master-events n=2232 avg-ms total=44.7 queue=24.4 processing=20.3 lockwait=1.8 | avg-concurrent queued=2.9 processing=2.4 lockwaiting=0.21
+     plan: txns=1656 units=1317 parallel=0 fallbacks=319 stale=25 read-locked=319 dup=0 unit-retries=48 apply-us/txn=6594
+STEP 15/27 updk 32 100 60
+updk K=32  M=100  txns=1920   secs=  25.57 txn/s=       75 rows/s=     7510 ms/txn=426.10 | commits=1920 deadlocks=852 retries=515 lockwaits=3572 lockwait_ms=27323 lockreq/row=33.5 master=node3 cpu(cores) master=2.35 replicants=11.88,1.54
+     master-events n=2300 avg-ms total=151.2 queue=91.3 processing=59.9 lockwait=10.5 | avg-concurrent queued=8.2 processing=5.4 lockwaiting=0.94
+     plan: txns=1605 units=765 parallel=0 fallbacks=438 stale=56 read-locked=438 dup=0 unit-retries=337 apply-us/txn=9724
+STEP 16/27 updhot 32 1 1000
+updhot K=32  M=1    txns=32000  secs=   5.86 txn/s=     5465 rows/s=     5465 ms/txn=  5.86 | commits=32000 deadlocks=8 retries=8 lockwaits=939 lockwait_ms=133 lockreq/row=33.4 master=node3 cpu(cores) master=5.04 replicants=11.17,1.24
+     master-events n=36137 avg-ms total=2.9 queue=0.1 processing=2.8 lockwait=0.0 | avg-concurrent queued=0.5 processing=17.3 lockwaiting=0.02
+     plan: txns=31869 units=14301 parallel=0 fallbacks=159 stale=749 read-locked=159 dup=0 unit-retries=0 apply-us/txn=113
+STEP 17/27 del 32 1 2000
+del  K=32  M=1    txns=64000  secs=   8.98 txn/s=     7129 rows/s=     7129 ms/txn=  4.49 | commits=64000 deadlocks=2 retries=2 lockwaits=273 lockwait_ms=130 lockreq/row=27.7 master=node3 cpu(cores) master=5.24 replicants=14.31,0.17
+     master-events n=64000 avg-ms total=2.2 queue=0.0 processing=2.2 lockwait=0.0 | avg-concurrent queued=0.1 processing=15.4 lockwaiting=0.01
+     plan: txns=63963 units=20792 parallel=0 fallbacks=37 stale=0 read-locked=37 dup=0 unit-retries=0 apply-us/txn=99
+STEP 18/27 del 32 100 60
+del  K=32  M=100  txns=1920   secs=  21.29 txn/s=       90 rows/s=     9020 ms/txn=354.79 | commits=1920 deadlocks=143 retries=138 lockwaits=1404 lockwait_ms=25175 lockreq/row=25.8 master=node3 cpu(cores) master=1.78 replicants=16.55,0.87
+     master-events n=1920 avg-ms total=109.4 queue=26.4 processing=83.1 lockwait=12.5 | avg-concurrent queued=2.4 processing=7.5 lockwaiting=1.13
+     plan: txns=1424 units=601 parallel=0 fallbacks=496 stale=0 read-locked=496 dup=0 unit-retries=5 apply-us/txn=9138
+## config=unit-p
+STEP 19/27 upd 1 1 2000
+upd  K=1   M=1    txns=2000   secs=   4.02 txn/s=      497 rows/s=      497 ms/txn=  2.01 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=19.0 master=node3 cpu(cores) master=1.50 replicants=1.52,1.26
+     master-events n=2000 avg-ms total=0.7 queue=0.0 processing=0.7 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+     plan: txns=2000 units=2000 parallel=0 fallbacks=0 stale=0 read-locked=0 dup=0 unit-retries=0 apply-us/txn=124
+STEP 20/27 upd 32 1 2000
+upd  K=32  M=1    txns=64000  secs=   7.94 txn/s=     8063 rows/s=     8063 ms/txn=  3.97 | commits=64000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=19.2 master=node3 cpu(cores) master=5.88 replicants=17.12,0.41
+     master-events n=64000 avg-ms total=1.5 queue=0.0 processing=1.5 lockwait=0.0 | avg-concurrent queued=0.1 processing=12.2 lockwaiting=0.00
+     plan: txns=64000 units=21469 parallel=92 fallbacks=0 stale=0 read-locked=0 dup=0 unit-retries=0 apply-us/txn=83
+STEP 21/27 updk 32 1 2000
+updk K=32  M=1    txns=64000  secs=   9.60 txn/s=     6664 rows/s=     6664 ms/txn=  4.80 | commits=64000 deadlocks=0 retries=0 lockwaits=1 lockwait_ms=0 lockreq/row=29.1 master=node3 cpu(cores) master=5.42 replicants=14.12,0.86
+     master-events n=64000 avg-ms total=2.4 queue=0.0 processing=2.4 lockwait=0.0 | avg-concurrent queued=0.1 processing=16.0 lockwaiting=0.00
+     plan: txns=64000 units=15969 parallel=858 fallbacks=0 stale=0 read-locked=0 dup=0 unit-retries=0 apply-us/txn=111
+STEP 22/27 upd 64 1 2000
+upd  K=64  M=1    txns=128000 secs=  11.20 txn/s=    11431 rows/s=    11431 ms/txn=  5.60 | commits=128000 deadlocks=0 retries=0 lockwaits=51 lockwait_ms=11 lockreq/row=21.0 master=node3 cpu(cores) master=10.50 replicants=16.71,0.75
+     master-events n=128003 avg-ms total=3.1 queue=0.0 processing=3.1 lockwait=0.0 | avg-concurrent queued=0.2 processing=35.1 lockwaiting=0.00
+     plan: txns=128000 units=14268 parallel=2858 fallbacks=0 stale=2 read-locked=0 dup=0 unit-retries=0 apply-us/txn=73
+STEP 23/27 upd 32 100 60
+upd  K=32  M=100  txns=1920   secs=  17.14 txn/s=      112 rows/s=    11204 ms/txn=285.60 | commits=1920 deadlocks=54 retries=36 lockwaits=294 lockwait_ms=3129 lockreq/row=17.5 master=node3 cpu(cores) master=2.13 replicants=25.44,0.54
+     master-events n=2206 avg-ms total=14.9 queue=3.6 processing=11.3 lockwait=1.3 | avg-concurrent queued=0.5 processing=1.5 lockwaiting=0.17
+     plan: txns=1868 units=1751 parallel=1737 fallbacks=56 stale=10 read-locked=56 dup=0 unit-retries=13 apply-us/txn=2770
+STEP 24/27 updk 32 100 60
+updk K=32  M=100  txns=1920   secs=  28.94 txn/s=       66 rows/s=     6635 ms/txn=482.28 | commits=1920 deadlocks=1434 retries=737 lockwaits=5084 lockwait_ms=31376 lockreq/row=36.9 master=node3 cpu(cores) master=2.73 replicants=9.97,0.82
+     master-events n=2345 avg-ms total=173.7 queue=123.1 processing=50.6 lockwait=10.8 | avg-concurrent queued=10.0 processing=4.1 lockwaiting=0.88
+     plan: txns=1460 units=903 parallel=685 fallbacks=623 stale=35 read-locked=623 dup=0 unit-retries=484 apply-us/txn=9748
+STEP 25/27 updhot 32 1 1000
+updhot K=32  M=1    txns=32000  secs=   5.81 txn/s=     5506 rows/s=     5506 ms/txn=  5.81 | commits=32000 deadlocks=9 retries=9 lockwaits=887 lockwait_ms=100 lockreq/row=33.4 master=node3 cpu(cores) master=5.18 replicants=11.51,0.93
+     master-events n=36044 avg-ms total=2.8 queue=0.1 processing=2.8 lockwait=0.0 | avg-concurrent queued=0.5 processing=17.1 lockwaiting=0.01
+     plan: txns=31912 units=14674 parallel=60 fallbacks=105 stale=708 read-locked=105 dup=0 unit-retries=0 apply-us/txn=112
+STEP 26/27 del 32 1 2000
+del  K=32  M=1    txns=64000  secs=   9.58 txn/s=     6678 rows/s=     6678 ms/txn=  4.79 | commits=64000 deadlocks=0 retries=0 lockwaits=259 lockwait_ms=3 lockreq/row=27.8 master=node3 cpu(cores) master=5.14 replicants=13.19,0.92
+     master-events n=64000 avg-ms total=2.5 queue=0.0 processing=2.5 lockwait=0.0 | avg-concurrent queued=0.1 processing=16.9 lockwaiting=0.00
+     plan: txns=63991 units=22590 parallel=95 fallbacks=9 stale=0 read-locked=9 dup=0 unit-retries=0 apply-us/txn=102
+STEP 27/27 del 32 100 60
+del  K=32  M=100  txns=1920   secs=  18.72 txn/s=      103 rows/s=    10256 ms/txn=312.01 | commits=1920 deadlocks=83 retries=59 lockwaits=818 lockwait_ms=16597 lockreq/row=25.3 master=node3 cpu(cores) master=2.91 replicants=20.52,0.71
+     master-events n=1920 avg-ms total=66.1 queue=9.5 processing=56.5 lockwait=7.9 | avg-concurrent queued=1.0 processing=5.8 lockwaiting=0.81
+     plan: txns=1547 units=1118 parallel=1105 fallbacks=373 stale=0 read-locked=373 dup=0 unit-retries=18 apply-us/txn=5797
+node1: 1232000	704319616006	616222961293	615983567845	45851805
+node2: [select count(*), sum(a % 1000003), sum(b % 1000003), sum(c % 1000003), sum(length(pad)) from t] failed with rc -105 cdb2_run_statement_typed_int: Maximum number of retries done num_retries:21.
+node3: 1232000	704319616006	616222961293	615983567845	45851805
+Verify succeeded.
+ALLDONE
+# node2 was 11 log files behind at the check; at 15:18:54, caught up:
+node2: 1232000	704319616006	616222961293	615983567845	45851805
+
+# run 23, second pass: KEYS=2000000 VARIANTS="unit-p unit pg" ./ordered-apply-updates.sh, 2026-11-14 15:19-15:32 UTC
+master=node3
+(name='maxwt', value='32')
+(name='cachekb', value='4194304')
+(out='rowlocks is             disabled')
+## load 2000000 rows, a = 1..2000000
+loaded in 175s: 2000000 rows
+## config=unit-p
+STEP 1/27 upd 1 1 2000
+upd  K=1   M=1    txns=2000   secs=   4.14 txn/s=      484 rows/s=      484 ms/txn=  2.07 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=19.0 master=node3 cpu(cores) master=0.99 replicants=1.14,0.99
+     master-events n=2000 avg-ms total=0.8 queue=0.0 processing=0.7 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+     plan: txns=2000 units=2000 parallel=0 fallbacks=0 stale=0 read-locked=0 dup=0 unit-retries=0 apply-us/txn=109
+STEP 2/27 upd 32 1 2000
+upd  K=32  M=1    txns=64000  secs=   8.00 txn/s=     7995 rows/s=     7995 ms/txn=  4.00 | commits=64000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=19.2 master=node3 cpu(cores) master=5.93 replicants=17.57,1.20
+     master-events n=64000 avg-ms total=1.5 queue=0.0 processing=1.4 lockwait=0.0 | avg-concurrent queued=0.1 processing=11.6 lockwaiting=0.00
+     plan: txns=64000 units=23086 parallel=51 fallbacks=0 stale=0 read-locked=0 dup=0 unit-retries=0 apply-us/txn=82
+STEP 3/27 updk 32 1 2000
+updk K=32  M=1    txns=64000  secs=   9.42 txn/s=     6793 rows/s=     6793 ms/txn=  4.71 | commits=64000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=29.2 master=node3 cpu(cores) master=5.59 replicants=14.67,1.34
+     master-events n=64001 avg-ms total=2.3 queue=0.0 processing=2.3 lockwait=0.0 | avg-concurrent queued=0.1 processing=15.3 lockwaiting=0.00
+     plan: txns=64000 units=16849 parallel=755 fallbacks=0 stale=1 read-locked=0 dup=0 unit-retries=0 apply-us/txn=109
+STEP 4/27 upd 64 1 2000
+upd  K=64  M=1    txns=128000 secs=  11.11 txn/s=    11516 rows/s=    11516 ms/txn=  5.56 | commits=128000 deadlocks=0 retries=0 lockwaits=25 lockwait_ms=7 lockreq/row=21.0 master=node3 cpu(cores) master=10.42 replicants=17.22,1.63
+     master-events n=128003 avg-ms total=3.0 queue=0.0 processing=3.0 lockwait=0.0 | avg-concurrent queued=0.2 processing=34.1 lockwaiting=0.00
+     plan: txns=128000 units=15024 parallel=2746 fallbacks=0 stale=3 read-locked=0 dup=0 unit-retries=0 apply-us/txn=73
+STEP 5/27 upd 32 100 60
+upd  K=32  M=100  txns=1920   secs=  17.71 txn/s=      108 rows/s=    10844 ms/txn=295.08 | commits=1920 deadlocks=46 retries=25 lockwaits=204 lockwait_ms=1180 lockreq/row=17.4 master=node3 cpu(cores) master=1.93 replicants=25.65,1.14
+     master-events n=2190 avg-ms total=12.4 queue=3.2 processing=9.2 lockwait=0.5 | avg-concurrent queued=0.4 processing=1.1 lockwaiting=0.06
+     plan: txns=1884 units=1794 parallel=1783 fallbacks=43 stale=10 read-locked=43 dup=0 unit-retries=12 apply-us/txn=2731
+STEP 6/27 updk 32 100 60
+updk K=32  M=100  txns=1920   secs=  28.01 txn/s=       69 rows/s=     6854 ms/txn=466.87 | commits=1920 deadlocks=1522 retries=732 lockwaits=5199 lockwait_ms=30243 lockreq/row=35.8 master=node3 cpu(cores) master=2.72 replicants=11.00,1.01
+     master-events n=2296 avg-ms total=170.0 queue=118.0 processing=51.9 lockwait=10.9 | avg-concurrent queued=9.7 processing=4.3 lockwaiting=0.90
+     plan: txns=1496 units=904 parallel=664 fallbacks=565 stale=35 read-locked=565 dup=0 unit-retries=580 apply-us/txn=9736
+STEP 7/27 updhot 32 1 1000
+updhot K=32  M=1    txns=32000  secs=   5.32 txn/s=     6013 rows/s=     6013 ms/txn=  5.32 | commits=32000 deadlocks=16 retries=16 lockwaits=1038 lockwait_ms=216 lockreq/row=34.0 master=node3 cpu(cores) master=5.34 replicants=13.08,0.79
+     master-events n=34972 avg-ms total=2.4 queue=0.1 processing=2.3 lockwait=0.0 | avg-concurrent queued=0.6 processing=14.8 lockwaiting=0.04
+     plan: txns=31855 units=12083 parallel=76 fallbacks=181 stale=897 read-locked=181 dup=0 unit-retries=0 apply-us/txn=104
+STEP 8/27 del 32 1 2000
+del  K=32  M=1    txns=64000  secs=   9.85 txn/s=     6499 rows/s=     6499 ms/txn=  4.92 | commits=64000 deadlocks=0 retries=0 lockwaits=221 lockwait_ms=6 lockreq/row=27.7 master=node3 cpu(cores) master=4.98 replicants=13.82,1.26
+     master-events n=64000 avg-ms total=2.5 queue=0.0 processing=2.5 lockwait=0.0 | avg-concurrent queued=0.1 processing=16.4 lockwaiting=0.00
+     plan: txns=63983 units=22903 parallel=66 fallbacks=17 stale=0 read-locked=17 dup=0 unit-retries=0 apply-us/txn=103
+STEP 9/27 del 32 100 60
+del  K=32  M=100  txns=1920   secs=  19.61 txn/s=       98 rows/s=     9790 ms/txn=326.86 | commits=1920 deadlocks=58 retries=41 lockwaits=546 lockwait_ms=11290 lockreq/row=25.0 master=node3 cpu(cores) master=2.75 replicants=21.40,0.84
+     master-events n=1920 avg-ms total=61.8 queue=6.9 processing=55.0 lockwait=5.4 | avg-concurrent queued=0.7 processing=5.4 lockwaiting=0.53
+     plan: txns=1618 units=1351 parallel=1342 fallbacks=302 stale=0 read-locked=302 dup=0 unit-retries=9 apply-us/txn=5479
+## config=unit
+STEP 10/27 upd 1 1 2000
+upd  K=1   M=1    txns=2000   secs=   4.57 txn/s=      437 rows/s=      437 ms/txn=  2.29 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=19.0 master=node3 cpu(cores) master=0.99 replicants=1.09,0.59
+     master-events n=2000 avg-ms total=0.9 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+     plan: txns=2000 units=2000 parallel=0 fallbacks=0 stale=0 read-locked=0 dup=0 unit-retries=0 apply-us/txn=125
+STEP 11/27 upd 32 1 2000
+upd  K=32  M=1    txns=64000  secs=   7.96 txn/s=     8042 rows/s=     8042 ms/txn=  3.98 | commits=64000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=19.2 master=node3 cpu(cores) master=5.87 replicants=17.50,0.96
+     master-events n=64000 avg-ms total=1.5 queue=0.0 processing=1.5 lockwait=0.0 | avg-concurrent queued=0.1 processing=11.8 lockwaiting=0.00
+     plan: txns=64000 units=22810 parallel=0 fallbacks=0 stale=0 read-locked=0 dup=0 unit-retries=0 apply-us/txn=81
+STEP 12/27 updk 32 1 2000
+updk K=32  M=1    txns=64000  secs=   9.06 txn/s=     7061 rows/s=     7061 ms/txn=  4.53 | commits=64000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=29.2 master=node3 cpu(cores) master=5.64 replicants=15.09,0.88
+     master-events n=64001 avg-ms total=2.1 queue=0.0 processing=2.1 lockwait=0.0 | avg-concurrent queued=0.1 processing=14.7 lockwaiting=0.00
+     plan: txns=64000 units=17586 parallel=0 fallbacks=0 stale=0 read-locked=0 dup=0 unit-retries=0 apply-us/txn=102
+STEP 13/27 upd 64 1 2000
+upd  K=64  M=1    txns=128000 secs=  11.71 txn/s=    10928 rows/s=    10928 ms/txn=  5.86 | commits=128000 deadlocks=0 retries=0 lockwaits=31 lockwait_ms=12 lockreq/row=21.1 master=node3 cpu(cores) master=9.98 replicants=16.33,0.75
+     master-events n=128002 avg-ms total=3.2 queue=0.0 processing=3.2 lockwait=0.0 | avg-concurrent queued=0.2 processing=34.7 lockwaiting=0.00
+     plan: txns=128000 units=14155 parallel=0 fallbacks=0 stale=0 read-locked=0 dup=0 unit-retries=0 apply-us/txn=78
+STEP 14/27 upd 32 100 60
+upd  K=32  M=100  txns=1920   secs=  19.58 txn/s=       98 rows/s=     9808 ms/txn=326.27 | commits=1920 deadlocks=178 retries=122 lockwaits=848 lockwait_ms=4249 lockreq/row=18.5 master=node3 cpu(cores) master=1.84 replicants=23.03,0.86
+     master-events n=2229 avg-ms total=37.4 queue=17.2 processing=20.2 lockwait=1.6 | avg-concurrent queued=2.0 processing=2.3 lockwaiting=0.18
+     plan: txns=1678 units=1337 parallel=0 fallbacks=281 stale=21 read-locked=281 dup=0 unit-retries=56 apply-us/txn=6456
+STEP 15/27 updk 32 100 60
+updk K=32  M=100  txns=1920   secs=  26.54 txn/s=       72 rows/s=     7235 ms/txn=442.32 | commits=1920 deadlocks=919 retries=555 lockwaits=3808 lockwait_ms=31902 lockreq/row=34.1 master=node3 cpu(cores) master=2.24 replicants=12.07,0.91
+     master-events n=2288 avg-ms total=159.3 queue=97.3 processing=62.0 lockwait=12.6 | avg-concurrent queued=8.4 processing=5.3 lockwaiting=1.09
+     plan: txns=1597 units=799 parallel=0 fallbacks=452 stale=58 read-locked=452 dup=0 unit-retries=364 apply-us/txn=9896
+STEP 16/27 updhot 32 1 1000
+updhot K=32  M=1    txns=32000  secs=   5.33 txn/s=     6000 rows/s=     6000 ms/txn=  5.33 | commits=32000 deadlocks=13 retries=13 lockwaits=1014 lockwait_ms=136 lockreq/row=33.6 master=node3 cpu(cores) master=5.44 replicants=12.57,2.05
+     master-events n=35362 avg-ms total=2.5 queue=0.1 processing=2.4 lockwait=0.0 | avg-concurrent queued=0.6 processing=15.7 lockwaiting=0.02
+     plan: txns=31853 units=12932 parallel=0 fallbacks=176 stale=813 read-locked=176 dup=0 unit-retries=0 apply-us/txn=103
+STEP 17/27 del 32 1 2000
+del  K=32  M=1    txns=64000  secs=   9.72 txn/s=     6587 rows/s=     6587 ms/txn=  4.86 | commits=64000 deadlocks=6 retries=6 lockwaits=257 lockwait_ms=23 lockreq/row=27.7 master=node3 cpu(cores) master=5.07 replicants=13.38,1.04
+     master-events n=64000 avg-ms total=2.6 queue=0.0 processing=2.5 lockwait=0.0 | avg-concurrent queued=0.1 processing=16.7 lockwaiting=0.00
+     plan: txns=63973 units=22370 parallel=0 fallbacks=27 stale=0 read-locked=27 dup=0 unit-retries=0 apply-us/txn=103
+STEP 18/27 del 32 100 60
+del  K=32  M=100  txns=1920   secs=  22.78 txn/s=       84 rows/s=     8429 ms/txn=379.63 | commits=1920 deadlocks=162 retries=138 lockwaits=1344 lockwait_ms=22240 lockreq/row=25.6 master=node3 cpu(cores) master=1.67 replicants=16.31,0.99
+     master-events n=1920 avg-ms total=117.1 queue=26.7 processing=90.4 lockwait=10.9 | avg-concurrent queued=2.3 processing=7.6 lockwaiting=0.92
+     plan: txns=1402 units=664 parallel=0 fallbacks=518 stale=0 read-locked=518 dup=0 unit-retries=24 apply-us/txn=9305
+## config=pg
+STEP 19/27 upd 1 1 2000
+upd  K=1   M=1    txns=2000   secs=   4.31 txn/s=      464 rows/s=      464 ms/txn=  2.15 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=18.0 master=node3 cpu(cores) master=1.34 replicants=1.73,0.66
+     master-events n=2000 avg-ms total=0.8 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+STEP 20/27 upd 32 1 2000
+upd  K=32  M=1    txns=64000  secs=   6.99 txn/s=     9160 rows/s=     9160 ms/txn=  3.49 | commits=64000 deadlocks=0 retries=0 lockwaits=31 lockwait_ms=3 lockreq/row=17.7 master=node3 cpu(cores) master=6.93 replicants=19.30,0.57
+     master-events n=64002 avg-ms total=1.3 queue=0.0 processing=1.2 lockwait=0.0 | avg-concurrent queued=0.1 processing=11.4 lockwaiting=0.00
+STEP 21/27 updk 32 1 2000
+updk K=32  M=1    txns=64000  secs=   8.37 txn/s=     7646 rows/s=     7646 ms/txn=  4.19 | commits=64000 deadlocks=0 retries=0 lockwaits=212 lockwait_ms=48 lockreq/row=27.4 master=node3 cpu(cores) master=7.57 replicants=16.10,0.96
+     master-events n=64000 avg-ms total=2.0 queue=0.0 processing=2.0 lockwait=0.0 | avg-concurrent queued=0.1 processing=15.3 lockwaiting=0.01
+STEP 22/27 upd 64 1 2000
+upd  K=64  M=1    txns=128000 secs=  11.61 txn/s=    11022 rows/s=    11022 ms/txn=  5.81 | commits=128000 deadlocks=0 retries=0 lockwaits=118 lockwait_ms=17 lockreq/row=19.8 master=node3 cpu(cores) master=10.56 replicants=17.94,0.77
+     master-events n=128003 avg-ms total=3.4 queue=0.0 processing=3.4 lockwait=0.0 | avg-concurrent queued=0.2 processing=37.7 lockwaiting=0.00
+STEP 23/27 upd 32 100 60
+upd  K=32  M=100  txns=1920   secs=  22.19 txn/s=       87 rows/s=     8654 ms/txn=369.76 | commits=1920 deadlocks=718 retries=718 lockwaits=3153 lockwait_ms=11846 lockreq/row=21.1 master=node3 cpu(cores) master=2.09 replicants=17.11,0.63
+     master-events n=2259 avg-ms total=83.4 queue=68.5 processing=14.8 lockwait=5.2 | avg-concurrent queued=7.0 processing=1.5 lockwaiting=0.53
+STEP 24/27 updk 32 100 60
+updk K=32  M=100  txns=1920   secs=  41.23 txn/s=       47 rows/s=     4657 ms/txn=687.15 | commits=1920 deadlocks=1262 retries=1262 lockwaits=4264 lockwait_ms=19018 lockreq/row=36.4 master=node3 cpu(cores) master=1.67 replicants=5.09,1.06
+     master-events n=2417 avg-ms total=186.7 queue=165.5 processing=21.2 lockwait=7.9 | avg-concurrent queued=9.7 processing=1.2 lockwaiting=0.46
+STEP 25/27 updhot 32 1 1000
+updhot K=32  M=1    txns=32000  secs=   9.40 txn/s=     3406 rows/s=     3406 ms/txn=  9.40 | commits=32000 deadlocks=0 retries=0 lockwaits=53853 lockwait_ms=202690 lockreq/row=29.2 master=node3 cpu(cores) master=4.73 replicants=6.68,1.84
+     master-events n=36328 avg-ms total=6.6 queue=0.0 processing=6.6 lockwait=5.6 | avg-concurrent queued=0.1 processing=25.4 lockwaiting=21.62
+STEP 26/27 del 32 1 2000
+del  K=32  M=1    txns=64000  secs=  10.12 txn/s=     6324 rows/s=     6324 ms/txn=  5.06 | commits=64000 deadlocks=56 retries=56 lockwaits=18961 lockwait_ms=8339 lockreq/row=25.8 master=node3 cpu(cores) master=6.69 replicants=12.89,1.94
+     master-events n=64000 avg-ms total=3.0 queue=0.1 processing=2.9 lockwait=0.1 | avg-concurrent queued=0.4 processing=18.5 lockwaiting=0.83
+STEP 27/27 del 32 100 60
+del  K=32  M=100  txns=1920   secs=  18.78 txn/s=      102 rows/s=    10225 ms/txn=312.96 | commits=1920 deadlocks=51 retries=51 lockwaits=993 lockwait_ms=14453 lockreq/row=24.9 master=node3 cpu(cores) master=2.46 replicants=21.66,2.30
+     master-events n=1920 avg-ms total=53.5 queue=8.9 processing=44.6 lockwait=7.5 | avg-concurrent queued=0.9 processing=4.6 lockwaiting=0.77
+node1: 1232000	704319616006	616569449582	615983567845	45855756
+node2: [select count(*), sum(a % 1000003), sum(b % 1000003), sum(c % 1000003), sum(length(pad)) from t] failed with rc -105 cdb2_run_statement_typed_int: Maximum number of retries done num_retries:21.
+node3: 1232000	704319616006	616569449582	615983567845	45855756
+Verify succeeded.
+ALLDONE

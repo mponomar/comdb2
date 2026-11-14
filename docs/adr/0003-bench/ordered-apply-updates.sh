@@ -5,6 +5,8 @@
 #   unit   ordered_apply on with commit units, updates and deletes planned
 #   unit-i unit, but updates and deletes not planned (ordered_apply_update off):
 #          they run under page locks next to planned inserts
+#   unit-p unit, with plans that update or delete applied a file per thread
+#          (ordered_apply_parallel_updates on)
 # VARIANTS in the environment picks which to run, in order.  KEYS is the number
 # of rows loaded with a = 1..KEYS for the workloads to pick from.
 cd /tmp/rlbench
@@ -14,10 +16,11 @@ export KEYS=${KEYS:-1000000}
 TOTAL=$(( $(echo $VARIANTS | wc -w) * 9 )); i=0
 send() { $D cdb2sql -s testdb --host $m "exec procedure sys.cmd.send('$1')" >/dev/null; }
 cfg() {
-  send "ordered_apply_unit 0"; send "ordered_apply_update 1"
+  send "ordered_apply_unit 0"; send "ordered_apply_update 1"; send "ordered_apply_parallel_updates 0"
   case $1 in
     pg)     send "ordered_apply 0";;
     unit)   send "ordered_apply 1"; send "ordered_apply_threads 3"; send "ordered_apply_unit 1";;
+    unit-p) send "ordered_apply 1"; send "ordered_apply_threads 3"; send "ordered_apply_unit 1"; send "ordered_apply_parallel_updates 1";;
     unit-i) send "ordered_apply 1"; send "ordered_apply_threads 3"; send "ordered_apply_unit 1"; send "ordered_apply_update 0";;
   esac
   echo "## config=$1"

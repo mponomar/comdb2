@@ -1039,7 +1039,8 @@ What it does:
   operation is treated as `DB_KEYEXIST` already was: in a unit, that member
   goes back and the rest are applied again without it.
 - **One thread.** A plan with an update or a delete in it is not applied a
-  file per thread; see the fifth finding below.
+  file per thread unless `ordered_apply_parallel_updates` is on; see the
+  detector finding below.
 - **Inserts with constraint checking on** are planned now. Every insert in
   a request that also updates or deletes runs that way, and adds its keys
   at the end of the request from the row read back by genid, which the plan
@@ -1085,15 +1086,54 @@ Three things found here were wrong before this step and are fixed:
 3. **A plan given up without an error reaching the block processor** was
    applied anyway. `bdb_tran_plan_apply()` now refuses it.
 
-And one that is not understood. With a unit applied a file per thread, a
-reader and two threads of the unit stood in a cycle that the detector did
-not break: the thread for a blob file had finished and held a blob page, the
-thread for the data file waited for a data page the reader held, and the
-reader waited for the blob page. Children of one transaction are one node to
-the detector, so it should have seen this. Applying such plans on one thread
-takes pages in the order a page-lock transaction does, and the test passes.
-Plans of adds alone are still applied a file per thread and may have the
-same exposure when a reader is on the pages they add to.
+And one in the deadlock detector, found later (run 21). With a unit applied
+a file per thread, `recovdlock_emptyblob` stalled: a reader, or a
+transaction under page locks, and two threads of the unit stood in a cycle
+that nothing broke. The lock manager assumes one thread works for a
+transaction family, and that was wrong in two more places:
+
+- **The detector woke one thread of its victim.** Aborting a victim means
+  aborting one waiting lock, which is the whole transaction when it has one
+  thread. A unit cannot abort until all its threads have come back; the
+  others stayed in their waits, with the pages of the cycle still held.
+  `__dd_abort_family()` now aborts every waiting lock of the victim's
+  family.
+- **A grant can close a cycle, and the detector ran only when a wait
+  began.** Its graph has an edge from a waiter to each holder and none to a
+  waiter ahead of it in the queue. When that waiter is promoted to holder
+  the edge appears, with no new wait to run the detector. With one thread
+  to a family that is harmless: the promoted thread is running, and its
+  family is in no cycle until it waits again. With several, a sibling may
+  be waiting already. A lock granted after a wait now runs the detector if
+  another of its family is waiting. It costs a transaction with one thread
+  a comparison after each wait and nothing else.
+
+One new waiter was enough to free a stalled database, which is how the
+first was found; the lock tables and the detector's trace are in
+`results/run21-lock-table.txt`.
+
+With both fixed, a unit applied a file per thread no longer stalls, but it
+deadlocks far more than one thread does. One thread takes a data page and
+then the blob page behind it, as a reader does. Several threads take them in
+no order, and under the master's policy a transaction that only reads is
+never the victim, so the unit loses every time. So plans that update or
+delete are still applied on one thread unless
+`ordered_apply_parallel_updates` is on, and a unit that has been a deadlock
+victim `ordered_apply_parallel_retries` times (1) while applied a file per
+thread is applied on one thread when it runs again; that covers plans of
+adds as well.
+
+Measured on `recovdlock_emptyblob`, whose five writers and three readers
+are slowed by a debug sleep, so every mode commits about 90 transactions in
+its 120 s and the difference is in what is thrown away (run 21,
+`results/run21-recovdlock.txt`): page locks have 2,400 to 2,500 deadlocks;
+units on one thread 3,000, with about 960 unit retries for 80 units; a file
+per thread with the limit at 1 or 2, 4,300 to 4,800 and 1,000 to 1,350; at
+4, 4,800 to 5,400 and 1,300 to 1,450; and with no fall-back 22,300 and
+8,700. So the limit is 1. On the benchmark's 100-row transactions, where
+nothing reads, a file per thread gives 11% more on updates of a column with
+no index and 15% more on deletes, and 9% less on updates of an indexed
+column (run 23).
 
 Checked: `tests/ordered_apply.test` has a section for this. The same
 statements (updates of plain, indexed and unique columns, a shift of a unique
@@ -1198,26 +1238,31 @@ and `manual_partition_lgcy`, as before, and four tests that want deadlocks,
 two of them new to the list because their updates are now planned
 (`reorder_updates_noreorder_generated`, `index_deadlock_loop_print`).
 `upsert` passed. Two tests that failed repeatedly on the same code while it
-was being fixed passed in this run, and are not explained; see
-[Where to resume](#where-to-resume).
+was being fixed passed in this run. Run 20 ran each five times with ordered
+apply, without it and on `main`, and they fail as often in all three
+(`results/run20-two-tests.txt`): `commit_lsn_map_delete_generated` because
+the test machine's `comm` (uutils coreutils 0.2.2) reports sorted input of
+more than 8,192 bytes from a pipe as unsorted, and
+`selectv_rcode_disable_svonly_nop_generated` with "transaction too big" on
+`main` as well. Neither is ordered apply's.
 
 ### Where to resume
 
-State at the end of the session of 2026-11-14:
+State at the end of the second session of 2026-11-14:
 
-- **Code:** branch `rowlocks-ideas`, all committed. Updates and deletes,
-  and everything under [Updates and deletes](#updates-and-deletes), are
-  the commit on top of `466c093bc`. That one is from another session, after
-  which `ordered_apply` is refused unless `disable_tagged_api_writes` is on.
-  Neither the feature's test nor the suite has been run since `466c093bc`:
-  the measurements and suite runs here were made on builds without it, and
-  the suite's settings file (`/tmp/rltest-keep/oa.lrl` on xeon) needs that
-  line added. Nothing is pushed.
+- **Code:** branch `rowlocks-ideas`, all committed. The commit on top of
+  `80d2ea75d` (updates and deletes) has the two deadlock-detector fixes
+  (`berkdb/lock/lock.c`, `lock_deadlock.c`), the tunables
+  `ordered_apply_parallel_updates` and `ordered_apply_parallel_retries`
+  with the counter `ordered_apply_unit_serial`, and the benchmark scripts
+  of runs 20 to 23. The feature's own test passed on `80d2ea75d` (run 20).
+  The suite on the detector changes (run 24) was still running when this
+  was committed; see the log for how it ended. Nothing is pushed.
 - **To measure, use these settings:** `ordered_apply 1`,
   `ordered_apply_unit 1`, with `disable_tagged_api_writes` on as
   `ordered_apply` now requires. Everything else is at its default. The turn
   variants (`serial`, `par`, `par-early`) are kept only for comparison.
-- **Every run is in `docs/adr/0003-bench/BENCHMARK-LOG.md`**, runs 1 to 19,
+- **Every run is in `docs/adr/0003-bench/BENCHMARK-LOG.md`**, runs 1 to 23,
   with what changed before each. Add an entry for each new run when it
   starts.
 - **A second branch, `rowlocks-adaptive`**, has the experiment on the
@@ -1253,56 +1298,73 @@ Things learned the hard way, which the next step must respect:
   Look for other pthread locks taken between a request's first page lock
   and its commit.
 - **Children of one transaction on several threads** are new to this code
-  base. The lock manager assumed one thread for each transaction family in
-  one place that was found (the waiting flag); the cycle through two
-  threads of one unit says there is another.
+  base, and the lock manager assumed one thread for each transaction family
+  in three places found so far: the waiting flag, the detector waking one
+  waiter of its victim, and the detector running only when a wait begins.
+  The deadlock detector is not run on a timer, so a cycle it does not see
+  when the last wait begins stands until some unrelated wait comes along.
+  When a database stalls, make one new reader wait and see if it frees.
 - **The test suite finds what the benchmarks do not**, and many of its
   tests depend on timing: run it 20 at a time, and run a test alone before
   believing that it fails.
 
-1. **Two tests that failed with ordered apply and passed without**, causes
-   not found: `selectv_rcode_disable_svonly_nop_generated` (one transaction
-   reaches 50,001 statements in the snapshot phase) and
-   `commit_lsn_map_delete_generated` (the commit map after a log
-   truncation). Each failed every time it was run alone on the fixed code,
-   three and four times, and then passed once in the full run 19. Both
-   passed before updates were planned. Run each several times, with and
-   without ordered apply, before anything else.
-2. **The cycle the detector missed**, under
-   [Updates and deletes](#updates-and-deletes). Until it is understood, a
-   file per thread is not safe to rely on, for adds either. The live lock
-   table of the hang is in run 16 of the log.
-3. **Locked reads.** A third of 100-row update transactions give their plan
+1. **Run the test suite with the detector changes.** They are in the lock
+   manager, under every transaction; only `recovdlock_emptyblob` and the
+   benchmarks have run on them.
+2. **Locked reads.** A third of 100-row update transactions give their plan
    up because a page stayed locked by a unit. Either units stop holding page
    locks to their commit, which is the proposal's short page locks and needs
    commits ordered per page, or a read waits for the unit in a way that
    cannot deadlock: a planning transaction holds nothing a unit can want
    except table locks.
-4. **Foreign keys.** These are the reads the btree cannot judge at apply,
+3. **Foreign keys.** These are the reads the btree cannot judge at apply,
    and where stamps, or a check under the unit's transaction, come in. It
    needs a decision on how writers outside plan mode take part.
-5. **`SELECTV` as a planned check**: an operation that asserts at apply,
+4. **`SELECTV` as a planned check**: an operation that asserts at apply,
    under the unit's transaction, that a genid is still there.
-6. **Run the suite on a cluster.**
-7. **Per-request accounting under units**: log bytes and write counts for
+5. **Run the suite on a cluster.**
+6. **Per-request accounting under units**: log bytes and write counts for
    request logging and fingerprints.
-8. **Decide whether a lone transaction should skip the plan altogether.**
+7. **Decide whether a lone transaction should skip the plan altogether.**
    It applies its own plan, which leaves it 4 to 12% behind page locks on
    one node for single-row inserts and level on three nodes.
-9. **Retire the turn.** With units on, the turn is used only by plans that
+8. **Retire the turn.** With units on, the turn is used only by plans that
    need logical log records. Once those go through units too, the turn, its
    lock, `ordered_apply_serial_commit` and `ordered_apply_turn_detect` can
    go.
-10. **Three nodes, large transactions:** find why units are behind early
+9. **Three nodes, large transactions:** find why units are behind early
     release for inserts there, and whether a unique key costs anything.
-11. **Open items in what exists:** no prefetch; the replay path through a
+10. **Open items in what exists:** no prefetch; the replay path through a
     unit and the victim path of a member's wait are untested; a failed member
     fails its whole unit; a request that cannot be planned pays one aborted
     attempt each time; a stale plan or a duplicate found at apply costs an
     aborted unit; units are not used when logical logging (`llog`) or a
     logical live schema change is on; "thd_req mismatch" seen once on macOS
     without ordered apply (run 16 of the log).
-12. **Not yet run:** any test on a real disk, and the Jepsen suite.
+11. **Not yet run:** any test on a real disk, and the Jepsen suite.
+12. **A unit starts every attempt with no deadlock priority.** The block
+    processor carries a transaction's priority from one attempt to the
+    next; a unit does not, so it loses to a page-lock transaction every
+    time as well as to readers. Run 23 had 337 to 580 unit retries in 1,920
+    100-row updates of an indexed column.
+13. **A lone transaction that applies its own plan a file per thread** does
+    not fall back to one thread after a deadlock: the request runs again
+    and plans again. Only units count their deadlocks.
+14. **The test machine's `comm`** fails `commit_lsn_map_delete_generated`
+    about three times in five (run 20). Put `gnucomm` first in the path
+    there, or expect it.
+
+### Noticed, not addressed here
+
+Things seen while measuring that were so before this work and are not part
+of it:
+
+- **A large transaction starves** (run 22). One statement that updates
+  10,000 rows never commits while a single client keeps updating one of
+  those rows: a row it read has changed when the master checks, and it is
+  run again, up to `osql_verify_retry_max` (499) times. Alone it takes
+  0.83 s. Page locks do the same; ordered apply neither causes nor cures
+  it.
 
 ## Risks and open questions
 

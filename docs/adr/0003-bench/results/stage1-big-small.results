@@ -1,0 +1,44 @@
+# run 22: ordered-apply-bigsmall.sh, 2026-11-14 14:25-14:31 UTC, three nodes.  The large transaction is one statement.
+master=node1
+## load 10000 rows, a = 1..10000
+loaded: 10000 rows
+## config=pg
+STEP 1/5 pg
+big   rows=10000 secs=60 committed=0 failed=0 (inf s a transaction)
+small clients=10 committed=180375 (3001 txn/s, slowest client 17642) failed=0
+      master: commits=180395 deadlocks=1 retries=1 verify_replays=0 oa_txns=0 oa_units=0 oa_unit_retries=0 oa_unit_serial=0 oa_parallel=0 oa_fallbacks=0 oa_stale_retries=0 oa_read_locked=0
+## config=unit
+STEP 2/5 unit
+big   rows=10000 secs=60 committed=0 failed=0 (inf s a transaction)
+small clients=10 committed=224426 (3733 txn/s, slowest client 20894) failed=0
+      master: commits=224446 deadlocks=0 retries=0 verify_replays=0 oa_txns=222227 oa_units=160559 oa_unit_retries=0 oa_unit_serial=0 oa_parallel=0 oa_fallbacks=2219 oa_stale_retries=0 oa_read_locked=2219
+## config=unit-p1
+STEP 3/5 unit-p1
+big   rows=10000 secs=60 committed=0 failed=0 (inf s a transaction)
+small clients=10 committed=228447 (3799 txn/s, slowest client 21506) failed=0
+      master: commits=228467 deadlocks=0 retries=0 verify_replays=0 oa_txns=226169 oa_units=163264 oa_unit_retries=0 oa_unit_serial=0 oa_parallel=0 oa_fallbacks=2298 oa_stale_retries=0 oa_read_locked=2298
+## config=unit-p2
+STEP 4/5 unit-p2
+big   rows=10000 secs=60 committed=0 failed=0 (inf s a transaction)
+small clients=10 committed=218040 (3626 txn/s, slowest client 20750) failed=0
+      master: commits=218060 deadlocks=0 retries=0 verify_replays=0 oa_txns=216163 oa_units=154972 oa_unit_retries=0 oa_unit_serial=0 oa_parallel=0 oa_fallbacks=1897 oa_stale_retries=0 oa_read_locked=1897
+## config=unit-p4
+STEP 5/5 unit-p4
+big   rows=10000 secs=60 committed=0 failed=0 (inf s a transaction)
+small clients=10 committed=232778 (3872 txn/s, slowest client 22070) failed=0
+      master: commits=232798 deadlocks=0 retries=0 verify_replays=0 oa_txns=230543 oa_units=166445 oa_unit_retries=0 oa_unit_serial=0 oa_parallel=0 oa_fallbacks=2255 oa_stale_retries=0 oa_read_locked=2255
+node1: 10000	50005000	-3268805	4998995564	400000
+node2: 10000	50005000	-3268805	4998995564	400000
+node3: 10000	50005000	-3268805	4998995564	400000
+Verify succeeded.
+ALLDONE
+
+# By hand afterwards, ordered_apply off (page locks), 40 s each: python3 big-small.py 10000 <clients> 40
+== small clients=1
+big   rows=10000 secs=40 committed=0 failed=0 (inf s a transaction)
+small clients=1 committed=19782 (493 txn/s, slowest client 19782) failed=0
+== small clients=3
+big   rows=10000 secs=40 committed=0 failed=0 (inf s a transaction)
+small clients=3 committed=55104 (1374 txn/s, slowest client 15505) failed=0
+# verify_replays on the two replicants over those 80 s: 817 -> 1042 and 529 -> 754
+# The large statement alone: 0.83 s.

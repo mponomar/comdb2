@@ -77,6 +77,7 @@ static inline int copy_sparse_map __P((DB_ENV *, sparse_map_t *,
 static void (*berkdb_deadlock_callback) (struct berkdb_deadlock_info *) = NULL;
 
 static int __dd_abort __P((DB_ENV *, locker_info *, u_int32_t *, db_status_t));
+static void __dd_abort_family __P((DB_ENV *, locker_info *, db_status_t));
 static int __dd_build __P((DB_ENV *,
 	u_int32_t, u_int32_t **, sparse_map_t **, u_int32_t *, u_int32_t *,
 	locker_info **, int **, int *, int));
@@ -906,9 +907,14 @@ dokill:
 				__db_err(dbenv,
 				    "warning: unable to abort locker %lx",
 				    (u_long)idmap[killid].id);
-		} else if (FLD_ISSET(dbenv->verbose, DB_VERB_DEADLOCK))
-			 __db_err(dbenv, "Aborted locker %lx",
-			    (u_long)idmap[killid].id);
+		} else {
+			if (FLD_ISSET(dbenv->verbose, DB_VERB_DEADLOCK))
+				 __db_err(dbenv, "Aborted locker %lx",
+				    (u_long)idmap[killid].id);
+			/* and the rest of its family, if they wait too */
+			__dd_abort_family(dbenv, &idmap[killid],
+			    DB_LSTAT_ABORTED);
+		}
 
 
 		if (gbl_print_deadlock_cycles == 1 || (num_retries && gbl_print_deadlock_cycles > 0 && (num_retries % gbl_print_deadlock_cycles) == 0)) {
@@ -2051,6 +2057,71 @@ out:unlock_lockers(region);
 	return (ret);
 }
 
+
+/*
+ * __dd_abort_family --
+ *	The victim is a transaction whose children wait on several threads.
+ *
+ * __dd_abort wakes one waiting locker of the victim's family.  That is the
+ * whole transaction while one thread works for it: the thread gets
+ * DB_LOCK_DEADLOCK and aborts.  When children of one transaction run on
+ * several threads (an ordered-apply plan applied a file per thread), the
+ * transaction cannot abort until every one of them has come back, and the
+ * others may be waiting too, some of them in the same cycle.  They would
+ * stay there, and so would the cycle, until some unrelated wait ran the
+ * detector again; if there is none, for ever.  So wake them all.
+ */
+#define	DD_FAMILY_MAX	64
+static void
+__dd_abort_family(dbenv, info, status)
+	DB_ENV *dbenv;
+	locker_info *info;
+	db_status_t status;
+{
+	DB_LOCKER *lockerp, *child;
+	DB_LOCKREGION *region;
+	DB_LOCKTAB *lt;
+	struct __db_lock *lp;
+	locker_info waiting[DD_FAMILY_MAX];
+	u_int32_t ndx;
+	int i, n = 0;
+
+	lt = dbenv->lk_handle;
+	region = lt->reginfo.primary;
+
+	LOCKREGION(dbenv, lt);
+	lock_lockers(region);
+	LOCKER_INDX(lt, region, info->id, ndx);
+	if (__lock_getlocker(lt, info->id, ndx, GETLOCKER_KEEP_PART,
+		&lockerp) != 0 || lockerp == NULL) {
+		unlock_lockers(region);
+		UNLOCKREGION(dbenv, lt);
+		return;
+	}
+	for (child = SH_LIST_FIRST(&lockerp->child_locker, __db_locker);
+	    child != NULL && n < DD_FAMILY_MAX;
+	    child = SH_LIST_NEXT(child, child_link, __db_locker)) {
+		if (child->id == info->last_locker_id)
+			continue;
+		/* A waiting lock is the first on its locker's list.  This is
+		 * read without the object's lock, as __dd_build reads it;
+		 * __dd_abort looks again with it held. */
+		if ((lp = SH_LIST_FIRST(&child->heldby, __db_lock)) == NULL ||
+		    lp->status != DB_LSTAT_WAITING)
+			continue;
+		waiting[n] = *info;
+		waiting[n].last_locker_id = child->id;
+		waiting[n].last_lock = R_OFFSET(&lt->reginfo, lp);
+		waiting[n].last_obj = lp->lockobj;
+		n++;
+	}
+	unlock_locker_partition(region, lockerp->partition);
+	unlock_lockers(region);
+	UNLOCKREGION(dbenv, lt);
+
+	for (i = 0; i < n; i++)
+		(void)__dd_abort(dbenv, &waiting[i], NULL, status);
+}
 
 #ifdef DIAGNOSTIC
 static void

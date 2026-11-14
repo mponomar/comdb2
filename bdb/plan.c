@@ -151,6 +151,7 @@ int64_t gbl_ordered_apply_parallel;  /* plans applied a file per thread */
 int64_t gbl_ordered_apply_apply_us;  /* time spent writing plans to the btrees */
 int64_t gbl_ordered_apply_units;        /* commit units committed */
 int64_t gbl_ordered_apply_unit_retries; /* commit units aborted and applied again */
+int64_t gbl_ordered_apply_unit_serial;  /* attempts on one thread because the unit deadlocked a file per thread */
 
 /* On: plans are not applied by the transactions that made them.  One thread
  * takes the plans that are waiting, applies them all under one transaction of
@@ -210,6 +211,11 @@ int gbl_ordered_apply_turn_detect = 1;
 int gbl_ordered_apply_threads = 3;
 /* Plans with fewer operations than this are not worth handing out. */
 int gbl_ordered_apply_parallel_min_ops = 64;
+int gbl_ordered_apply_parallel_updates = 0; /* see plan_new_op() */
+/* A unit applied a file per thread takes its pages in no order, so it can
+ * deadlock where one thread would not, and against a reader it is always the
+ * victim.  After this many such deadlocks a unit is applied on one thread. */
+int gbl_ordered_apply_parallel_retries = 1;
 
 static uint64_t now_us(void)
 {
@@ -273,14 +279,18 @@ static void plan_free(struct bdb_plan *plan)
 
 static struct plan_op *plan_new_op(struct bdb_plan *plan, int type, bdb_state_type *bdb_state, DBT *key, DBT *data)
 {
-    /* Only plans made of adds are applied a file per thread.  A thread that
-     * has finished its file keeps its page locks until every file is done,
-     * so the files are locked in no particular order.  A reader that holds a
-     * data page and wants the blob page behind it can then be in a cycle
-     * with two threads of one unit, and such a cycle was seen to stand
-     * (recovdlock_emptyblob, run 16).  Updates and deletes go to pages
-     * readers are on; adds mostly do not. */
-    if (type != PLAN_DTA_ADD && type != PLAN_KEY_ADD)
+    /* Only plans made of adds are applied a file per thread, unless
+     * ordered_apply_parallel_updates is on.  A thread that has finished its
+     * file keeps its page locks until every file is done, so the files are
+     * locked in no particular order.  A reader takes a data page and then
+     * the blob page behind it, as one thread applying a plan does; several
+     * threads make cycles with it that one thread does not, and against a
+     * reader the unit is always the victim.  Updates and deletes go to pages
+     * readers are on; adds mostly do not.  (Such a cycle used to stand, not
+     * just cost a retry: recovdlock_emptyblob, runs 16 and 21.  That was the
+     * deadlock detector, which woke one thread of a victim and ran only when
+     * a wait began.) */
+    if (type != PLAN_DTA_ADD && type != PLAN_KEY_ADD && !gbl_ordered_apply_parallel_updates)
         plan->one_thread = 1;
     struct plan_op *op = plan_alloc(plan, sizeof(struct plan_op) + key->size + data->size);
     if (op == NULL)
@@ -1504,11 +1514,13 @@ static void unit_drop_replays(struct unit_member *batch)
 static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch)
 {
     int retries = 0;
+    int par_deadlocks = 0; /* times it was a deadlock victim while applied a file per thread */
 
     for (;;) {
         int bdberr = 0;
         int rc = 0;
         int nplans = 0;
+        int in_parallel = 0;
         struct bdb_plan all = {0};
         uint64_t start = now_us();
 
@@ -1559,7 +1571,12 @@ static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch)
         struct plan_op *failed = NULL;
         if (rc == 0 && all.nops > 0) {
             int done = 0;
+            if (par_deadlocks > 0 && par_deadlocks >= gbl_ordered_apply_parallel_retries && !all.one_thread) {
+                all.one_thread = 1;
+                ATOMIC_ADD64(gbl_ordered_apply_unit_serial, 1);
+            }
             rc = apply_parallel(bdb_state, tran, &all, &done, &failed);
+            in_parallel = done;
             if (!done) {
                 for (struct plan_op *op = all.first; op && rc == 0; op = op->next) {
                     rc = apply_op(op, tran);
@@ -1604,6 +1621,8 @@ static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch)
             if ((rc == DB_LOCK_DEADLOCK || rc == BDBERR_DEADLOCK || rc == DB_REP_HANDLE_DEAD) &&
                 ++retries < UNIT_MAX_RETRIES) {
                 ATOMIC_ADD64(gbl_ordered_apply_unit_retries, 1);
+                if (in_parallel)
+                    par_deadlocks++;
                 continue;
             }
             if (rc != DB_LOCK_DEADLOCK && rc != BDBERR_DEADLOCK && rc != DB_REP_HANDLE_DEAD)

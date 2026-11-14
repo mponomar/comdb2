@@ -207,6 +207,7 @@ struct comdb2_metrics_store {
     int64_t ordered_apply_apply_us;
     int64_t ordered_apply_units;
     int64_t ordered_apply_unit_retries;
+    int64_t ordered_apply_unit_serial;
     int64_t ordered_apply_units_inline;
     int64_t ordered_apply_unit_slow_waits;
     int64_t ordered_apply_unit_kicks;
@@ -561,6 +562,8 @@ comdb2_metric gbl_metrics[] = {
      STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_units, NULL},
     {"ordered_apply_unit_retries", "Commit units aborted on a deadlock and applied again", STATISTIC_INTEGER,
      STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_unit_retries, NULL},
+    {"ordered_apply_unit_serial", "Attempts to apply a commit unit on one thread because it deadlocked a file per thread", STATISTIC_INTEGER,
+     STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_unit_serial, NULL},
     {"ordered_apply_units_inline", "Commit units of one applied by their own transaction", STATISTIC_INTEGER,
      STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_units_inline, NULL},
     {"ordered_apply_unit_slow_waits", "Transactions that waited for a commit unit long enough to wait in the lock manager",
@@ -603,6 +606,7 @@ extern int64_t gbl_ordered_apply_parallel;
 extern int64_t gbl_ordered_apply_apply_us;
 extern int64_t gbl_ordered_apply_units;
 extern int64_t gbl_ordered_apply_unit_retries;
+extern int64_t gbl_ordered_apply_unit_serial;
 extern int64_t gbl_ordered_apply_units_inline;
 extern int64_t gbl_ordered_apply_unit_slow_waits;
 extern int64_t gbl_ordered_apply_unit_kicks;
@@ -809,6 +813,7 @@ int refresh_metrics(void)
     stats.ordered_apply_apply_us = gbl_ordered_apply_apply_us;
     stats.ordered_apply_units = gbl_ordered_apply_units;
     stats.ordered_apply_unit_retries = gbl_ordered_apply_unit_retries;
+    stats.ordered_apply_unit_serial = gbl_ordered_apply_unit_serial;
     stats.ordered_apply_units_inline = gbl_ordered_apply_units_inline;
     stats.ordered_apply_unit_slow_waits = gbl_ordered_apply_unit_slow_waits;
     stats.ordered_apply_unit_kicks = gbl_ordered_apply_unit_kicks;

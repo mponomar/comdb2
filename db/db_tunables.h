@@ -3013,6 +3013,15 @@ REGISTER_TUNABLE("ordered_apply_parallel_min_ops",
                  "An ordered_apply plan with fewer btree operations than this is applied on the "
                  "thread that owns it. (Default: 64)",
                  TUNABLE_INTEGER, &gbl_ordered_apply_parallel_min_ops, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("ordered_apply_parallel_retries",
+                 "A commit unit that has been a deadlock victim this many times while applied a "
+                 "file per thread is applied on one thread when it runs again. (Default: 1)",
+                 TUNABLE_INTEGER, &gbl_ordered_apply_parallel_retries, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("ordered_apply_parallel_updates",
+                 "Apply an ordered_apply plan that updates or deletes a file per thread, as plans "
+                 "of adds are. Such a plan takes its pages in no order and deadlocks more, "
+                 "with readers above all. (Default: off)",
+                 TUNABLE_BOOLEAN, &gbl_ordered_apply_parallel_updates, EXPERIMENTAL, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("ordered_apply_turn_detect",
                  "With ordered_apply, run the deadlock detector when a transaction waits for its "
                  "turn to apply. Off is for measurement only: a deadlock that a wait for the turn "

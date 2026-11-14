@@ -594,6 +594,226 @@ second.
   `disable_tagged_api_writes` is on; the settings file for the suite
   (`oa.lrl`) will need that line too.
 
+### 20. The two unexplained tests, five times each way
+
+- **When:** started 2026-11-14 13:01 UTC. Not a timed benchmark.
+- **Change before:** none to the code. The build is the committed tree
+  (`80d2ea75d`), the first to include `466c093bc`; `oa.lrl` now starts with
+  `disable_tagged_api_writes 1`.
+- **Setup:** xeon, one node, the tree shipped with `git archive` over
+  `/tmp/rltest2/src` and `/tmp/rltest3/src` and rebuilt, old test
+  directories removed. First the `ordered_apply` test with nothing added.
+  Then `repeat-tests.sh run20 5 selectv_rcode_disable_svonly_nop_generated
+  commit_lsn_map_delete_generated`: each test alone, five times with
+  ordered apply and five times without, the two sides running side by side.
+  Output in `/tmp/rltest-keep/run20`.
+- **Then:** the same two tests five times on the build of `main`
+  (`/tmp/rltest-main`, `983c0348d`), 13:30–13:53 UTC, since both sides
+  failed.
+- **Results:** `run20-two-tests.txt`. The `ordered_apply` test passed
+  (`oa-own.out`). Failures of five:
+
+  |                                              | With | Without | `main` |
+  |----------------------------------------------|-----:|--------:|-------:|
+  | `selectv_rcode_disable_svonly_nop_generated` |    4 |       4 |      5 |
+  | `commit_lsn_map_delete_generated`            |    3 |       3 |      3 |
+
+- **Found:** neither failure is ordered apply's. Both come from the test
+  machine and fail as often on `main`.
+  - `commit_lsn_map_delete_generated`: every failure is `comm: file 2 is
+    not in sorted order` at line 356 of the test. xeon runs Ubuntu 25.10,
+    whose `comm` is uutils coreutils 0.2.2, and that `comm` reports sorted
+    input as unsorted when it comes through a pipe and is longer than 8,192
+    bytes: `comm -12 <(seq 1101 2739 | sort) <(echo 5)` fails, with 2738 it
+    does not, and from files it never does. The test passes when the list
+    of transactions to be deleted is shorter than that. `gnucomm` is
+    installed and does not have the fault.
+  - `selectv_rcode_disable_svonly_nop_generated`: 12 of the 13 failures are
+    "transaction too big" at commit in the snapshot phase; one, without
+    ordered apply, ran into the seven-minute limit. Why `main` produces a
+    50,001-statement transaction there on this machine was not looked into.
+  - Run 16 had them as failing with ordered apply and passing without, from
+    three and four runs with and fewer without. That was chance.
+
+### 21. The cycle the detector missed, reproduced
+
+- **When:** started 2026-11-14 13:42 UTC. Not a timed benchmark.
+- **Change before:** tunable `ordered_apply_parallel_updates` (off by
+  default): on, a plan with updates or deletes is applied a file per thread
+  again, as it was when `recovdlock_emptyblob` hung in run 16. Uncommitted.
+- **Setup:** xeon, one node, `/tmp/rltest3` rebuilt with the change.
+  `recovdlock_emptyblob` alone with `oa.lrl` plus
+  `ordered_apply_parallel_updates 1` (`/tmp/rltest-keep/run21/oa-par.lrl`),
+  while `watch.sh` there saves `bdb lockinfo lockers` and the deadlock
+  counters every 10 s. It overlaps the end of run 20's pass on `main`.
+- **Results:** `run21-lock-table.txt`, `run21-recovdlock.txt`. Output in
+  `/tmp/rltest-keep/run21`.
+  - Reproduced at once: the counters stood still from 30 s in (339
+    deadlocks, 157 unit retries, one unit applied) and the test ran into
+    its five-minute limit.
+  - With a detector run added after a grant (below), and nothing else:
+    stalled again, twice of two.
+  - With the detector waking all of a victim's family, and nothing else:
+    stalled three times of four.
+  - With both: passed five times of five.
+  - By how plans that update are applied, final code, last counters of each
+    120 s run. Every mode commits 73 to 106 transactions: the test's
+    clients are slowed by a debug sleep.
+
+    |                                 | Runs | Deadlocks     | Unit retries | Units   |
+    |---------------------------------|-----:|--------------:|-------------:|--------:|
+    | Page locks                      |    6 | 2,373–2,524   |              |         |
+    | Unit, one thread                |    2 | 3,015, 3,088  | 953, 973     | 81, 75  |
+    | A file per thread, limit 1      |    3 | 4,325–4,825   | 998–1,352    | 73–99   |
+    | A file per thread, limit 2      |    2 | 4,618, 4,780  | 1,036, 1,124 | 93, 92  |
+    | A file per thread, limit 4      |    2 | 4,796, 5,449  | 1,320, 1,452 | 88, 95  |
+    | A file per thread, no fall-back |    1 | 22,311        | 8,679        | 42      |
+
+- **Found:**
+  - **The detector woke one thread of its victim.** In both stalls the unit
+    had one thread waiting and another with no locks left, its wait
+    aborted. A unit cannot abort until all its threads are back, so the
+    cycle stood, and the detector runs only when a wait begins. One new
+    reader made to wait freed the stalled database: the detector found the
+    cycle at once (`run21-lock-table.txt`). Fixed: `__dd_abort_family()`
+    aborts every waiting lock of the victim's family.
+  - **A grant can close a cycle.** With that fix alone a stall was caught
+    with a unit and a page-lock transaction each waiting for a page the
+    other held and nothing aborted. The detector's graph has no edge from a
+    waiter to a waiter ahead of it; the edge appears when that one is
+    promoted, and no wait begins then. That the order of events was this is
+    read from the lock table, not traced. Fixed: a lock granted after a
+    wait runs the detector if another locker of its family is waiting,
+    which cannot be so for a family with one thread.
+  - **Then it deadlocks, a lot.** Several threads take data, blob and index
+    pages in no order, and a transaction that only reads is never the
+    victim. With no fall-back a unit is aborted about 200 times for each
+    time it is applied. `ordered_apply_parallel_retries` (1): after that
+    many deadlocks a file per thread, the unit is applied on one thread.
+    1 and 2 measure the same, 4 a little worse.
+  - Units on one thread are themselves aborted about twelve times for each
+    time they are applied in this test, and have a fifth more deadlocks
+    than page locks.
+  - The first five runs of the last table were meant to have ordered apply
+    on; the script looked for `oa.lrl` in the wrong directory. They are the
+    page-lock rows.
+
+### 22. One large transaction against ten small ones on its rows
+
+- **When:** image build started 2026-11-14 14:17 UTC, three nodes.
+- **Change before:** the two detector fixes of run 21; a unit that has been
+  a deadlock victim `ordered_apply_parallel_retries` times (new, default 1)
+  while applied a file per thread is applied on one thread when it runs
+  again; counter `ordered_apply_unit_serial`. Uncommitted.
+- **Setup:** 10,000 rows. One client updates all of them in one statement,
+  which is one transaction (column `b`, indexed), again and again; ten
+  clients each update one row of that set again and again, a statement a
+  transaction. 60 s for each of `pg`, `unit` (updates on one thread), and
+  `unit-p1`, `unit-p2`, `unit-p4` (a file per thread, falling back to one
+  thread after 1, 2 or 4 deadlocks). New: `big-small.py`,
+  `ordered-apply-bigsmall.sh`. It overlapped the test runs of run 21 on the
+  same machine.
+- **Command:** `./ordered-apply-bigsmall.sh`, 14:25–14:31 UTC. Two earlier
+  attempts gave nothing: the first wrote the clients' output to a directory
+  that is read-only in the container; the second had the large transaction
+  as 10,000 statements between `begin` and `commit`, which take longer than
+  60 s to send (about 6 ms each).
+- **Results:** `stage1-big-small.results`.
+
+  |           | Large, committed in 60 s | Small, txn/s | Slowest small client |
+  |-----------|-------------------------:|-------------:|---------------------:|
+  | `pg`      |                        0 |        3,001 |               17,642 |
+  | `unit`    |                        0 |        3,733 |               20,894 |
+  | `unit-p1` |                        0 |        3,799 |               21,506 |
+  | `unit-p2` |                        0 |        3,626 |               20,750 |
+  | `unit-p4` |                        0 |        3,872 |               22,070 |
+
+- **Found:**
+  - The large transaction never commits, with ordered apply or without. It
+    takes 0.83 s alone. Under page locks, with ordered apply off, one small
+    client (493 txn/s) is enough to keep it from committing for 40 s. The
+    statement is run on a replicant, a row it read has changed by the time
+    the master checks it, and it is run again: `verify_replays` on the
+    replicants rose by 225 each in 80 s. `osql_verify_retry_max` is 499, so
+    a client would wait several minutes and then get an error. This is how
+    the system behaves today and ordered apply does not change it.
+  - The small clients all make progress, 21 to 29% faster with units than
+    under page locks. Of their 220,000 plans about 2,200 gave up on a
+    locked read and ran again under page locks. No failures.
+  - Nothing here was applied a file per thread (the large transaction never
+    got past the master's check of the rows it read, and a single-row update is below
+    `ordered_apply_parallel_min_ops`), so the three `unit-p` columns say
+    nothing about `ordered_apply_parallel_retries`.
+  - The three nodes held identical tables and verify succeeded.
+
+### 23. Updates and deletes again, with the detector fixes
+
+- **When:** started 2026-11-14 15:04 UTC, three nodes.
+- **Change before:** as run 22. Uncommitted.
+- **Setup:** as run 18, with a third pass: `unit-p`, units with plans that
+  update or delete applied a file per thread
+  (`ordered_apply_parallel_updates 1`, `ordered_apply_parallel_retries` at
+  its default of 1). Nothing else running on the machine.
+- **Command:** `KEYS=2000000 VARIANTS="pg unit unit-p"
+  ./ordered-apply-updates.sh`. Two million rows where run 18 had one, so
+  that three passes of deletes have keys enough; the numbers are to be
+  compared within this run.
+- **Then:** a second pass with the variants in the opposite order
+  (`unit-p unit pg`), 15:19–15:32 UTC.
+- **Results:** `stage1-updates-run23.results`. Rows a second, the two
+  passes and their mean; 32 clients unless said.
+
+  |                        | Page locks             | Unit, one thread       | Unit, a file per thread |
+  |------------------------|-----------------------:|-----------------------:|------------------------:|
+  | `upd`, 1 row, 1 client | 468, 464: 466          | 454, 437: 446          | 497, 484: 490           |
+  | `upd`, 1 row           | 8,800, 9,160: 8,980    | 7,939, 8,042: 7,990    | 8,063, 7,995: 8,029     |
+  | `updk`, 1 row          | 7,553, 7,646: 7,600    | 7,103, 7,061: 7,082    | 6,664, 6,793: 6,728     |
+  | `upd`, 1 row, 64       | 11,339, 11,022: 11,180 | 10,618, 10,928: 10,773 | 11,431, 11,516: 11,474  |
+  | `updhot`, 1 row        | 3,378, 3,406: 3,392    | 5,465, 6,000: 5,732    | 5,506, 6,013: 5,760     |
+  | `del`, 1 row           | 6,329, 6,324: 6,326    | 7,129, 6,587: 6,858    | 6,678, 6,499: 6,588     |
+  | `upd`, 100 rows        | 8,880, 8,654: 8,767    | 10,068, 9,808: 9,938   | 11,204, 10,844: 11,024  |
+  | `updk`, 100 rows       | 4,383, 4,657: 4,520    | 7,510, 7,235: 7,372    | 6,635, 6,854: 6,744     |
+  | `del`, 100 rows        | 10,134, 10,225: 10,180 | 9,020, 8,429: 8,724    | 10,256, 9,790: 10,023   |
+
+- **Found:**
+  - The two passes agree to within 4% in most cells and 10% in the worst
+    (`updhot` and single-row deletes with units).
+  - Units on one thread against page locks, as run 18 had it: 11%, 7% and
+    4% behind on single-row updates of rows nobody else wants, 8% ahead on
+    single-row deletes, 69% ahead on the 200 hot rows, 13% and 63% ahead on
+    100-row updates, 14% behind on 100-row deletes. The detector changes
+    cost this mode nothing that shows: for a unit on one thread neither
+    new path has anything to do.
+  - A file per thread against one thread: 11% more on 100-row updates of
+    the column with no index and 15% more on 100-row deletes, which brings
+    those deletes level with page locks; 9% less on 100-row updates of the
+    indexed column, where it has as many deadlocks as page locks (1,434 and
+    1,522 against 852 and 919 on one thread, 1,437 and 1,262 under page
+    locks) and 484 and 580 units were aborted and applied again against 337
+    and 364. Single-row cells are within 7% either way, few of their units
+    being large enough to split.
+  - So a file per thread is worth having where the files a transaction
+    writes are not ones another transaction reaches in a different order,
+    and costs where they are. It stays off by default.
+  - After each pass node1 and node3 held identical tables and verify
+    succeeded. node2 did not answer: it was 11 log files behind the master
+    after the first pass and matched the others two and a half minutes
+    later, when it had caught up. It ran most of the SQL (16 to 25 cores).
+
+### 24. Test suite with the detector changes
+
+- **When:** started 2026-11-14 15:51 UTC. Not a timed benchmark.
+- **Change before:** as run 23: the two detector fixes, the fall-back to
+  one thread, the two tunables. Uncommitted.
+- **Setup:** as run 19: `suite-with-ordered-apply.sh run24 20` on xeon, one
+  node, `oa.lrl` with `disable_tagged_api_writes 1`, test directories of
+  earlier runs removed first. Output in `/tmp/rltest-keep/run24`.
+  `ordered_apply_parallel_updates` is off, as it is by default, so what
+  this run tries is the detector under every other transaction and under
+  plans of adds, which are applied a file per thread.
+- **Results:** pending. `status` there gets `PASS-DONE` after the first
+  pass and `MAIN-DONE` after the failures have run on `main`.
+
 ## Elsewhere
 
 - **Adaptive mode on the existing rowlocks code**, by a second agent, on

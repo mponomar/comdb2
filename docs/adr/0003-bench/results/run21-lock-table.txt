@@ -1,0 +1,208 @@
+# recovdlock_emptyblob with ordered_apply_parallel_updates 1, run 21: bdb lockinfo lockers, 140 s into the hang.
+# Lockers with no locks are left out.  The deadlock and unit counters stood still from 30 s on:
+# (name='deadlocks', value=339)
+# (name='rep_deadlocks', value=0)
+# (name='ordered_apply_units', value=1)
+# (name='ordered_apply_unit_retries', value=157)
+      5c dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       5c READ          1 HELD    XXX.sqlite_stat1_0000000000030000.datas3 handle       0
+8000055e dd= 4 locks held 1    write locks 0    waiters Y thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0 8000055d 8000055e WRITE         1 WAIT    XXX.t1_0000000000100000.datas2 page         2
+0x0x78c6ec20b6c0 8000055d 8000055e READ          1 HELD    XXX.t1_0000000000100000.datas2 page         1
+     171 dd= 6 locks held 2    write locks 0    waiters Y thread 0x0x78c6e9efd6c0
+0x0x78c6e9efd6c0        0      171 READ          1 WAIT    XXX.t1_0000000000110000.blobs2 page         1
+0x0x78c6e9efd6c0        0      171 READ          1 HELD    XXX.t1_0000000000100000.datas2 page         3
+0x0x78c6e9efd6c0        0      171 READ          1 HELD     tablelock t1
+      74 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       74 READ          1 HELD    XXX.sqlite_stat4_0000000000070000.datas4 handle       0
+      fe dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0       fe READ          1 HELD    XXX.t1_0000000000110000.blobs6 handle       0
+80000577 dd= 1 locks held 1    write locks 0    waiters N thread 0x0x78c6e92fa6c0
+0x0x78c6e92fa6c0        0 80000577 READ          1 HELD     tablelock t1
+      5e dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       5e READ          1 HELD    XXX.sqlite_stat1_0000000000030000.datas2 handle       0
+     100 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0      100 READ          1 HELD    XXX.t1_0000000000110000.blobs5 handle       0
+      76 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       76 READ          1 HELD    XXX.sqlite_stat4_0000000000070000.datas3 handle       0
+80000578 dd= 1 locks held 1    write locks 0    waiters Y thread 0x0x78c6e92fa6c0
+0x0x78c6e92fa6c0 80000577 80000578 WRITE         1 WAIT    XXX.t1_0000000000100000.datas2 page         2
+0x0x78c6e92fa6c0 80000577 80000578 READ          1 HELD    XXX.t1_0000000000100000.datas2 page         1
+      60 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       60 READ          1 HELD    XXX.sqlite_stat1_0000000000030000.datas1 handle       0
+80000579 dd= 0 locks held 1    write locks 1    waiters Y thread 0x0x78c6eb7066c0
+0x0x78c6eb7066c0        0 80000579 WRITE         1 HELD    0x6efb8 len:  16 data: 6f72646572656420756e697400000000
+     102 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0      102 READ          1 HELD    XXX.t1_0000000000110000.blobs4 handle       0
+     175 dd= 5 locks held 3    write locks 0    waiters Y thread 0x0x78c6eaf016c0
+0x0x78c6eaf016c0        0      175 READ          1 WAIT    XXX.t1_0000000000110000.blobs2 page         1
+0x0x78c6eaf016c0        0      175 READ          1 HELD    XXX.t1_0000000000100000.datas2 page         3
+0x0x78c6eaf016c0        0      175 READ          1 HELD    XXX.t1_00000000001d0000.index page         3
+0x0x78c6eaf016c0        0      175 READ          1 HELD     tablelock t1
+      78 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       78 READ          1 HELD    XXX.sqlite_stat4_0000000000070000.datas2 handle       0
+8000057a dd= 0 locks held 1    write locks 0    waiters N thread 0x0x78c6eb7066c0
+0x0x78c6eb7066c0 80000579 8000057a WRITE         1 WAIT    XXX.t1_0000000000100000.datas2 page         2
+0x0x78c6eb7066c0 80000579 8000057a READ          1 HELD    XXX.t1_0000000000100000.datas2 page         1
+      62 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       62 READ          1 HELD    XXX.sqlite_stat1_0000000000030000.datas0 handle       0
+800001b5 dd= 7 locks held 2    write locks 0    waiters Y thread 0x0x78c6e9afc6c0
+0x0x78c6e9afc6c0        0 800001b5 READ          1 WAIT    0x6efb8 len:  16 data: 6f72646572656420756e697400000000
+0x0x78c6e9afc6c0        0 800001b5 READ          1 HELD    0x2ee28 len:  16 data: 636f6d6d6974206c6f636b0000000000
+0x0x78c6e9afc6c0        0 800001b5 READ          1 HELD     tablelock t1
+8000057b dd=4294967295 locks held 2    write locks 2    waiters N thread 0x0x78c6eb5046c0
+0x0x78c6eb5046c0 80000579 8000057b WRITE         4 HELD    XXX.t1_0000000000120000.index page         3
+0x0x78c6eb5046c0 80000579 8000057b WRITE        30 HELD    XXX.t1_0000000000120000.index page         2
+      ec dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0       ec READ          1 HELD    XXX.t1_0000000000100000.datas7 handle       0
+     104 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0      104 READ          1 HELD    XXX.t1_0000000000110000.blobs3 handle       0
+      7a dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       7a READ          1 HELD    XXX.sqlite_stat4_0000000000070000.datas1 handle       0
+      64 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       64 READ          1 HELD    XXX.sqlite_stat1_0000000000040000.index handle       0
+8000057d dd= 0 locks held 1    write locks 1    waiters Y thread 0x0x78c6eb4036c0
+0x0x78c6eb4036c0 80000579 8000057d WRITE        48 HELD    XXX.t1_0000000000110000.blobs2 page         1
+      ee dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0       ee READ          1 HELD    XXX.t1_0000000000100000.datas6 handle       0
+     106 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0      106 READ          1 HELD    XXX.t1_0000000000110000.blobs2 handle       0
+      7c dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       7c READ          1 HELD    XXX.sqlite_stat4_0000000000070000.datas0 handle       0
+      f0 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0       f0 READ          1 HELD    XXX.t1_0000000000100000.datas5 handle       0
+     108 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0      108 READ          1 HELD    XXX.t1_0000000000110000.blobs1 handle       0
+      7e dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       7e READ          1 HELD    XXX.sqlite_stat4_0000000000080000.index handle       0
+      51 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       51 READ          1 HELD    XXX.comdb2_llmeta.dta     handle       0
+      f2 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0       f2 READ          1 HELD    XXX.t1_0000000000100000.datas4 handle       0
+     10a dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0      10a READ          1 HELD    XXX.t1_0000000000110000.blobs0 handle       0
+      f4 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0       f4 READ          1 HELD    XXX.t1_0000000000100000.datas3 handle       0
+     167 dd= 8 locks held 3    write locks 0    waiters Y thread 0x0x78c6eb3026c0
+0x0x78c6eb3026c0        0      167 READ          1 WAIT    XXX.t1_0000000000110000.blobs2 page         1
+0x0x78c6eb3026c0        0      167 READ          2 HELD    XXX.t1_0000000000100000.datas2 page         2
+0x0x78c6eb3026c0        0      167 READ          2 HELD    XXX.t1_00000000001d0000.index page         2
+0x0x78c6eb3026c0        0      167 READ          1 HELD     tablelock t1
+      54 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       54 READ          1 HELD    XXX.sqlite_stat1_0000000000030000.datas7 handle       0
+     10c dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0      10c READ          1 HELD    XXX.t1_0000000000120000.index handle       0
+      f6 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0       f6 READ          1 HELD    XXX.t1_0000000000100000.datas2 handle       0
+8000056e dd= 3 locks held 1    write locks 0    waiters N thread 0x0x78c6e8ef96c0
+0x0x78c6e8ef96c0        0 8000056e READ          1 HELD     tablelock t1
+      56 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       56 READ          1 HELD    XXX.sqlite_stat1_0000000000030000.datas6 handle       0
+     10e dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0      10e READ          1 HELD    XXX.t1_00000000001d0000.index handle       0
+8000056f dd= 3 locks held 1    write locks 0    waiters Y thread 0x0x78c6e8ef96c0
+0x0x78c6e8ef96c0 8000056e 8000056f WRITE         1 WAIT    XXX.t1_0000000000100000.datas2 page         2
+0x0x78c6e8ef96c0 8000056e 8000056f READ          1 HELD    XXX.t1_0000000000100000.datas2 page         1
+80000570 dd= 2 locks held 1    write locks 0    waiters N thread 0x0x78c6e96fb6c0
+0x0x78c6e96fb6c0        0 80000570 READ          1 HELD     tablelock t1
+      f8 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0       f8 READ          1 HELD    XXX.t1_0000000000100000.datas1 handle       0
+      6e dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       6e READ          1 HELD    XXX.sqlite_stat4_0000000000070000.datas7 handle       0
+80000571 dd= 2 locks held 1    write locks 0    waiters Y thread 0x0x78c6e96fb6c0
+0x0x78c6e96fb6c0 80000570 80000571 WRITE         1 WAIT    XXX.t1_0000000000100000.datas2 page         2
+0x0x78c6e96fb6c0 80000570 80000571 READ          1 HELD    XXX.t1_0000000000100000.datas2 page         1
+      58 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       58 READ          1 HELD    XXX.sqlite_stat1_0000000000030000.datas5 handle       0
+      70 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       70 READ          1 HELD    XXX.sqlite_stat4_0000000000070000.datas6 handle       0
+      fa dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0       fa READ          1 HELD    XXX.t1_0000000000100000.datas0 handle       0
+      88 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       88 READ          1 HELD    XXX.comdb2_metadata.dta   handle       0
+      5a dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       5a READ          1 HELD    XXX.sqlite_stat1_0000000000030000.datas4 handle       0
+      72 dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ff452c40
+0x0x78c6ff452c40        0       72 READ          1 HELD    XXX.sqlite_stat4_0000000000070000.datas5 handle       0
+      fc dd=4294967295 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0       fc READ          1 HELD    XXX.t1_0000000000110000.blobs7 handle       0
+8000055d dd= 4 locks held 1    write locks 0    waiters N thread 0x0x78c6ec20b6c0
+0x0x78c6ec20b6c0        0 8000055d READ          1 HELD     tablelock t1
+
+# The same test with a detector run added after a grant (not the cause): stalled again, 13:49:16 to 13:53:38.
+# deadlocks=117 units=5 unit_retries=9 throughout.  Lock table at 13:52:51:
+800004ad dd= 6 locks held 2    write locks 0    waiters N thread 0x0x7b5e1a5de6c0
+0x0x7b5e1a5de6c0        0 800004ad READ          1 WAIT    0x6eeb8 len:  16 data: 6f72646572656420756e697400000000
+0x0x7b5e1a5de6c0        0 800004ad READ          1 HELD    0x2eea8 len:  16 data: 636f6d6d6974206c6f636b0000000000
+0x0x7b5e1a5de6c0        0 800004ad READ          1 HELD     tablelock t1
+800004f7 dd= 2 locks held 1    write locks 0    waiters N thread 0x0x7b5e1d4ef6c0
+0x0x7b5e1d4ef6c0        0 800004f7 READ          1 HELD     tablelock t1
+     1aa dd= 8 locks held 2    write locks 0    waiters Y thread 0x0x7b5e1bde46c0
+0x0x7b5e1bde46c0        0      1aa READ          1 WAIT    XXX.t1_0000000000110000.blobs2 page         1
+0x0x7b5e1bde46c0        0      1aa READ          1 HELD    XXX.t1_0000000000100000.datas2 page         3
+0x0x7b5e1bde46c0        0      1aa READ          1 HELD     tablelock t1
+800004f8 dd= 2 locks held 3    write locks 2    waiters Y thread 0x0x7b5e1d4ef6c0
+0x0x7b5e1d4ef6c0 800004f7 800004f8 WRITE         1 WAIT    XXX.t1_00000000001d0000.index page         2
+0x0x7b5e1d4ef6c0 800004f7 800004f8 READ          1 HELD    XXX.t1_00000000001d0000.index page         1
+0x0x7b5e1d4ef6c0 800004f7 800004f8 WRITE         1 HELD    XXX.t1_0000000000120000.index page         2
+0x0x7b5e1d4ef6c0 800004f7 800004f8 WRITE         2 HELD    XXX.t1_0000000000100000.datas2 page         2
+800004b4 dd= 4 locks held 2    write locks 0    waiters N thread 0x0x7b5e1ade06c0
+0x0x7b5e1ade06c0        0 800004b4 READ          1 WAIT    0x6eeb8 len:  16 data: 6f72646572656420756e697400000000
+0x0x7b5e1ade06c0        0 800004b4 READ          1 HELD    0x2eea8 len:  16 data: 636f6d6d6974206c6f636b0000000000
+0x0x7b5e1ade06c0        0 800004b4 READ          1 HELD     tablelock t1
+800004f9 havelocks 0
+800004f9 dd= 1 locks held 1    write locks 1    waiters Y thread 0x0x7b5e1c9ea6c0
+0x0x7b5e1c9ea6c0        0 800004f9 WRITE         1 HELD    0x6eeb8 len:  16 data: 6f72646572656420756e697400000000
+     1ac dd= 7 locks held 3    write locks 0    waiters Y thread 0x0x7b5e1c5e66c0
+0x0x7b5e1c5e66c0        0      1ac READ          1 WAIT    XXX.t1_0000000000110000.blobs2 page         1
+0x0x7b5e1c5e66c0        0      1ac READ          1 HELD    XXX.t1_00000000001d0000.index page         3
+0x0x7b5e1c5e66c0        0      1ac READ          1 HELD    XXX.t1_0000000000100000.datas2 page         3
+0x0x7b5e1c5e66c0        0      1ac READ          1 HELD     tablelock t1
+800004fa havelocks 0
+800004fa dd= 1 locks held 1    write locks 0    waiters N thread 0x0x7b5e1c9ea6c0
+0x0x7b5e1c9ea6c0 800004f9 800004fa WRITE         1 WAIT    XXX.t1_0000000000100000.datas2 page         2
+0x0x7b5e1c9ea6c0 800004f9 800004fa READ          1 HELD    XXX.t1_0000000000100000.datas2 page         1
+     1ad dd= 5 locks held 2    write locks 0    waiters Y thread 0x0x7b5e1d8f06c0
+0x0x7b5e1d8f06c0        0      1ad READ          1 WAIT    XXX.t1_0000000000120000.index page         2
+0x0x7b5e1d8f06c0        0      1ad READ          1 HELD    XXX.t1_0000000000120000.index page         1
+0x0x7b5e1d8f06c0        0      1ad READ          1 HELD     tablelock t1
+800004fb havelocks 0
+800004fc havelocks 0
+800004fc dd= 1 locks held 1    write locks 1    waiters Y thread 0x0x7b5e1c8e96c0
+0x0x7b5e1c8e96c0 800004f9 800004fc WRITE        20 HELD    XXX.t1_00000000001d0000.index page         2
+     1af dd= 3 locks held 2    write locks 0    waiters Y thread 0x0x7b5e1d0ee6c0
+0x0x7b5e1d0ee6c0        0      1af READ          1 WAIT    XXX.t1_0000000000120000.index page         2
+0x0x7b5e1d0ee6c0        0      1af READ          1 HELD    XXX.t1_0000000000120000.index page         1
+0x0x7b5e1d0ee6c0        0      1af READ          1 HELD     tablelock t1
+800004fd havelocks 0
+800004fd dd= 1 locks held 1    write locks 1    waiters Y thread 0x0x7b5e1c6e76c0
+0x0x7b5e1c6e76c0 800004f9 800004fd WRITE        40 HELD    XXX.t1_0000000000110000.blobs2 page         1
+     1b1 dd= 0 locks held 2    write locks 0    waiters Y thread 0x0x7b5e1b1e16c0
+0x0x7b5e1b1e16c0        0      1b1 READ          1 WAIT    XXX.t1_00000000001d0000.index page         2
+0x0x7b5e1b1e16c0        0      1b1 READ          1 HELD    XXX.t1_00000000001d0000.index page         1
+0x0x7b5e1b1e16c0        0      1b1 READ          1 HELD     tablelock t1
+
+# At 13:53:38 one new reader was made to wait, with bdb verbdeadlock 1.  The detector, run by that wait:
+202 lockers
+locker involved in deadlock with killid 2
+lockerid=800004f9, killme=0, tid=0x7b5e1c9ea6c0
+0x0x7b5e1c9ea6c0        0 800004f9 WRITE         1 HELD    0x6eeb8 len:  16 data: 6f72646572656420756e697400000000
+
+0x0x7b5e1c6e76c0 800004f9 800004fd WRITE        40 HELD    XXX.t1_0000000000110000.blobs2 page         1
+0x0x7b5e1c8e96c0 800004f9 800004fc WRITE        20 HELD    XXX.t1_00000000001d0000.index page         2
+0x0x7b5e1c9ea6c0 800004f9 800004fa WRITE         1 WAIT    XXX.t1_0000000000100000.datas2 page         2
+0x0x7b5e1c9ea6c0 800004f9 800004fa READ          1 HELD    XXX.t1_0000000000100000.datas2 page         1
+conflicting with other transaction 3
+lockerid=800004f7, killme=0, tid=0x7b5e1d4ef6c0
+0x0x7b5e1d4ef6c0        0 800004f7 READ          1 HELD     tablelock t1
+0x0x7b5e1d4ef6c0 800004f7 800004f8 WRITE         1 WAIT    XXX.t1_00000000001d0000.index page         2
+0x0x7b5e1d4ef6c0 800004f7 800004f8 READ          1 HELD    XXX.t1_00000000001d0000.index page         1
+0x0x7b5e1d4ef6c0 800004f7 800004f8 WRITE         1 HELD    XXX.t1_0000000000120000.index page         2
+0x0x7b5e1d4ef6c0 800004f7 800004f8 WRITE         2 HELD    XXX.t1_0000000000100000.datas2 page         2
+Aborting locker 800004f9, killme 0
+lockerid=800004f9, killme=0, tid=0x7b5e1c9ea6c0
+0x0x7b5e1c9ea6c0        0 800004f9 WRITE         1 HELD    0x6eeb8 len:  16 data: 6f72646572656420756e697400000000
+
+0x0x7b5e1c6e76c0 800004f9 800004fd WRITE        40 HELD    XXX.t1_0000000000110000.blobs2 page         1
+0x0x7b5e1c8e96c0 800004f9 800004fc WRITE        20 HELD    XXX.t1_00000000001d0000.index page         2
+0x0x7b5e1c9ea6c0 800004f9 800004fa WRITE         1 WAIT    XXX.t1_0000000000100000.datas2 page         2

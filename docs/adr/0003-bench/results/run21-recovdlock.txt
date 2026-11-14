@@ -1,0 +1,31 @@
+# run 21: recovdlock_emptyblob (5 writers of blobs, 3 readers, 120 s), last counters of each run.
+# The detector fixes, by build (ab.sh): family = wake all of a victim family; both = that and a detector run after a grant
+family 1 failed 
+family 2 failed 
+family 3 failed 
+family 4 success 
+both 1 success 
+both 2 success 
+both 3 success 
+both 4 success 
+# before either: stalled, once of one (par-1.out).  With the grant change alone: stalled twice of two
+# (fixed-1.out, fixed-2.out).  fixed-3.out, with both, passed.
+
+# By how plans that update are applied (retries.sh), final code.  off-done before 14:52 and every line
+# before 14:54 are page locks: the settings file was missing, ordered apply was off.
+off-done 14:38:56 commits=96 deadlocks=2411 ordered_apply_txns=0 ordered_apply_fallbacks=0 ordered_apply_parallel=0 ordered_apply_units=0 ordered_apply_unit_retries=0 ordered_apply_unit_serial=0 
+p1-done 14:41:28 commits=90 deadlocks=2400 ordered_apply_txns=0 ordered_apply_fallbacks=0 ordered_apply_parallel=0 ordered_apply_units=0 ordered_apply_unit_retries=0 ordered_apply_unit_serial=0 
+p2-done 14:44:09 commits=99 deadlocks=2373 ordered_apply_txns=0 ordered_apply_fallbacks=0 ordered_apply_parallel=0 ordered_apply_units=0 ordered_apply_unit_retries=0 ordered_apply_unit_serial=0 
+p4-done 14:46:41 commits=92 deadlocks=2459 ordered_apply_txns=0 ordered_apply_fallbacks=0 ordered_apply_parallel=0 ordered_apply_units=0 ordered_apply_unit_retries=0 ordered_apply_unit_serial=0 
+p100-done 14:49:23 commits=92 deadlocks=2413 ordered_apply_txns=0 ordered_apply_fallbacks=0 ordered_apply_parallel=0 ordered_apply_units=0 ordered_apply_unit_retries=0 ordered_apply_unit_serial=0 
+off-done 14:51:55 commits=89 deadlocks=2524 ordered_apply_txns=0 ordered_apply_fallbacks=0 ordered_apply_parallel=0 ordered_apply_units=0 ordered_apply_unit_retries=0 ordered_apply_unit_serial=0 
+p1-done 14:54:26 commits=83 deadlocks=4325 ordered_apply_txns=51 ordered_apply_fallbacks=151 ordered_apply_parallel=15 ordered_apply_units=86 ordered_apply_unit_retries=1352 ordered_apply_unit_serial=1361 
+p2-done 14:57:08 commits=82 deadlocks=4780 ordered_apply_txns=55 ordered_apply_fallbacks=148 ordered_apply_parallel=23 ordered_apply_units=92 ordered_apply_unit_retries=1124 ordered_apply_unit_serial=1053 
+p4-done 14:59:40 commits=83 deadlocks=5449 ordered_apply_txns=62 ordered_apply_fallbacks=135 ordered_apply_parallel=27 ordered_apply_units=95 ordered_apply_unit_retries=1452 ordered_apply_unit_serial=1282 
+p100-done 15:02:21 commits=99 deadlocks=22311 ordered_apply_txns=34 ordered_apply_fallbacks=216 ordered_apply_parallel=34 ordered_apply_units=42 ordered_apply_unit_retries=8679 ordered_apply_unit_serial=0 
+off-done 15:34:41 commits=106 deadlocks=3015 ordered_apply_txns=55 ordered_apply_fallbacks=240 ordered_apply_parallel=1 ordered_apply_units=81 ordered_apply_unit_retries=953 ordered_apply_unit_serial=0 
+p1-done 15:37:13 commits=73 deadlocks=4825 ordered_apply_txns=43 ordered_apply_fallbacks=141 ordered_apply_parallel=15 ordered_apply_units=73 ordered_apply_unit_retries=998 ordered_apply_unit_serial=1002 
+p2-done 15:39:54 commits=93 deadlocks=4618 ordered_apply_txns=52 ordered_apply_fallbacks=184 ordered_apply_parallel=23 ordered_apply_units=93 ordered_apply_unit_retries=1036 ordered_apply_unit_serial=976 
+off-done 15:42:26 commits=93 deadlocks=3088 ordered_apply_txns=48 ordered_apply_fallbacks=214 ordered_apply_parallel=1 ordered_apply_units=75 ordered_apply_unit_retries=973 ordered_apply_unit_serial=0 
+p1-done 15:45:08 commits=93 deadlocks=4594 ordered_apply_txns=62 ordered_apply_fallbacks=167 ordered_apply_parallel=25 ordered_apply_units=99 ordered_apply_unit_retries=1126 ordered_apply_unit_serial=1131 
+p4-done 15:47:40 commits=84 deadlocks=4796 ordered_apply_txns=52 ordered_apply_fallbacks=143 ordered_apply_parallel=19 ordered_apply_units=88 ordered_apply_unit_retries=1320 ordered_apply_unit_serial=1146 
