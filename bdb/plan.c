@@ -170,6 +170,13 @@ int64_t gbl_ordered_apply_dup_unread;  /* unique keys not looked for while plann
 int gbl_ordered_apply_update = 1;
 int64_t gbl_ordered_apply_stale_retries; /* plans sent back because a row or key they change was gone at apply */
 int64_t gbl_ordered_apply_read_locked;   /* rows a plan gave up reading because the page stayed locked */
+/* A read made while planning that finds its page locked waits up to this many
+ * milliseconds for the lock to go, most often for the commit unit being
+ * applied to commit, before the plan is given up.  0: a few short tries only,
+ * as before. */
+int gbl_ordered_apply_read_wait_ms = 100;
+int64_t gbl_ordered_apply_read_waits;   /* reads made while planning that found their page locked and waited */
+int64_t gbl_ordered_apply_read_wait_us; /* time those reads waited */
 /* On: a transaction whose plan is the only one in existence applies it
  * itself, as a unit of one, on its own thread; any that arrive meanwhile
  * queue until it is done.  A lone writer then never waits for another thread
@@ -494,32 +501,91 @@ static int uniq_grow(struct bdb_plan *plan)
     return 0;
 }
 
+/*
+ * A read made while planning that finds its page locked.
+ *
+ * Its transaction must not wait for the lock (see uniq_read() below), but the
+ * request's thread can wait for the holder to finish, as long as nothing the
+ * holder can come to wait for is held by this request.  The holder is most
+ * often the commit unit being applied, which gives the page up when it
+ * commits, a millisecond or a few later; there is one unit at a time, and the
+ * read waits for it to end and tries again.  A request that runs again under
+ * page locks, which is the alternative, waits in the lock manager for the same
+ * page and pays an aborted attempt as well.
+ *
+ * What the request holds while it plans is its table locks and, if a read
+ * went round the plan, page locks.  With page locks held it does not wait: a
+ * unit can want those pages.  Table locks a unit never asks for, but a
+ * transaction a unit waits for can (a schema change waits for a table lock in
+ * write mode), and the lock manager cannot see this thread's wait.  So every
+ * wait is bounded by gbl_ordered_apply_read_wait_ms, after which the plan is
+ * given up as before, and nothing stands for longer than that.
+ */
+static int unit_wait_end(uint64_t until_us);
+
+/* The page was locked on this try, the first being 0.  Returns 1 to try
+ * again, 0 to give up.  *start_us is 0 until the read first waits. */
+static int plan_read_wait(bdb_state_type *bdb_state, tran_type *tran, int try, uint64_t *start_us)
+{
+    enum { SHORT_TRIES = 6 }; /* 50 us doubling: about 3 ms in all */
+    uint64_t now = now_us();
+    if (*start_us == 0) {
+        *start_us = now;
+        ATOMIC_ADD64(gbl_ordered_apply_read_waits, 1);
+    }
+    uint64_t until = *start_us + (uint64_t)(gbl_ordered_apply_read_wait_ms > 0 ? gbl_ordered_apply_read_wait_ms : 0) * 1000;
+    if (until <= now || holds_page_locks(bdb_state->parent ? bdb_state->parent : bdb_state, tran)) {
+        /* not to wait for the holder: a few short tries only */
+        if (try >= SHORT_TRIES - 1)
+            return 0;
+        usleep(50 << try);
+        return 1;
+    }
+    /* with no unit being applied, a writer under page locks holds the page */
+    if (!unit_wait_end(until))
+        usleep(try < 4 ? (50 << try) : 1000);
+    return 1;
+}
+
+static void plan_read_waited(uint64_t start_us)
+{
+    if (start_us)
+        ATOMIC_ADD64(gbl_ordered_apply_read_wait_us, now_us() - start_us);
+}
+
 /* Is the key in the index now?  Returns DB_KEYEXIST if it is, and 0 if it is
- * not or if that could not be found out without waiting for a lock.  The
+ * not or if that could not be found out without waiting too long.  The
  * read is under a transaction of its own that does not wait and is over when
  * this returns, so it leaves no lock behind. */
-static int uniq_read(bdb_state_type *bdb_state, int ixnum, DBT *dbt_key)
+static int uniq_read(bdb_state_type *bdb_state, tran_type *tran, int ixnum, DBT *dbt_key)
 {
     DB_ENV *dbenv = bdb_state->parent ? bdb_state->parent->dbenv : bdb_state->dbenv;
     DB *dbp = bdb_state->dbp_ix[ixnum];
-    DB_TXN *tid;
-    DBC *dbcp;
-    DBT key = {0}, data = {0};
+    uint64_t waited = 0;
+    int rc;
 
-    if (dbenv->txn_begin(dbenv, NULL, &tid, DB_TXN_NOWAIT) != 0)
-        return 0;
-    int rc = dbp->cursor(dbp, tid, &dbcp, 0);
-    if (rc == 0) {
-        key.data = dbt_key->data;
-        key.size = dbt_key->size;
-        /* nothing of the entry is wanted, only whether it is there */
-        data.flags = DB_DBT_USERMEM | DB_DBT_PARTIAL;
-        rc = dbcp->c_get(dbcp, &key, &data, DB_SET);
-        dbcp->c_close(dbcp);
-    } else {
-        rc = DB_LOCK_NOTGRANTED;
+    for (int try = 0;; try++) {
+        DB_TXN *tid;
+        DBC *dbcp;
+        DBT key = {0}, data = {0};
+        if (dbenv->txn_begin(dbenv, NULL, &tid, DB_TXN_NOWAIT) != 0)
+            return 0;
+        rc = dbp->cursor(dbp, tid, &dbcp, 0);
+        if (rc == 0) {
+            key.data = dbt_key->data;
+            key.size = dbt_key->size;
+            /* nothing of the entry is wanted, only whether it is there */
+            data.flags = DB_DBT_USERMEM | DB_DBT_PARTIAL;
+            rc = dbcp->c_get(dbcp, &key, &data, DB_SET);
+            dbcp->c_close(dbcp);
+        } else {
+            rc = DB_LOCK_NOTGRANTED;
+        }
+        tid->abort(tid);
+        if (rc == 0 || rc == DB_NOTFOUND || !plan_read_wait(bdb_state, tran, try, &waited))
+            break;
     }
-    tid->abort(tid);
+    plan_read_waited(waited);
     if (rc == 0)
         return DB_KEYEXIST;
     if (rc != DB_NOTFOUND)
@@ -544,7 +610,7 @@ int bdb_plan_key_add(bdb_state_type *bdb_state, unsigned long long genid, tran_t
         /* A key this plan deletes first is in the index now and will not be
          * when the add is applied. */
         if (*slot == NULL) {
-            int rc = uniq_read(bdb_state, ixnum, dbt_key);
+            int rc = uniq_read(bdb_state, tran, ixnum, dbt_key);
             if (rc != 0)
                 return rc;
         }
@@ -632,17 +698,14 @@ static int row_note(struct bdb_plan *plan, bdb_state_type *bdb_state, unsigned l
     return 0;
 }
 
-/* A page that is locked is tried again this many times, a little later each
- * time, before the plan is given up.  The lock is most often a commit unit's,
- * and is gone when the unit commits. */
-enum { PLAN_READ_TRIES = 6 };
-
 /* Reads a row from its data file, as it is stored.  Returns 0 with the row
  * in *out, for the caller to free; DB_NOTFOUND; or DB_LOCK_NOTGRANTED if the
- * page stayed locked.  Each try is under a transaction of its own that does
- * not wait and is over before this returns, as in uniq_read(). */
-static int row_read(bdb_state_type *bdb_state, unsigned long long genid, DBT *out)
+ * page stayed locked (see plan_read_wait()).  Each try is under a transaction
+ * of its own that does not wait and is over before this returns, as in
+ * uniq_read(). */
+static int row_read(bdb_state_type *bdb_state, tran_type *tran, unsigned long long genid, DBT *out)
 {
+    uint64_t waited = 0;
     DB_ENV *dbenv = bdb_state->parent ? bdb_state->parent->dbenv : bdb_state->dbenv;
     if (bdb_state->attr->dtastripe) {
         int stripe = get_dtafile_from_genid(genid);
@@ -669,11 +732,10 @@ static int row_read(bdb_state_type *bdb_state, unsigned long long genid, DBT *ou
             }
             tid->abort(tid);
         }
-        if (rc == 0 || rc == DB_NOTFOUND)
-            return rc;
-        if (try + 1 >= PLAN_READ_TRIES)
-            return DB_LOCK_NOTGRANTED;
-        usleep(50 << try);
+        if (rc == 0 || rc == DB_NOTFOUND || !plan_read_wait(bdb_state, tran, try, &waited)) {
+            plan_read_waited(waited);
+            return (rc == 0 || rc == DB_NOTFOUND) ? rc : DB_LOCK_NOTGRANTED;
+        }
     }
 }
 
@@ -703,7 +765,7 @@ int bdb_tran_plan_fetch_genid(bdb_state_type *bdb_state, tran_type *tran, unsign
         stored = (uint8_t *)(r->op + 1) + r->op->keylen;
         storedlen = r->op->datalen;
     } else {
-        int rc = row_read(bdb_state, genid, &row);
+        int rc = row_read(bdb_state, tran, genid, &row);
         if (rc == DB_NOTFOUND) {
             *bdberr = BDBERR_FETCH_DTA;
             return -1;
@@ -1489,6 +1551,39 @@ static struct unit_member *unit_first;
 static struct unit_member *unit_last;
 static int unit_thread_started;
 static int unit_busy; /* a unit is being applied, by the unit thread or by its own transaction */
+static pthread_cond_t unit_ended = PTHREAD_COND_INITIALIZER; /* broadcast when unit_busy is cleared */
+
+/* Called with unit_lk held, as unit_busy is cleared: wakes reads that wait
+ * for the unit (plan_read_wait()). */
+static void unit_end(void)
+{
+    unit_busy = 0;
+    Pthread_cond_broadcast(&unit_ended);
+}
+
+/* If a unit is being applied, waits until it ends or until until_us, and
+ * returns 1.  Returns 0 at once if none is. */
+static int unit_wait_end(uint64_t until_us)
+{
+    Pthread_mutex_lock(&unit_lk);
+    int busy = unit_busy;
+    uint64_t now = now_us();
+    if (busy && until_us > now) {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        uint64_t left = until_us - now;
+        ts.tv_sec += left / 1000000;
+        ts.tv_nsec += (long)(left % 1000000) * 1000;
+        if (ts.tv_nsec >= 1000000000) {
+            ts.tv_sec++;
+            ts.tv_nsec -= 1000000000;
+        }
+        /* one unit ending is enough to try again; a new one may hold the page too */
+        pthread_cond_timedwait(&unit_ended, &unit_lk, &ts);
+    }
+    Pthread_mutex_unlock(&unit_lk);
+    return busy;
+}
 
 enum { UNIT_MAX_RETRIES = 100 };
 
@@ -1743,7 +1838,7 @@ static void *unit_thread(void *arg)
         unit_run(bdb_state, batch);
 
         Pthread_mutex_lock(&unit_lk);
-        unit_busy = 0;
+        unit_end();
         while (batch) {
             /* a member is on its thread's stack, gone once that thread runs */
             struct unit_member *next = batch->next;
@@ -1789,7 +1884,7 @@ int bdb_tran_plan_unit_commit(bdb_state_type *bdb_state, tran_type *tran, void *
         Pthread_mutex_unlock(&unit_lk);
         int rc = unit_apply_own(bdb_state, tran, &m, bdberr);
         Pthread_mutex_lock(&unit_lk);
-        unit_busy = 0;
+        unit_end();
         if (unit_first)
             Pthread_cond_signal(&unit_work);
         Pthread_mutex_unlock(&unit_lk);

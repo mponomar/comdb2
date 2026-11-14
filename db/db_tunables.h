@@ -3022,6 +3022,11 @@ REGISTER_TUNABLE("ordered_apply_parallel_updates",
                  "of adds are. Such a plan takes its pages in no order and deadlocks more, "
                  "with readers above all. (Default: off)",
                  TUNABLE_BOOLEAN, &gbl_ordered_apply_parallel_updates, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("ordered_apply_read_wait_ms",
+                 "A read made while planning an ordered_apply request that finds its page locked "
+                 "waits up to this many milliseconds for the commit unit or writer holding it, "
+                 "then gives the plan up. 0: a few short tries only. (Default: 100)",
+                 TUNABLE_INTEGER, &gbl_ordered_apply_read_wait_ms, EXPERIMENTAL, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("ordered_apply_turn_detect",
                  "With ordered_apply, run the deadlock detector when a transaction waits for its "
                  "turn to apply. Off is for measurement only: a deadlock that a wait for the turn "

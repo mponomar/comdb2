@@ -215,6 +215,8 @@ struct comdb2_metrics_store {
     int64_t ordered_apply_dup_unread;
     int64_t ordered_apply_stale_retries;
     int64_t ordered_apply_read_locked;
+    int64_t ordered_apply_read_waits;
+    int64_t ordered_apply_read_wait_us;
 };
 
 static struct comdb2_metrics_store stats;
@@ -578,6 +580,10 @@ comdb2_metric gbl_metrics[] = {
      STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_stale_retries, NULL},
     {"ordered_apply_read_locked", "Planned requests run again without a plan because a row they read stayed behind a page lock",
      STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_read_locked, NULL},
+    {"ordered_apply_read_waits", "Reads made while planning that found their page locked and waited for it",
+     STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_read_waits, NULL},
+    {"ordered_apply_read_wait_us", "Time reads made while planning waited for a locked page",
+     STATISTIC_INTEGER, STATISTIC_COLLECTION_TYPE_CUMULATIVE, &stats.ordered_apply_read_wait_us, NULL},
 };
 
 const char *metric_collection_type_string(comdb2_collection_type t) {
@@ -614,6 +620,8 @@ extern int64_t gbl_ordered_apply_dup_retries;
 extern int64_t gbl_ordered_apply_dup_unread;
 extern int64_t gbl_ordered_apply_stale_retries;
 extern int64_t gbl_ordered_apply_read_locked;
+extern int64_t gbl_ordered_apply_read_waits;
+extern int64_t gbl_ordered_apply_read_wait_us;
 
 /* Legacy request metrics */
 int64_t gbl_fastsql_execute_inline_params;
@@ -821,6 +829,8 @@ int refresh_metrics(void)
     stats.ordered_apply_dup_unread = gbl_ordered_apply_dup_unread;
     stats.ordered_apply_stale_retries = gbl_ordered_apply_stale_retries;
     stats.ordered_apply_read_locked = gbl_ordered_apply_read_locked;
+    stats.ordered_apply_read_waits = gbl_ordered_apply_read_waits;
+    stats.ordered_apply_read_wait_us = gbl_ordered_apply_read_wait_us;
     stats.fstraps = n_fstrap;
     stats.nonsql = n_fstrap                  /* legacy protocol over socketrequest */
                    + n_qtrap                 /* legacy protocol */

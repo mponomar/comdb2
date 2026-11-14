@@ -861,6 +861,108 @@ second.
     change of a fifth, not of a twentieth. The three-node numbers are run
     23's.
 
+### 26. The tests of run 25, with planning reads that wait for the unit
+
+- **When:** started 2026-11-14 18:22 UTC. One node.
+- **Change before:** a read made while planning (a row by genid, or a look
+  for a unique key) that finds its page locked no longer gives the plan up
+  after six tries over about 3 ms. If the request holds no page lock it
+  waits for the commit unit being applied to end (a condition variable
+  broadcast whenever a unit ends) and tries again, for up to
+  `ordered_apply_read_wait_ms` (new tunable, 100) in all; with no unit being
+  applied it sleeps a millisecond between tries. With a page lock held, or
+  past the limit, the old six tries. New counters
+  `ordered_apply_read_waits`, `ordered_apply_read_wait_us`. Uncommitted.
+- **Setup:** as run 25: xeon, `/tmp/rltest3` with the change, our pmux on
+  19500. `adr-tests.sh /tmp/rltest3/src`, then the `tunables` test.
+- **Results:** `adr-tests-run26.txt`. All six pass in all three modes, in
+  416 s. `tunables` differs from its expected output only in
+  `portmux_port` and `portmux_bind_path`, which are our pmux's; the new
+  tunable's line matches. `oa_throughput`, transactions a second (run 25 in
+  brackets):
+
+  | Cell     | Page locks    | Unit          | Unit, a file per thread |
+  |----------|--------------:|--------------:|------------------------:|
+  | `ins1`   | 8,772 (9,732) | 11,127 (11,158) | 10,870 (11,220)       |
+  | `ins100` | 93 (97)       | 457 (431)     | 460 (431)               |
+  | `upd1`   | 9,390 (9,456) | 9,206 (9,768) | 9,501 (9,512)           |
+  | `updk1`  | 8,949 (9,040) | 9,238 (9,281) | 9,185 (9,259)           |
+  | `updhot` | 1,647 (1,735) | 3,245 (2,889) | 3,313 (2,955)           |
+  | `upd20`  | 397 (418)     | 539 (543)     | 536 (507)               |
+  | `del1`   | 8,529 (8,811) | 7,812 (7,859) | 8,016 (7,882)           |
+
+- **Found:**
+  - Nothing broken: every invariant holds, and no database stopped
+    committing.
+  - These one-node cells give few plans up for a locked read in any case
+    (`upd20` had 9 fallbacks in 3,991, the same 9 transactions that fail
+    under page locks), so they say little about the change. `updhot` with
+    units is 12% higher than in run 25, about what one run of a cell
+    varies by here. The three-node 100-row cells of run 23, where a third
+    of plans were given up, are what it is for: run 27.
+
+### 27. Updates and deletes on three nodes, with planning reads that wait
+
+- **When:** started 2026-11-14 18:31 UTC, three nodes.
+- **Change before:** as run 26 (planning reads wait for the unit,
+  `ordered_apply_read_wait_ms` 100). `ordered-apply-updates.sh` now also
+  prints `read-waits` and the mean wait. Uncommitted.
+- **Setup:** as run 23: image rebuilt from the tree (`setup-host.sh` in
+  `/tmp/rlsrc`), `KEYS=2000000 VARIANTS="pg unit unit-p"
+  ./ordered-apply-updates.sh`, then a second pass in the opposite order.
+  Nothing else running on the machine but the idle leftover of run 24.
+- **Then:** the second pass, 18:48–19:00 UTC.
+- **Results:** `stage1-updates-run27.results`. Rows a second, the two
+  passes and their mean, with run 23's mean in brackets; 32 clients unless
+  said.
+
+  |                        | Page locks                       | Unit, one thread                 | Unit, a file per thread          |
+  |------------------------|---------------------------------:|---------------------------------:|---------------------------------:|
+  | `upd`, 1 row, 1 client | 461, 464: 463 (466)              | 462, 480: 471 (446)              | 475, 420: 448 (490)              |
+  | `upd`, 1 row           | 8,776, 10,437: 9,607 (8,980)     | 8,269, 9,295: 8,782 (7,990)      | 8,081, 7,960: 8,021 (8,029)      |
+  | `updk`, 1 row          | 7,182, 8,367: 7,775 (7,600)      | 7,089, 7,665: 7,377 (7,082)      | 6,475, 7,227: 6,851 (6,728)      |
+  | `upd`, 1 row, 64       | 11,180, 11,056: 11,118 (11,180)  | 10,688, 11,328: 11,008 (10,773)  | 11,429, 12,390: 11,910 (11,474)  |
+  | `updhot`, 1 row        | 3,320, 3,188: 3,254 (3,392)      | 5,862, 6,462: 6,162 (5,732)      | 5,937, 6,619: 6,278 (5,760)      |
+  | `del`, 1 row           | 6,291, 6,792: 6,542 (6,326)      | 6,642, 7,014: 6,828 (6,858)      | 6,447, 7,427: 6,937 (6,588)      |
+  | `upd`, 100 rows        | 8,637, 7,649: 8,143 (8,767)      | 10,296, 11,606: 10,951 (9,938)   | 11,172, 16,282: 13,727 (11,024)  |
+  | `updk`, 100 rows       | 4,189, 4,347: 4,268 (4,520)      | 8,121, 9,027: 8,574 (7,372)      | 9,385, 7,953: 8,669 (6,744)      |
+  | `del`, 100 rows        | 10,319, 14,166: 12,243 (10,180)  | 7,450, 9,373: 8,412 (8,724)      | 9,748, 12,337: 11,043 (10,023)   |
+
+  Plans given up for a locked read, of 1,920, in the 100-row cells, by
+  pass (run 23's two passes in brackets):
+
+  |              | Unit, one thread    | Unit, a file per thread |
+  |--------------|--------------------:|------------------------:|
+  | `upd`        | 0, 12 (319, 281)    | 0, 1 (56, 43)           |
+  | `updk`       | 8, 18 (438, 452)    | 6, 79 (623, 565)        |
+  | `del`        | 0, 0 (496, 518)     | 0, 0 (373, 302)         |
+
+- **Found:**
+  - The change does what it is for. Plans given up for a locked read in
+    the 100-row cells fell from 43 to 623 a cell to 0 to 79. The reads
+    that wait in those cells wait 6 to 40 ms on average (`read-wait-us`),
+    under the 100 ms limit nearly always. In single-row cells a few
+    thousand reads wait, 0.3 to 0.5 ms each, and none gives up.
+  - The passes disagree more than in run 23: up to 46% (`upd` 100 rows a
+    file per thread, 11,172 and 16,282) and 37% (`del` 100 rows under page
+    locks). The second pass ran on a cluster freshly made, with the order
+    reversed; I did not find which of the two moves it. Differences of a
+    fifth between the means are not to be read as the change's.
+  - With that said: 100-row updates with units are 10% (one thread) and
+    25% (a file per thread) above run 23, and of the indexed column 16% and
+    29% above; page locks moved −7% and −6% on the same cells. Single-row
+    cells are where they were.
+  - 100-row deletes on one thread are no better (8,412 against 8,724), and
+    stay behind page locks. They used to give a quarter of their plans up
+    and run those under page locks, beside the unit; now the unit thread
+    applies all of them, at 5 to 7 ms a plan, one unit at a time. The
+    unit thread is the limit there, not the reads: a file per thread
+    (11,043) is what helps.
+  - Tables identical on the nodes that answered, verify clean. After the
+    first pass node2 did not answer within the check's retries, as in run
+    23 (it was behind); after the second all three matched.
+
+
 ## Elsewhere
 
 - **Adaptive mode on the existing rowlocks code**, by a second agent, on

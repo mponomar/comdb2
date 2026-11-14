@@ -25,14 +25,14 @@ cfg() {
   esac
   echo "## config=$1"
 }
-NAMES="'ordered_apply_txns','ordered_apply_units','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_stale_retries','ordered_apply_read_locked','ordered_apply_dup_retries','ordered_apply_unit_retries'"
+NAMES="'ordered_apply_txns','ordered_apply_units','ordered_apply_parallel','ordered_apply_fallbacks','ordered_apply_apply_us','ordered_apply_stale_retries','ordered_apply_read_locked','ordered_apply_dup_retries','ordered_apply_unit_retries','ordered_apply_read_waits','ordered_apply_read_wait_us'"
 snap() { $D cdb2sql -s --tabs testdb --host $m "select value from comdb2_metrics where name in ($NAMES) order by name" | tr '\n' ' '; }
 run() {
   i=$((i+1)); echo "STEP $i/$TOTAL $*"
   b=($(snap)); python3 bench_cluster.py "$@"; a=($(snap))
-  [ ${#a[@]} -eq 9 ] || { echo "FAILED: the master is not answering"; exit 1; }
-  # order: apply_us dup_retries fallbacks parallel read_locked stale_retries txns unit_retries units
-  t=$((a[6]-b[6])); [ $t -gt 0 ] && echo "     plan: txns=$t units=$((a[8]-b[8])) parallel=$((a[3]-b[3])) fallbacks=$((a[2]-b[2])) stale=$((a[5]-b[5])) read-locked=$((a[4]-b[4])) dup=$((a[1]-b[1])) unit-retries=$((a[7]-b[7])) apply-us/txn=$(( (a[0]-b[0]) / t ))"
+  [ ${#a[@]} -eq 11 ] || { echo "FAILED: the master is not answering"; exit 1; }
+  # order: apply_us dup_retries fallbacks parallel read_locked read_wait_us read_waits stale_retries txns unit_retries units
+  t=$((a[8]-b[8])); w=$((a[6]-b[6])); [ $t -gt 0 ] && echo "     plan: txns=$t units=$((a[10]-b[10])) parallel=$((a[3]-b[3])) fallbacks=$((a[2]-b[2])) stale=$((a[7]-b[7])) read-locked=$((a[4]-b[4])) read-waits=$w read-wait-us/wait=$(( w > 0 ? (a[5]-b[5]) / w : 0 )) dup=$((a[1]-b[1])) unit-retries=$((a[9]-b[9])) apply-us/txn=$(( (a[0]-b[0]) / t ))"
 }
 check() {
   sleep 3

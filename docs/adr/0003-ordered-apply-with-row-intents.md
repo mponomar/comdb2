@@ -1182,6 +1182,39 @@ transaction of 100 rows is 100 statements.
 - **Large deletes of ascending keys lose 21%**, for the same reason, on a
   workload where page locks have little to wait for.
 
+### Locked reads wait for the unit
+
+A read made while planning, of a row by genid or of a unique key, is under
+a transaction of its own that does not wait. When its page was locked it
+was tried six times over about 3 ms and then the plan was given up, and the
+request ran again under page locks, where it waited in the lock manager for
+the same page. In the 100-row cells on three nodes that was a sixth to a
+third of all plans (run 23).
+
+The lock is almost always the commit unit's, and there is one unit at a
+time. So now, if the request holds no page lock, the read waits for the
+unit being applied to end (a condition variable broadcast whenever a unit
+ends, `plan_read_wait()` in `bdb/plan.c`) and tries again; with no unit
+being applied, the holder is a writer under page locks and the read sleeps
+a millisecond between tries. The wait is bounded by
+`ordered_apply_read_wait_ms` (100), after which the plan is given up as
+before. The bound is what keeps it safe: the request still holds its table
+locks, and a transaction that a unit waits for can wait for one of those (a
+schema change waits for a table lock in write mode) where the lock manager
+cannot see this thread's wait. With a page lock held, the read does not
+wait for the unit at all, since a unit can want that page. New counters
+`ordered_apply_read_waits` and `ordered_apply_read_wait_us`.
+
+Run 27, three nodes, against run 23: plans given up for a locked read in
+the 100-row cells fell from 43–623 a cell to 0–79; the reads that wait
+there wait 6 to 40 ms on average. 100-row updates with units are 10% (one
+thread) and 25% (a file per thread) higher, and of an indexed column 16%
+and 29%; single-row cells are unchanged. 100-row deletes on one thread are
+not better and stay behind page locks: the plans that used to be given up
+ran under page locks beside the unit, and now the one unit thread applies
+them all. The two passes of run 27 differ by up to 46% in a cell, so these
+are rough.
+
 ### The test suite
 
 The default suite, 789 tests, was run on one node with `ordered_apply`,
@@ -1302,12 +1335,15 @@ State at the end of the second session of 2026-11-14:
   of runs 20 to 23. The feature's own test passed on `80d2ea75d` (run 20).
   The commit after that adds the tests under
   [Tests for iterating](#tests-for-iterating), which pass (run 25). Nothing
-  is pushed.
+  is pushed. Uncommitted on top: planning reads that wait for the unit
+  ([Locked reads wait for the unit](#locked-reads-wait-for-the-unit)),
+  which pass the same tests (run 26) and were measured on three nodes
+  (run 27).
 - **To measure, use these settings:** `ordered_apply 1`,
   `ordered_apply_unit 1`, with `disable_tagged_api_writes` on as
   `ordered_apply` now requires. Everything else is at its default. The turn
   variants (`serial`, `par`, `par-early`) are kept only for comparison.
-- **Every run is in `docs/adr/0003-bench/BENCHMARK-LOG.md`**, runs 1 to 25,
+- **Every run is in `docs/adr/0003-bench/BENCHMARK-LOG.md`**, runs 1 to 27,
   with what changed before each. Add an entry for each new run when it
   starts.
 - **A second branch, `rowlocks-adaptive`**, has the experiment on the
@@ -1357,12 +1393,14 @@ Things learned the hard way, which the next step must respect:
    changes are in the lock manager, under every transaction, and the suite
    has not run on them: see [Tests for iterating](#tests-for-iterating).
    Until then, `adr-tests.sh` after each change.
-2. **Locked reads.** A third of 100-row update transactions give their plan
-   up because a page stayed locked by a unit. Either units stop holding page
-   locks to their commit, which is the proposal's short page locks and needs
-   commits ordered per page, or a read waits for the unit in a way that
-   cannot deadlock: a planning transaction holds nothing a unit can want
-   except table locks.
+2. **Locked reads.** Done for the case that mattered: a read waits for the
+   unit, bounded ([Locked reads wait for the unit](#locked-reads-wait-for-the-unit)).
+   What it shows next: with nearly every large plan now in a unit, the one
+   unit thread is the limit for 100-row deletes on one thread, which stay
+   behind page locks. Either more than one unit at a time (units that share
+   no file), or a file per thread made safe for updates and deletes against
+   readers, which is item 12 as well. Short page locks, the proposal's
+   other answer, remain the larger change.
 3. **Foreign keys.** These are the reads the btree cannot judge at apply,
    and where stamps, or a check under the unit's transaction, come in. It
    needs a decision on how writers outside plan mode take part.
