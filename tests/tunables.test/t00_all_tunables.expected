@@ -698,6 +698,7 @@
 (name='ordered_apply_unit_detect_ms', description='A transaction that has waited this long for its ordered_apply commit unit goes on waiting in the lock manager, where the deadlock detector can see it. (Default: 100)', type='INTEGER', value='100', read_only='N')
 (name='ordered_apply_unit_inline', description='With ordered_apply_unit, a transaction whose plan is the only one in flight applies it on its own thread, as a unit of one. (Default: on)', type='BOOLEAN', value='ON', read_only='N')
 (name='ordered_apply_unit_max_ops', description='An ordered_apply commit unit takes no more plans once it has this many btree operations. (Default: 4096)', type='INTEGER', value='4096', read_only='N')
+(name='ordered_apply_unit_threads', description='Threads that apply ordered_apply commit units, each one unit at a time under page locks, so that large plans can be applied side by side. At most 16. (Default: 1)', type='INTEGER', value='1', read_only='N')
 (name='ordered_apply_update', description='With ordered_apply, plan updates and deletes of rows in tables that have no foreign keys. A request whose row turns out to have changed when its plan is applied runs again without a plan. Off, such requests run without a plan from the start. (Default: on)', type='BOOLEAN', value='ON', read_only='N')
 (name='orderedrrns', description='', type='BOOLEAN', value='ON', read_only='N')
 (name='osql_bkoff_netsend', description='', type='INTEGER', value='100', read_only='Y')

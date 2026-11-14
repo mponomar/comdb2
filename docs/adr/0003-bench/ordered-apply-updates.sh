@@ -7,6 +7,7 @@
 #          they run under page locks next to planned inserts
 #   unit-p unit, with plans that update or delete applied a file per thread
 #          (ordered_apply_parallel_updates on)
+#   unit-m, unit-pm  unit and unit-p with UNIT_THREADS unit threads (4)
 # VARIANTS in the environment picks which to run, in order.  KEYS is the number
 # of rows loaded with a = 1..KEYS for the workloads to pick from.
 cd /tmp/rlbench
@@ -16,11 +17,13 @@ export KEYS=${KEYS:-1000000}
 TOTAL=$(( $(echo $VARIANTS | wc -w) * 9 )); i=0
 send() { $D cdb2sql -s testdb --host $m "exec procedure sys.cmd.send('$1')" >/dev/null; }
 cfg() {
-  send "ordered_apply_unit 0"; send "ordered_apply_update 1"; send "ordered_apply_parallel_updates 0"
+  send "ordered_apply_unit 0"; send "ordered_apply_update 1"; send "ordered_apply_parallel_updates 0"; send "ordered_apply_unit_threads 1"
   case $1 in
     pg)     send "ordered_apply 0";;
     unit)   send "ordered_apply 1"; send "ordered_apply_threads 3"; send "ordered_apply_unit 1";;
     unit-p) send "ordered_apply 1"; send "ordered_apply_threads 3"; send "ordered_apply_unit 1"; send "ordered_apply_parallel_updates 1";;
+    unit-m)  send "ordered_apply 1"; send "ordered_apply_threads 3"; send "ordered_apply_unit 1"; send "ordered_apply_unit_threads ${UNIT_THREADS:-4}";;
+    unit-pm) send "ordered_apply 1"; send "ordered_apply_threads 3"; send "ordered_apply_unit 1"; send "ordered_apply_parallel_updates 1"; send "ordered_apply_unit_threads ${UNIT_THREADS:-4}";;
     unit-i) send "ordered_apply 1"; send "ordered_apply_threads 3"; send "ordered_apply_unit 1"; send "ordered_apply_update 0";;
   esac
   echo "## config=$1"

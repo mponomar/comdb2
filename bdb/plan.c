@@ -192,7 +192,16 @@ int64_t gbl_ordered_apply_units_inline; /* units of one applied by their own tra
 int gbl_ordered_apply_unit_detect_ms = 100;
 int64_t gbl_ordered_apply_unit_slow_waits; /* members that went on to wait in the lock manager */
 int64_t gbl_ordered_apply_unit_kicks;      /* times a member was a deadlock victim and aborted its waiters */
-static char unit_name[16] = "ordered unit";
+/* Each unit thread holds a name of its own, "ordered unit" and its number. */
+enum { UNIT_MAX_THREADS = 16 };
+static char unit_names[UNIT_MAX_THREADS][16];
+/* Unit threads.  Each applies one unit at a time, as an ordinary transaction
+ * under page locks, so two units that meet on a page wait for each other in
+ * the lock manager like any two writers, and a deadlock between them is
+ * found and one is applied again.  More than one lets large plans be
+ * applied side by side, as page-lock transactions are, at the cost of
+ * smaller units. */
+int gbl_ordered_apply_unit_threads = 1;
 /* A unit stops taking plans once it has this many btree operations. */
 int gbl_ordered_apply_unit_max_ops = 4096;
 
@@ -507,9 +516,9 @@ static int uniq_grow(struct bdb_plan *plan)
  * Its transaction must not wait for the lock (see uniq_read() below), but the
  * request's thread can wait for the holder to finish, as long as nothing the
  * holder can come to wait for is held by this request.  The holder is most
- * often the commit unit being applied, which gives the page up when it
- * commits, a millisecond or a few later; there is one unit at a time, and the
- * read waits for it to end and tries again.  A request that runs again under
+ * often a commit unit being applied, which gives the page up when it
+ * commits, a millisecond or a few later; the read waits for a unit to end
+ * and tries again.  A request that runs again under
  * page locks, which is the alternative, waits in the lock manager for the same
  * page and pays an aborted attempt as well.
  *
@@ -1113,6 +1122,7 @@ struct plan_file {
     int rc;
     struct plan_op *failed; /* the operation that gave rc */
     struct plan_file *next; /* in the helpers' queue */
+    int *pending;           /* files of this plan not yet applied, under helper_lk */
 };
 
 static pthread_mutex_t helper_lk = PTHREAD_MUTEX_INITIALIZER;
@@ -1120,8 +1130,28 @@ static pthread_cond_t helper_work = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t helper_done = PTHREAD_COND_INITIALIZER;
 static struct plan_file *helper_first;
 static struct plan_file *helper_last;
-static int helper_pending;
 static int nhelpers;
+
+/* Takes the first file in the helpers' queue that belongs to this plan
+ * (pending), or any file if pending is NULL.  Called with helper_lk held.
+ * Several plans can be applied a file per thread at once, by units on
+ * different threads; a thread waiting for its own plan's files must never
+ * wait for another's, which may be waiting for a page this plan holds. */
+static struct plan_file *helper_take(int *pending)
+{
+    struct plan_file *prev = NULL, *f;
+    for (f = helper_first; f && pending && f->pending != pending; f = f->next)
+        prev = f;
+    if (f == NULL)
+        return NULL;
+    if (prev)
+        prev->next = f->next;
+    else
+        helper_first = f->next;
+    if (helper_last == f)
+        helper_last = prev;
+    return f;
+}
 
 static void apply_file(struct plan_file *f)
 {
@@ -1141,29 +1171,26 @@ static void *plan_helper(void *arg)
     bdb_thread_event(bdb_state, BDBTHR_EVENT_START);
     Pthread_mutex_lock(&helper_lk);
     for (;;) {
-        struct plan_file *f = helper_first;
+        struct plan_file *f = helper_take(NULL);
         if (f == NULL) {
             Pthread_cond_wait(&helper_work, &helper_lk);
             continue;
         }
-        helper_first = f->next;
-        if (helper_first == NULL)
-            helper_last = NULL;
         Pthread_mutex_unlock(&helper_lk);
         apply_file(f);
         Pthread_mutex_lock(&helper_lk);
-        if (--helper_pending == 0)
-            Pthread_cond_signal(&helper_done);
+        if (--*f->pending == 0)
+            Pthread_cond_broadcast(&helper_done);
     }
     return NULL;
 }
 
-/* called with the apply turn held, so by one thread at a time */
 static int start_helpers(bdb_state_type *bdb_state)
 {
     int want = gbl_ordered_apply_threads;
     if (want > PLAN_MAX_FILES)
         want = PLAN_MAX_FILES;
+    Pthread_mutex_lock(&helper_lk);
     while (nhelpers < want) {
         pthread_t tid;
         pthread_attr_t attr;
@@ -1176,7 +1203,9 @@ static int start_helpers(bdb_state_type *bdb_state)
             break;
         nhelpers++;
     }
-    return nhelpers;
+    int n = nhelpers;
+    Pthread_mutex_unlock(&helper_lk);
+    return n;
 }
 
 static DB *op_file(struct plan_op *op)
@@ -1254,15 +1283,17 @@ static int apply_parallel(bdb_state_type *bdb_state, tran_type *tran, struct bdb
     if (rc == 0) {
         /* the helpers take all but the first file; this thread applies that
          * one, then whatever the helpers have not started on */
+        int pending = 0;
         Pthread_mutex_lock(&helper_lk);
         for (int i = 1; i < nfiles; i++) {
             files[i].next = NULL;
+            files[i].pending = &pending;
             if (helper_last)
                 helper_last->next = &files[i];
             else
                 helper_first = &files[i];
             helper_last = &files[i];
-            helper_pending++;
+            pending++;
         }
         Pthread_cond_broadcast(&helper_work);
         Pthread_mutex_unlock(&helper_lk);
@@ -1271,18 +1302,15 @@ static int apply_parallel(bdb_state_type *bdb_state, tran_type *tran, struct bdb
 
         Pthread_mutex_lock(&helper_lk);
         for (;;) {
-            struct plan_file *f = helper_first;
+            struct plan_file *f = helper_take(&pending);
             if (f == NULL)
                 break;
-            helper_first = f->next;
-            if (helper_first == NULL)
-                helper_last = NULL;
             Pthread_mutex_unlock(&helper_lk);
             apply_file(f);
             Pthread_mutex_lock(&helper_lk);
-            helper_pending--;
+            pending--;
         }
-        while (helper_pending > 0)
+        while (pending > 0)
             Pthread_cond_wait(&helper_done, &helper_lk);
         Pthread_mutex_unlock(&helper_lk);
 
@@ -1500,7 +1528,7 @@ void bdb_plan_tran_done(tran_type *tran)
  * Commit units.
  *
  * A transaction whose plan was left for a unit queues here as a member and
- * sleeps.  The unit thread takes the members that are waiting, begins a
+ * sleeps.  A unit thread takes the members that are waiting, begins a
  * transaction, and for each member writes its blkseq record and applies its
  * plan.  It commits once and wakes the members with the commit LSN.  A member
  * whose blkseq key is already there is a replay: none of its plan is applied
@@ -1521,9 +1549,10 @@ void bdb_plan_tran_done(tran_type *tran)
  * sleeps on a condition variable, so the detector sees no cycle.  Two things
  * close that.  A transaction that applies its own plan does it under its own
  * Berkeley transaction, not a unit's, so its locks and its waits belong to
- * one family.  And every unit holds a write lock on one name; a member that
- * has waited gbl_ordered_apply_unit_detect_ms asks for that name in read
- * mode, which is a wait the detector follows.  If the member is then chosen
+ * one family.  And every unit holds a write lock on the name of its thread;
+ * a member that has waited gbl_ordered_apply_unit_detect_ms asks for that
+ * name in read mode (or, not yet taken, for each thread's in turn), which is
+ * a wait the detector follows.  If the member is then chosen
  * as the victim it cannot give up its locks, since its plan may be half
  * applied; it aborts the transactions waiting for them, and waits again.
  */
@@ -1542,26 +1571,160 @@ struct unit_member {
     int stale; /* its plan no longer fits the btrees: left out, to run again without a plan */
     DB_LSN lsn;
     int done;
+    int slot; /* the unit thread applying it, or -1 until one has taken it */
+    DB **files; /* the btree files its plan writes, each once */
+    int nfiles;
     pthread_cond_t cond;
 };
 
 static pthread_mutex_t unit_lk = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t unit_work = PTHREAD_COND_INITIALIZER;
 static struct unit_member *unit_first;
 static struct unit_member *unit_last;
-static int unit_thread_started;
-static int unit_busy; /* a unit is being applied, by the unit thread or by its own transaction */
-static pthread_cond_t unit_ended = PTHREAD_COND_INITIALIZER; /* broadcast when unit_busy is cleared */
+static int unit_busy; /* units being applied, by unit threads or by their own transaction */
+static pthread_cond_t unit_ended = PTHREAD_COND_INITIALIZER; /* broadcast when a unit ends */
 
-/* Called with unit_lk held, as unit_busy is cleared: wakes reads that wait
- * for the unit (plan_read_wait()). */
+/* Called with unit_lk held, as a unit ends: wakes reads that wait for a unit
+ * (plan_read_wait()). */
 static void unit_end(void)
 {
-    unit_busy = 0;
+    unit_busy--;
     Pthread_cond_broadcast(&unit_ended);
 }
 
-/* If a unit is being applied, waits until it ends or until until_us, and
+/* The name is written when its thread is started, under unit_lk, before
+ * anything can ask for it. */
+static void unit_lock_name(DBT *name, int slot)
+{
+    memset(name, 0, sizeof(*name));
+    name->data = unit_names[slot];
+    name->size = sizeof(unit_names[slot]);
+}
+
+/*
+ * Units side by side.
+ *
+ * Two units that write the same file take its pages in no order that either
+ * knows of, and deadlock as page-lock transactions do: with four unit threads
+ * and no rule, 100-row inserts into one table aborted a unit five times for
+ * each one committed (run 28).  So a unit thread takes a member only if no
+ * unit being applied writes any of the member's files.  It also passes over
+ * a member that shares a file with one it has passed over already, so the
+ * members that write a file are taken in the order they came, and none is
+ * left behind for ever.  The blkseq file every member writes to is not
+ * counted: its keys are spread at random.  Units that write different tables
+ * are then applied side by side; units on one table one at a time, as with
+ * one thread.
+ */
+static struct unit_member *unit_running[UNIT_MAX_THREADS + 1]; /* by slot; the last is a unit applied inline */
+
+static int unit_files_meet(const struct unit_member *a, const struct unit_member *b)
+{
+    for (int i = 0; i < a->nfiles; i++)
+        for (int j = 0; j < b->nfiles; j++)
+            if (a->files[i] == b->files[j])
+                return 1;
+    return 0;
+}
+
+/* Called with unit_lk held.  Does m write a file that a unit being applied
+ * writes, or that a member from first up to m (not included) writes? */
+static int unit_member_blocked(const struct unit_member *m, const struct unit_member *first)
+{
+    for (int s = 0; s <= UNIT_MAX_THREADS; s++)
+        for (const struct unit_member *r = unit_running[s]; r; r = r->next)
+            if (unit_files_meet(m, r))
+                return 1;
+    for (const struct unit_member *o = first; o && o != m; o = o->next)
+        if (unit_files_meet(m, o))
+            return 1;
+    return 0;
+}
+
+/* Called with unit_lk held.  Is there a unit thread free, and a member
+ * waiting that it could take?  Only then is a thread woken: three idle
+ * threads woken for every member queued while a unit on the same table is
+ * applied would only take the lock and sleep again. */
+static int unit_nthreads(void);
+static int unit_takeable(void)
+{
+    if (unit_busy >= unit_nthreads())
+        return 0;
+    for (const struct unit_member *m = unit_first; m; m = m->next)
+        if (!unit_member_blocked(m, unit_first))
+            return 1;
+    return 0;
+}
+
+/*
+ * Idle unit threads, the one idle the shortest time on top.  A unit thread
+ * waits on a condition variable of its own, and work wakes the one on top:
+ * the thread that applied the last unit, with that unit's pages and the
+ * lock manager's structures still in its core's caches.  With one table and
+ * four threads woken in no order, every write to the btrees took 45% longer
+ * than with one thread (run 31).  A thread above the number wanted now is
+ * not woken.
+ */
+static int unit_threads_started;
+static pthread_cond_t unit_slot_cv[UNIT_MAX_THREADS];
+static int unit_idle[UNIT_MAX_THREADS];
+static int unit_nidle;
+
+/* Called with unit_lk held: waits until woken, as an idle thread. */
+static void unit_idle_wait(int slot)
+{
+    unit_idle[unit_nidle++] = slot;
+    Pthread_cond_wait(&unit_slot_cv[slot], &unit_lk);
+    /* still there if the wake was spurious */
+    for (int i = 0; i < unit_nidle; i++) {
+        if (unit_idle[i] == slot) {
+            memmove(&unit_idle[i], &unit_idle[i + 1], (unit_nidle - i - 1) * sizeof(int));
+            unit_nidle--;
+            break;
+        }
+    }
+}
+
+/* Called with unit_lk held: wakes the idle thread on top that may take work. */
+static void unit_wake(void)
+{
+    for (int i = unit_nidle - 1; i >= 0; i--) {
+        int slot = unit_idle[i];
+        if (slot >= unit_nthreads())
+            continue;
+        memmove(&unit_idle[i], &unit_idle[i + 1], (unit_nidle - i - 1) * sizeof(int));
+        unit_nidle--;
+        Pthread_cond_signal(&unit_slot_cv[slot]);
+        return;
+    }
+}
+
+static DB *op_file(struct plan_op *op);
+
+static void unit_member_files(struct unit_member *m)
+{
+    int cap = 0;
+    for (struct plan_op *op = m->plan->first; op; op = op->next) {
+        DB *db = op_file(op);
+        int i;
+        for (i = 0; i < m->nfiles && m->files[i] != db; i++)
+            ;
+        if (i < m->nfiles)
+            continue;
+        if (m->nfiles == cap) {
+            int ncap = cap ? cap * 2 : 8;
+            DB **n = realloc(m->files, ncap * sizeof(DB *));
+            if (n == NULL)
+                abort();
+            m->files = n;
+            cap = ncap;
+        }
+        m->files[m->nfiles++] = db;
+        if (op == m->plan->last)
+            break;
+    }
+}
+
+/* If a unit is being applied, waits until one ends or until until_us, and
  * returns 1.  Returns 0 at once if none is. */
 static int unit_wait_end(uint64_t until_us)
 {
@@ -1606,7 +1769,7 @@ static void unit_drop_replays(struct unit_member *batch)
     }
 }
 
-static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch)
+static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch, int slot)
 {
     int retries = 0;
     int par_deadlocks = 0; /* times it was a deadlock victim while applied a file per thread */
@@ -1629,10 +1792,9 @@ static void unit_run(bdb_state_type *bdb_state, struct unit_member *batch)
         /* members that have waited long wait for this; it goes with the
          * transaction's other locks when it commits or aborts */
         {
-            DBT name = {0};
+            DBT name;
             DB_LOCK lk;
-            name.data = unit_name;
-            name.size = sizeof(unit_name);
+            unit_lock_name(&name, slot);
             rc = berkdb_lock(bdb_state->dbenv, tran->tid->txnid, 0, &name, DB_LOCK_WRITE, &lk);
         }
 
@@ -1809,36 +1971,83 @@ static int unit_apply_own(bdb_state_type *bdb_state, tran_type *tran, struct uni
     return -1;
 }
 
+static int unit_nthreads(void)
+{
+    int n = gbl_ordered_apply_unit_threads;
+    return n < 1 ? 1 : n > UNIT_MAX_THREADS ? UNIT_MAX_THREADS : n;
+}
+
+struct unit_thread_arg {
+    bdb_state_type *bdb_state;
+    int slot;
+};
+
 static void *unit_thread(void *arg)
 {
-    bdb_state_type *bdb_state = arg;
+    struct unit_thread_arg a = *(struct unit_thread_arg *)arg;
+    bdb_state_type *bdb_state = a.bdb_state;
+    free(arg);
     thread_started("ordered apply unit");
     bdb_thread_event(bdb_state, BDBTHR_EVENT_START);
     Pthread_mutex_lock(&unit_lk);
     for (;;) {
-        if (unit_first == NULL || unit_busy) {
-            Pthread_cond_wait(&unit_work, &unit_lk);
+        /* a thread above the number wanted now takes nothing */
+        if (unit_first == NULL || unit_busy >= unit_nthreads() || a.slot >= unit_nthreads()) {
+            unit_idle_wait(a.slot);
             continue;
         }
-        unit_busy = 1;
-        /* take members until the unit is large enough; always at least one */
-        struct unit_member *batch = unit_first;
-        struct unit_member *tail = batch;
-        int nops = batch->plan->nops;
-        while (tail->next && nops < gbl_ordered_apply_unit_max_ops) {
-            tail = tail->next;
-            nops += tail->plan->nops;
+        /* Take members until the unit is large enough.  With one thread that
+         * is the first members in the queue.  With more, the ones that meet
+         * no unit being applied and no member passed over before them. */
+        struct unit_member *batch = NULL, *tail = NULL;
+        struct unit_member *prev = NULL, *m = unit_first;
+        int nops = 0;
+        int alone = unit_nthreads() == 1;
+        while (m && (batch == NULL || nops < gbl_ordered_apply_unit_max_ops)) {
+            struct unit_member *next = m->next;
+            if (!alone && unit_member_blocked(m, unit_first)) {
+                prev = m;
+                m = next;
+                continue;
+            }
+            if (prev)
+                prev->next = next;
+            else
+                unit_first = next;
+            if (unit_last == m)
+                unit_last = prev;
+            m->next = NULL;
+            m->slot = a.slot;
+            if (tail)
+                tail->next = m;
+            else
+                batch = m;
+            tail = m;
+            nops += m->plan->nops;
+            m = next;
         }
-        unit_first = tail->next;
-        if (unit_first == NULL)
-            unit_last = NULL;
-        tail->next = NULL;
+        if (batch == NULL) {
+            /* everything waiting meets a unit being applied */
+            unit_idle_wait(a.slot);
+            continue;
+        }
+        unit_busy++;
+        unit_running[a.slot] = batch;
+        /* another unit thread may take what is left */
+        if (unit_first && unit_takeable())
+            unit_wake();
         Pthread_mutex_unlock(&unit_lk);
 
-        unit_run(bdb_state, batch);
+        unit_run(bdb_state, batch, a.slot);
 
         Pthread_mutex_lock(&unit_lk);
+        unit_running[a.slot] = NULL;
         unit_end();
+        /* this thread looks at the queue first, and wakes another if there
+         * is more than it can take; one above the number wanted takes
+         * nothing, and wakes one that can */
+        if (a.slot >= unit_nthreads() && unit_first && unit_takeable())
+            unit_wake();
         while (batch) {
             /* a member is on its thread's stack, gone once that thread runs */
             struct unit_member *next = batch->next;
@@ -1873,6 +2082,8 @@ int bdb_tran_plan_unit_commit(bdb_state_type *bdb_state, tran_type *tran, void *
     m.bsdatalen = bsdatalen;
     m.replay_data = replay_data;
     m.replay_len = replay_len;
+    m.slot = -1;
+    unit_member_files(&m); /* always: the number of threads can change while it waits */
     Pthread_cond_init(&m.cond, NULL);
 
     uint64_t start = now_us();
@@ -1880,43 +2091,61 @@ int bdb_tran_plan_unit_commit(bdb_state_type *bdb_state, tran_type *tran, void *
     if (gbl_ordered_apply_unit_inline && !unit_busy && unit_first == NULL && ATOMIC_LOAD64(plans_alive) <= 1) {
         /* no other plan anywhere: no need for the unit thread.  Beginning and committing the unit's transaction here
          * replaces this thread's note of its own top-level transaction. */
-        unit_busy = 1;
+        unit_busy++;
+        unit_running[UNIT_MAX_THREADS] = &m;
         Pthread_mutex_unlock(&unit_lk);
         int rc = unit_apply_own(bdb_state, tran, &m, bdberr);
         Pthread_mutex_lock(&unit_lk);
+        unit_running[UNIT_MAX_THREADS] = NULL;
         unit_end();
-        if (unit_first)
-            Pthread_cond_signal(&unit_work);
+        if (unit_first && unit_takeable())
+            unit_wake();
         Pthread_mutex_unlock(&unit_lk);
+        free(m.files);
         Pthread_cond_destroy(&m.cond);
         plan_free(tran->unit_plan);
         tran->unit_plan = NULL;
         return rc;
     }
-    if (!unit_thread_started) {
+    while (unit_threads_started < unit_nthreads()) {
         pthread_t tid;
         pthread_attr_t attr;
-        Pthread_attr_init(&attr);
-        Pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-        Pthread_attr_setstacksize(&attr, 1024 * 1024);
-        int rc = pthread_create(&tid, &attr, unit_thread, bdb_state);
-        Pthread_attr_destroy(&attr);
+        struct unit_thread_arg *arg = malloc(sizeof(*arg));
+        int rc = ENOMEM;
+        if (arg) {
+            arg->bdb_state = bdb_state;
+            arg->slot = unit_threads_started;
+            Pthread_cond_init(&unit_slot_cv[arg->slot], NULL);
+            snprintf(unit_names[arg->slot], sizeof(unit_names[arg->slot]), "ordered unit%d", arg->slot);
+            Pthread_attr_init(&attr);
+            Pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+            Pthread_attr_setstacksize(&attr, 1024 * 1024);
+            rc = pthread_create(&tid, &attr, unit_thread, arg);
+            Pthread_attr_destroy(&attr);
+            if (rc != 0)
+                free(arg);
+        }
         if (rc != 0) {
+            if (unit_threads_started > 0)
+                break; /* the ones there are will do */
             Pthread_mutex_unlock(&unit_lk);
+            free(m.files);
             Pthread_cond_destroy(&m.cond);
             *bdberr = BDBERR_MISC;
             return -1;
         }
-        unit_thread_started = 1;
+        unit_threads_started++;
     }
     if (unit_last)
         unit_last->next = &m;
     else
         unit_first = &m;
     unit_last = &m;
-    Pthread_cond_signal(&unit_work);
+    if (unit_takeable())
+        unit_wake();
 
     int slow = 0;
+    int next_slot = 0;
     struct timespec until;
     clock_gettime(CLOCK_REALTIME, &until);
     int ms = gbl_ordered_apply_unit_detect_ms > 0 ? gbl_ordered_apply_unit_detect_ms : 0;
@@ -1934,13 +2163,17 @@ int bdb_tran_plan_unit_commit(bdb_state_type *bdb_state, tran_type *tran, void *
             }
             continue;
         }
-        /* Wait where the deadlock detector can see it: every unit holds this
-         * name in write mode for as long as it is being applied. */
+        /* Wait where the deadlock detector can see it: every unit holds the
+         * name of its thread in write mode for as long as it is being
+         * applied.  Until a thread has taken this member, the units ahead of
+         * it are the ones it waits for, each in turn. */
+        int slot = m.slot;
+        if (slot < 0)
+            slot = next_slot++ % (unit_threads_started > 0 ? unit_threads_started : 1);
         Pthread_mutex_unlock(&unit_lk);
-        DBT name = {0};
+        DBT name;
         DB_LOCK lk;
-        name.data = unit_name;
-        name.size = sizeof(unit_name);
+        unit_lock_name(&name, slot);
         int lrc = berkdb_lock(bdb_state->dbenv, tran->tid->txnid, 0, &name, DB_LOCK_READ, &lk);
         if (lrc == 0) {
             bdb_release_lock(bdb_state, &lk);
@@ -1964,6 +2197,7 @@ int bdb_tran_plan_unit_commit(bdb_state_type *bdb_state, tran_type *tran, void *
         }
     }
     Pthread_mutex_unlock(&unit_lk);
+    free(m.files);
     Pthread_cond_destroy(&m.cond);
 
     ATOMIC_ADD64(gbl_ordered_apply_waits, 1);

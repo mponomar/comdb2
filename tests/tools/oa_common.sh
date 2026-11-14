@@ -10,6 +10,10 @@
 #            split by file from OA_PAR_MIN_OPS operations up: 4 if not set,
 #            to have small transactions on several threads; the default of
 #            ordered_apply_parallel_min_ops is 64
+#   units    unit, with OA_UNIT_THREADS unit threads (4 if not set), so that
+#            units are applied side by side and meet on pages
+#   unitspar unitpar with OA_UNIT_THREADS unit threads: plans of several
+#            units applied a file per thread at once, sharing the helpers
 # Every run of clients is watched: if the master commits nothing for
 # OA_STALL_SECS while clients are still running, the lock table is saved and
 # the test fails.  A line starting OA-RESULT is printed for each workload and
@@ -18,10 +22,10 @@
 # The tests need disable_tagged_api_writes in lrl.options: ordered_apply is
 # refused without it.
 
-OA_MODES=${OA_MODES:-"pg unit unitpar"}
+OA_MODES=${OA_MODES:-"pg unit unitpar units unitspar"}
 OA_STALL_SECS=${OA_STALL_SECS:-60}
 OA_CDB2SQL=${CDB2SQL_EXE:-cdb2sql}
-OA_METRICS="commits deadlocks retries verify_replays ordered_apply_txns ordered_apply_units ordered_apply_unit_retries ordered_apply_unit_serial ordered_apply_parallel ordered_apply_fallbacks ordered_apply_stale_retries"
+OA_METRICS="commits deadlocks retries verify_replays ordered_apply_txns ordered_apply_units ordered_apply_unit_retries ordered_apply_unit_serial ordered_apply_parallel ordered_apply_fallbacks ordered_apply_stale_retries ordered_apply_apply_us ordered_apply_held_us ordered_apply_waits ordered_apply_wait_us"
 
 oa_fail() {
     echo "FAILED: $*" >&2
@@ -49,18 +53,25 @@ oa_mode() {
     oa_send "ordered_apply_unit 0"
     oa_send "ordered_apply_parallel_updates 0"
     oa_send "ordered_apply_parallel_min_ops 64"
+    oa_send "ordered_apply_unit_threads 1"
     case $1 in
     pg) oa_send "ordered_apply 0" ;;
     unit)
         oa_send "ordered_apply 1"
         oa_send "ordered_apply_unit 1"
         ;;
-    unitpar)
+    unitpar | unitspar)
         oa_send "ordered_apply 1"
         oa_send "ordered_apply_unit 1"
         oa_send "ordered_apply_parallel_updates 1"
         # the transactions here are small: split any unit of a few operations
         oa_send "ordered_apply_parallel_min_ops ${OA_PAR_MIN_OPS:-4}"
+        [ $1 = unitspar ] && oa_send "ordered_apply_unit_threads ${OA_UNIT_THREADS:-4}"
+        ;;
+    units)
+        oa_send "ordered_apply 1"
+        oa_send "ordered_apply_unit 1"
+        oa_send "ordered_apply_unit_threads ${OA_UNIT_THREADS:-4}"
         ;;
     *) oa_fail "unknown mode $1" ;;
     esac
@@ -192,7 +203,11 @@ oa_report() {
         "unit_retries=$(oa_delta $dir/before $dir/after ordered_apply_unit_retries)" \
         "unit_serial=$(oa_delta $dir/before $dir/after ordered_apply_unit_serial)" \
         "parallel=$(oa_delta $dir/before $dir/after ordered_apply_parallel)" \
-        "fallbacks=$(oa_delta $dir/before $dir/after ordered_apply_fallbacks)" "$@"
+        "fallbacks=$(oa_delta $dir/before $dir/after ordered_apply_fallbacks)" \
+        "apply_us=$(oa_delta $dir/before $dir/after ordered_apply_apply_us)" \
+        "held_us=$(oa_delta $dir/before $dir/after ordered_apply_held_us)" \
+        "member_waits=$(oa_delta $dir/before $dir/after ordered_apply_waits)" \
+        "member_wait_us=$(oa_delta $dir/before $dir/after ordered_apply_wait_us)" "$@"
 }
 
 # a mode with ordered apply on must have planned something

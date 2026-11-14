@@ -1,0 +1,36 @@
+== results (255 s)
+oa_throughput success
+== by workload and mode
+test=oa_throughput work=ins1 mode=unit txns=80000 secs=7.63 txn/s=10485 deadlocks=0 retries=0 verify_replays=0 planned=80000 units=44330 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 failures=0
+== throughput
+transactions a second, and against page locks
+cell                 unit            units
+ins1                10485             8155
+ins100                411              409
+upd1                 9238             7828
+updk1                8979             6700
+updhot               3062             2837
+upd20                 539              438
+del1                 7505             5874
+ins100m               658              792
+upd100m               320              435
+== failures
+work=ins1 mode=unit	units=44330	unit_retries=0
+work=ins100 mode=unit	units=401	unit_retries=0
+work=upd1 mode=unit	units=50118	unit_retries=0
+work=updk1 mode=unit	units=41872	unit_retries=0
+work=updhot mode=unit	units=47625	unit_retries=2
+work=upd20 mode=unit	units=2528	unit_retries=1
+work=del1 mode=unit	units=35964	unit_retries=1877
+work=ins100m mode=unit	units=403	unit_retries=0
+work=upd100m mode=unit	units=406	unit_retries=0
+work=ins1 mode=units	units=25643	unit_retries=0
+work=ins100 mode=units	units=401	unit_retries=0
+work=upd1 mode=units	units=32066	unit_retries=0
+work=updk1 mode=units	units=22923	unit_retries=0
+work=updhot mode=units	units=43693	unit_retries=1
+work=upd20 mode=units	units=1549	unit_retries=3
+work=del1 mode=units	units=24310	unit_retries=1625
+work=ins100m mode=units	units=1253	unit_retries=0
+work=upd100m mode=units	units=1475	unit_retries=0
+

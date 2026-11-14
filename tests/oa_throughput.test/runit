@@ -5,7 +5,9 @@ source ${TESTSROOTDIR}/tools/oa_common.sh
 # Throughput by mode.  The same cells for each mode, CLIENTS clients each:
 # single-row and 100-row inserts, single-row updates of a column with no
 # index, of an indexed column and of 20 hot rows, 20-row update transactions,
-# and single-row deletes.  It fails only if a statement fails (other than a
+# and single-row deletes; then 100-row inserts and 100-row updates spread over
+# four tables m1 to m4, each client keeping to one, which units on several
+# threads can apply side by side.  It fails only if a statement fails (other than a
 # commit that found a row changed), rows go missing, or a mode with ordered
 # apply plans nothing; the rates are printed, and at the end each mode
 # against page locks.
@@ -23,6 +25,12 @@ oa_sql "create table t(a bigint, b bigint, c bigint, pad varchar(64))" > /dev/nu
 oa_sql "create index ta on t(a)" > /dev/null
 oa_sql "create index tb on t(b)" > /dev/null
 oa_sql "create index tc on t(c)" > /dev/null
+MROWS=$((ROWS / 4))
+for i in 1 2 3 4; do
+    oa_sql "create table m$i(a bigint, b bigint, pad varchar(64))" > /dev/null
+    oa_sql "create index m${i}a on m$i(a)" > /dev/null
+    oa_sql "create index m${i}b on m$i(b)" > /dev/null
+done
 
 # cell <name> <transactions each client runs> <awk program printing one client's statements>
 cell() {
@@ -76,9 +84,26 @@ for mode in $OA_MODES; do
     # every client deletes rows of its own, among the ones loaded
     cell del1 $N 'BEGIN { for (i = 0; i < n; i++) print "delete from t where a = " 1000 + i * clients + w }'
 
+    for i in 1 2 3 4; do
+        oa_sql "truncate m$i" > /dev/null
+        oa_sql "insert into m$i select value, (value * 7919) % 1000003, 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' from generate_series(1, $MROWS)" > /dev/null
+    done
+    cell ins100m $((N / 50)) 'BEGIN { srand(w + 600); m = w % 4 + 1; for (i = 0; i < n; i++) {
+        s = "insert into m" m " values"
+        for (j = 0; j < 100; j++) s = s (j ? "," : "") "(" rows + (i * 100 + j) * clients + w ", " int(rand() * 1e9) ", \047inserted a hundred at a time\047)"
+        print s } }'
+    cell upd100m $((N / 50)) 'BEGIN { srand(w + 700); m = w % 4 + 1; for (i = 0; i < n; i++) {
+        lo = 1 + int(rand() * (rows / 4 - 100))
+        print "update m" m " set b = " int(rand() * 1e9) " where a >= " lo " and a < " lo + 100 } }'
+
     want=$((ROWS + CLIENTS * N + CLIENTS * (N / 50) * 100 - CLIENTS * N))
     [ "$(oa_sql "select count(*) from t")" = "$want" ] || oa_fail "oa_throughput $mode: $(oa_sql "select count(*) from t") rows, expected $want"
     [ "$(oa_sql "select count(*) from t where b >= 0")" = "$want" ] || oa_fail "oa_throughput $mode: index tb has not $want entries"
+    for i in 1 2 3 4; do
+        mc=0; for w in $(seq 1 $CLIENTS); do [ $((w % 4 + 1)) = $i ] && mc=$((mc + 1)); done
+        mwant=$((MROWS + mc * (N / 50) * 100))
+        [ "$(oa_sql "select count(*) from m$i")" = "$mwant" ] || oa_fail "oa_throughput $mode: m$i has $(oa_sql "select count(*) from m$i") rows, expected $mwant"
+    done
 done
 
 echo "OA-SUMMARY transactions a second, and against page locks"
@@ -102,4 +127,5 @@ awk '{
     }
 }' $SUMMARY
 oa_check_table t "select count(*), sum(a % 1000003), sum(b % 1000003), sum(c % 1000003), sum(length(pad)) from t"
+for i in 1 2 3 4; do oa_check_table m$i "select count(*), sum(a % 1000003), sum(b % 1000003), sum(length(pad)) from m$i"; done
 oa_done

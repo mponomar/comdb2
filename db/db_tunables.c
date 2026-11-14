@@ -557,6 +557,7 @@ extern int gbl_ordered_apply_parallel_min_ops;
 extern int gbl_ordered_apply_parallel_updates;
 extern int gbl_ordered_apply_parallel_retries;
 extern int gbl_ordered_apply_read_wait_ms;
+extern int gbl_ordered_apply_unit_threads;
 extern int gbl_debug_systable_locks;
 extern int gbl_assert_systable_locks;
 extern int gbl_assert_no_schemalk_in_distributed_commit;

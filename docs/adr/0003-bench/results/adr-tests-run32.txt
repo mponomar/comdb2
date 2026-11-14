@@ -1,0 +1,34 @@
+== results (247 s)
+oa_throughput success
+== by workload and mode
+test=oa_throughput work=ins1 mode=unit txns=80000 secs=7.60 txn/s=10526 deadlocks=0 retries=0 verify_replays=0 planned=80000 units=44729 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=5594721 held_us=6126603 member_waits=75704 member_wait_us=21676398 failures=0
+test=oa_throughput work=ins100 mode=unit txns=1600 secs=3.91 txn/s=409 deadlocks=0 retries=0 verify_replays=0 planned=1600 units=402 unit_retries=0 unit_serial=0 parallel=402 fallbacks=0 apply_us=3510991 held_us=3656738 member_waits=1599 member_wait_us=27999298 failures=0
+test=oa_throughput work=upd1 mode=unit txns=80000 secs=8.75 txn/s=9143 deadlocks=0 retries=0 verify_replays=5 planned=80000 units=49923 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=5882385 held_us=6516778 member_waits=76064 member_wait_us=20427070 failures=0
+test=oa_throughput work=updk1 mode=unit txns=80000 secs=8.90 txn/s=8989 deadlocks=0 retries=0 verify_replays=6 planned=80000 units=45495 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=6576015 held_us=7158294 member_waits=77365 member_wait_us=24856240 failures=0
+test=oa_throughput work=updhot mode=unit txns=80000 secs=26.18 txn/s=3056 deadlocks=3 retries=0 verify_replays=35333 planned=80000 units=48223 unit_retries=3 unit_serial=0 parallel=0 fallbacks=0 apply_us=15664673 held_us=17712170 member_waits=91928 member_wait_us=84557220 failures=0
+test=oa_throughput work=upd20 mode=unit txns=3991 secs=7.39 txn/s=540 deadlocks=7 retries=3 verify_replays=132 planned=3991 units=2477 unit_retries=4 unit_serial=0 parallel=0 fallbacks=9 apply_us=5680399 held_us=5964014 member_waits=3638 member_wait_us=17395257 failures=9
+test=oa_throughput work=del1 mode=unit txns=80000 secs=10.41 txn/s=7685 deadlocks=1885 retries=63 verify_replays=0 planned=80000 units=37756 unit_retries=1822 unit_serial=0 parallel=0 fallbacks=0 apply_us=7430392 held_us=8088867 member_waits=77724 member_wait_us=37221389 failures=0
+test=oa_throughput work=ins100m mode=unit txns=1600 secs=2.86 txn/s=559 deadlocks=0 retries=0 verify_replays=0 planned=1600 units=403 unit_retries=0 unit_serial=0 parallel=403 fallbacks=0 apply_us=2580380 held_us=2650768 member_waits=1599 member_wait_us=20087867 failures=0
+test=oa_throughput work=upd100m mode=unit txns=1600 secs=5.23 txn/s=306 deadlocks=0 retries=0 verify_replays=29 planned=1600 units=408 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=4729101 held_us=4760361 member_waits=1614 member_wait_us=31704355 failures=0
+test=oa_throughput work=ins1 mode=units txns=80000 secs=8.47 txn/s=9445 deadlocks=0 retries=0 verify_replays=0 planned=80000 units=31886 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=7050815 held_us=7582156 member_waits=78416 member_wait_us=39045269 failures=0
+test=oa_throughput work=ins100 mode=units txns=1600 secs=3.25 txn/s=492 deadlocks=0 retries=0 verify_replays=0 planned=1600 units=403 unit_retries=0 unit_serial=0 parallel=403 fallbacks=0 apply_us=3008941 held_us=3153440 member_waits=1599 member_wait_us=23893691 failures=0
+test=oa_throughput work=upd1 mode=units txns=80000 secs=9.28 txn/s=8621 deadlocks=0 retries=0 verify_replays=6 planned=80000 units=38653 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=7171492 held_us=7854900 member_waits=78252 member_wait_us=33241247 failures=0
+test=oa_throughput work=updk1 mode=units txns=80000 secs=10.00 txn/s=8000 deadlocks=0 retries=0 verify_replays=5 planned=80000 units=34120 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=8246903 held_us=8873297 member_waits=78959 member_wait_us=41841573 failures=0
+test=oa_throughput work=updhot mode=units txns=80000 secs=26.91 txn/s=2973 deadlocks=1 retries=0 verify_replays=36514 planned=80000 units=46575 unit_retries=1 unit_serial=0 parallel=0 fallbacks=0 apply_us=15682679 held_us=17951622 member_waits=93148 member_wait_us=93794622 failures=0
+test=oa_throughput work=upd20 mode=units txns=3991 secs=7.59 txn/s=526 deadlocks=5 retries=5 verify_replays=141 planned=3991 units=2374 unit_retries=0 unit_serial=0 parallel=0 fallbacks=9 apply_us=5992239 held_us=6273641 member_waits=3719 member_wait_us=19889248 failures=9
+test=oa_throughput work=del1 mode=units txns=80000 secs=11.91 txn/s=6717 deadlocks=1657 retries=25 verify_replays=0 planned=80000 units=30367 unit_retries=1632 unit_serial=0 parallel=0 fallbacks=0 apply_us=9081925 held_us=9873799 member_waits=78948 member_wait_us=55502015 failures=0
+test=oa_throughput work=ins100m mode=units txns=1600 secs=1.82 txn/s=879 deadlocks=0 retries=0 verify_replays=0 planned=1600 units=1304 unit_retries=0 unit_serial=0 parallel=1304 fallbacks=0 apply_us=6480678 held_us=6645194 member_waits=1596 member_wait_us=12631914 failures=0
+test=oa_throughput work=upd100m mode=units txns=1600 secs=3.48 txn/s=460 deadlocks=2 retries=1 verify_replays=22 planned=1600 units=1484 unit_retries=1 unit_serial=0 parallel=0 fallbacks=0 apply_us=12063979 held_us=12172064 member_waits=1601 member_wait_us=19163151 failures=0
+== throughput
+transactions a second, and against page locks
+cell                 unit            units
+ins1                10526             9445
+ins100                409              492
+upd1                 9143             8621
+updk1                8989             8000
+updhot               3056             2973
+upd20                 540              526
+del1                 7685             6717
+ins100m               559              879
+upd100m               306              460
+== failures

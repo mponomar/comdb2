@@ -1,0 +1,54 @@
+== results (250 s)
+oa_throughput success
+== by workload and mode
+test=oa_throughput work=ins1 mode=unit txns=80000 secs=7.62 txn/s=10499 deadlocks=0 retries=0 verify_replays=0 planned=80000 units=42623 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=5653208 held_us=6192925 member_waits=76342 member_wait_us=23146993 failures=0
+test=oa_throughput work=ins100 mode=unit txns=1600 secs=3.90 txn/s=410 deadlocks=0 retries=0 verify_replays=0 planned=1600 units=403 unit_retries=0 unit_serial=0 parallel=403 fallbacks=0 apply_us=3618545 held_us=3772677 member_waits=1600 member_wait_us=28820340 failures=0
+test=oa_throughput work=upd1 mode=unit txns=80000 secs=8.91 txn/s=8979 deadlocks=0 retries=0 verify_replays=4 planned=80000 units=50159 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=5926206 held_us=6564542 member_waits=76227 member_wait_us=20403533 failures=0
+test=oa_throughput work=updk1 mode=unit txns=80000 secs=8.44 txn/s=9479 deadlocks=0 retries=0 verify_replays=2 planned=80000 units=45428 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=6348099 held_us=6890169 member_waits=77605 member_wait_us=23883363 failures=0
+test=oa_throughput work=updhot mode=unit txns=80000 secs=26.37 txn/s=3034 deadlocks=2 retries=0 verify_replays=35562 planned=80000 units=47537 unit_retries=2 unit_serial=0 parallel=0 fallbacks=0 apply_us=15695888 held_us=17655421 member_waits=92197 member_wait_us=86945860 failures=0
+test=oa_throughput work=upd20 mode=unit txns=3991 secs=7.39 txn/s=540 deadlocks=11 retries=10 verify_replays=142 planned=3991 units=2541 unit_retries=1 unit_serial=0 parallel=0 fallbacks=9 apply_us=5780019 held_us=6067986 member_waits=3675 member_wait_us=17468773 failures=9
+test=oa_throughput work=del1 mode=unit txns=80000 secs=10.22 txn/s=7828 deadlocks=1694 retries=58 verify_replays=0 planned=80000 units=37174 unit_retries=1636 unit_serial=0 parallel=0 fallbacks=0 apply_us=7416438 held_us=8054530 member_waits=77764 member_wait_us=37610260 failures=0
+test=oa_throughput work=ins100m mode=unit txns=1600 secs=2.62 txn/s=611 deadlocks=0 retries=0 verify_replays=0 planned=1600 units=403 unit_retries=0 unit_serial=0 parallel=403 fallbacks=0 apply_us=2317171 held_us=2377709 member_waits=1599 member_wait_us=17967508 failures=0
+test=oa_throughput work=upd100m mode=unit txns=1600 secs=5.03 txn/s=318 deadlocks=0 retries=0 verify_replays=25 planned=1600 units=409 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=4608838 held_us=4633875 member_waits=1609 member_wait_us=30371902 failures=0
+test=oa_throughput work=ins1 mode=units txns=80000 secs=9.75 txn/s=8205 deadlocks=0 retries=0 verify_replays=0 planned=80000 units=24572 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=8356002 held_us=8924751 member_waits=79406 member_wait_us=53895840 failures=0
+test=oa_throughput work=ins100 mode=units txns=1600 secs=3.69 txn/s=434 deadlocks=0 retries=0 verify_replays=0 planned=1600 units=402 unit_retries=0 unit_serial=0 parallel=402 fallbacks=0 apply_us=3471480 held_us=3627154 member_waits=1600 member_wait_us=27740302 failures=0
+test=oa_throughput work=upd1 mode=units txns=80000 secs=10.21 txn/s=7835 deadlocks=0 retries=0 verify_replays=11 planned=80000 units=31972 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=8085106 held_us=8813605 member_waits=78943 member_wait_us=42472936 failures=0
+test=oa_throughput work=updk1 mode=units txns=80000 secs=11.67 txn/s=6855 deadlocks=0 retries=0 verify_replays=8 planned=80000 units=23884 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=10251069 held_us=10916429 member_waits=79739 member_wait_us=64388979 failures=0
+test=oa_throughput work=updhot mode=units txns=80000 secs=27.56 txn/s=2903 deadlocks=3 retries=0 verify_replays=37078 planned=80000 units=43215 unit_retries=3 unit_serial=0 parallel=0 fallbacks=0 apply_us=15973160 held_us=18013183 member_waits=93797 member_wait_us=102013104 failures=0
+test=oa_throughput work=upd20 mode=units txns=3991 secs=8.74 txn/s=457 deadlocks=17 retries=13 verify_replays=140 planned=3991 units=1674 unit_retries=4 unit_serial=0 parallel=0 fallbacks=10 apply_us=7657328 held_us=8004965 member_waits=3926 member_wait_us=39329978 failures=9
+test=oa_throughput work=del1 mode=units txns=80000 secs=13.62 txn/s=5874 deadlocks=1393 retries=5 verify_replays=0 planned=80000 units=23876 unit_retries=1388 unit_serial=0 parallel=0 fallbacks=0 apply_us=10914402 held_us=11756023 member_waits=79652 member_wait_us=75273657 failures=0
+test=oa_throughput work=ins100m mode=units txns=1600 secs=1.80 txn/s=889 deadlocks=0 retries=0 verify_replays=0 planned=1600 units=1303 unit_retries=0 unit_serial=0 parallel=1303 fallbacks=0 apply_us=5912515 held_us=6051860 member_waits=1595 member_wait_us=11485429 failures=0
+test=oa_throughput work=upd100m mode=units txns=1600 secs=3.48 txn/s=460 deadlocks=0 retries=0 verify_replays=31 planned=1600 units=1457 unit_retries=0 unit_serial=0 parallel=0 fallbacks=0 apply_us=11984461 held_us=12086943 member_waits=1605 member_wait_us=19236375 failures=0
+== throughput
+transactions a second, and against page locks
+cell                 unit            units
+ins1                10499             8205
+ins100                410              434
+upd1                 8979             7835
+updk1                9479             6855
+updhot               3034             2903
+upd20                 540              457
+del1                 7828             5874
+ins100m               611              889
+upd100m               318              460
+== failures
+== per unit (from the OA-RESULT lines above)
+ins1     unit   txn/s= 10499 units= 42623 txn/unit= 1.9 apply_us/unit=   133 held_us/unit=   145 commit_us/unit=    13 wait_us/member=   303 busy=0.81
+ins100   unit   txn/s=   410 units=   403 txn/unit= 4.0 apply_us/unit=  8979 held_us/unit=  9361 commit_us/unit=   382 wait_us/member= 18013 busy=0.97
+upd1     unit   txn/s=  8979 units= 50159 txn/unit= 1.6 apply_us/unit=   118 held_us/unit=   131 commit_us/unit=    13 wait_us/member=   268 busy=0.74
+updk1    unit   txn/s=  9479 units= 45428 txn/unit= 1.8 apply_us/unit=   140 held_us/unit=   152 commit_us/unit=    12 wait_us/member=   308 busy=0.82
+updhot   unit   txn/s=  3034 units= 47537 txn/unit= 1.7 apply_us/unit=   330 held_us/unit=   371 commit_us/unit=    41 wait_us/member=   943 busy=0.67
+upd20    unit   txn/s=   540 units=  2541 txn/unit= 1.6 apply_us/unit=  2275 held_us/unit=  2388 commit_us/unit=   113 wait_us/member=  4753 busy=0.82
+del1     unit   txn/s=  7828 units= 37174 txn/unit= 2.2 apply_us/unit=   200 held_us/unit=   217 commit_us/unit=    17 wait_us/member=   484 busy=0.79
+ins100m  unit   txn/s=   611 units=   403 txn/unit= 4.0 apply_us/unit=  5750 held_us/unit=  5900 commit_us/unit=   150 wait_us/member= 11237 busy=0.91
+upd100m  unit   txn/s=   318 units=   409 txn/unit= 3.9 apply_us/unit= 11269 held_us/unit= 11330 commit_us/unit=    61 wait_us/member= 18876 busy=0.92
+ins1     units  txn/s=  8205 units= 24572 txn/unit= 3.3 apply_us/unit=   340 held_us/unit=   363 commit_us/unit=    23 wait_us/member=   679 busy=0.92
+ins100   units  txn/s=   434 units=   402 txn/unit= 4.0 apply_us/unit=  8636 held_us/unit=  9023 commit_us/unit=   387 wait_us/member= 17338 busy=0.98
+upd1     units  txn/s=  7835 units= 31972 txn/unit= 2.5 apply_us/unit=   253 held_us/unit=   276 commit_us/unit=    23 wait_us/member=   538 busy=0.86
+updk1    units  txn/s=  6855 units= 23884 txn/unit= 3.3 apply_us/unit=   429 held_us/unit=   457 commit_us/unit=    28 wait_us/member=   807 busy=0.94
+updhot   units  txn/s=  2903 units= 43215 txn/unit= 1.9 apply_us/unit=   370 held_us/unit=   417 commit_us/unit=    47 wait_us/member=  1088 busy=0.65
+upd20    units  txn/s=   457 units=  1674 txn/unit= 2.4 apply_us/unit=  4574 held_us/unit=  4782 commit_us/unit=   208 wait_us/member= 10018 busy=0.92
+del1     units  txn/s=  5874 units= 23876 txn/unit= 3.4 apply_us/unit=   457 held_us/unit=   492 commit_us/unit=    35 wait_us/member=   945 busy=0.86
+ins100m  units  txn/s=   889 units=  1303 txn/unit= 1.2 apply_us/unit=  4538 held_us/unit=  4645 commit_us/unit=   107 wait_us/member=  7201 busy=3.36
+upd100m  units  txn/s=   460 units=  1457 txn/unit= 1.1 apply_us/unit=  8225 held_us/unit=  8296 commit_us/unit=    70 wait_us/member= 11985 busy=3.47
+

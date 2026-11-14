@@ -1215,6 +1215,47 @@ ran under page locks beside the unit, and now the one unit thread applies
 them all. The two passes of run 27 differ by up to 46% in a cell, so these
 are rough.
 
+### Several unit threads
+
+`ordered_apply_unit_threads` (1, at most 16): that many threads apply
+units, each one at a time as an ordinary transaction under page locks. Run
+27 left 100-row deletes behind page locks because one unit thread applied
+every plan; the plans it used to give up had run beside it.
+
+**Units must not meet.** With no rule, four threads applying units to one
+table are page-lock transactions again, taking pages in no order: in 100-row
+inserts each unit was aborted and applied again five times, and the rate
+fell to that of page locks (run 28). So a unit thread takes a member only if
+no unit being applied writes any file the member's plan writes. It also
+passes over a member that shares a file with one it has already passed
+over, so the members that write a file are taken in the order they came and
+none is left behind. The blkseq file, which every member writes, is not
+counted: its keys are spread at random. Units on different tables are then
+applied side by side, and units on one table one at a time.
+
+**The pool.** A plan applied a file per thread hands files to a pool of
+helpers, which counted the files outstanding in one global. Two units doing
+that at once would each have waited, on a condition variable, for the
+other's files as well, and a file of one can wait in the lock manager for a
+page the other holds: a cycle the detector cannot see. The count is now per
+plan, and a thread draining the queue takes only its own plan's files.
+
+**Waking.** Each unit thread waits on a condition variable of its own, and
+work wakes the thread idle the shortest time, the one that applied the last
+unit. Woken in no order, units on one table went from core to core and
+every write to the btrees took 45% longer than with one thread (run 31).
+A member that waits long asks for the lock name of its unit's thread, or,
+before a thread has taken it, for each thread's in turn.
+
+Measured on one node, `oa_throughput` (runs 29 and 32), four threads
+against one: 100-row inserts and 100-row range updates into four tables,
+one per client, +69% and +47% (three and 1.8 times page locks); 100-row
+inserts into one table +20%; single-row cells on one table still 3 to 13%
+behind, where each transaction's writes take a fifth longer for a reason not
+found. So it stays at 1 by default, and is for workloads that write many
+tables in large transactions. Not measured on three nodes, where the
+benchmark's workloads write one table.
+
 ### The test suite
 
 The default suite, 789 tests, was run on one node with `ordered_apply`,
@@ -1338,12 +1379,15 @@ State at the end of the second session of 2026-11-14:
   is pushed. Uncommitted on top: planning reads that wait for the unit
   ([Locked reads wait for the unit](#locked-reads-wait-for-the-unit)),
   which pass the same tests (run 26) and were measured on three nodes
-  (run 27).
+  (run 27), are committed. Then several unit threads
+  ([Several unit threads](#several-unit-threads)), runs 28 to 33, with
+  `tests/tools/oa_common.sh` running five modes and `oa_throughput` two
+  cells on four tables.
 - **To measure, use these settings:** `ordered_apply 1`,
   `ordered_apply_unit 1`, with `disable_tagged_api_writes` on as
   `ordered_apply` now requires. Everything else is at its default. The turn
   variants (`serial`, `par`, `par-early`) are kept only for comparison.
-- **Every run is in `docs/adr/0003-bench/BENCHMARK-LOG.md`**, runs 1 to 27,
+- **Every run is in `docs/adr/0003-bench/BENCHMARK-LOG.md`**, runs 1 to 33,
   with what changed before each. Add an entry for each new run when it
   starts.
 - **A second branch, `rowlocks-adaptive`**, has the experiment on the
@@ -1397,10 +1441,15 @@ Things learned the hard way, which the next step must respect:
    unit, bounded ([Locked reads wait for the unit](#locked-reads-wait-for-the-unit)).
    What it shows next: with nearly every large plan now in a unit, the one
    unit thread is the limit for 100-row deletes on one thread, which stay
-   behind page locks. Either more than one unit at a time (units that share
-   no file), or a file per thread made safe for updates and deletes against
-   readers, which is item 12 as well. Short page locks, the proposal's
-   other answer, remain the larger change.
+   behind page locks. More than one unit at a time is done for units that
+   share no file ([Several unit threads](#several-unit-threads)), which
+   helps only when transactions write different tables. On one table the
+   remaining ways are a file per thread made safe for updates and deletes
+   against readers, which is item 12 as well, or short page locks, the
+   proposal's other answer and the larger change. Open in what exists:
+   with four unit threads a transaction's writes take a fifth longer on one
+   table than with one, though one thread takes nearly every unit; a
+   profile on xeon needs sudo for `perf`.
 3. **Foreign keys.** These are the reads the btree cannot judge at apply,
    and where stamps, or a check under the unit's transaction, come in. It
    needs a decision on how writers outside plan mode take part.

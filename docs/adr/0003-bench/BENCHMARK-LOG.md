@@ -963,6 +963,197 @@ second.
     23 (it was behind); after the second all three matched.
 
 
+### 28. The ADR's tests with several unit threads
+
+- **When:** started 2026-11-14 19:07 UTC. One node.
+- **Change before:** commit `80b59d3e0` (run 27's code), then:
+  - New tunable `ordered_apply_unit_threads` (1, at most 16): that many
+    threads apply units, each one at a time as an ordinary transaction
+    under page locks. Units that meet on a page wait for each other in the
+    lock manager. Each thread's unit holds a lock name of its own
+    (`ordered unit<n>`); a member that waits long asks for its unit's
+    name, or, before a thread has taken it, for each thread's in turn.
+  - The helper pool for a file per thread counted the files outstanding in
+    one global. Two units applied a file per thread at once would each
+    have waited for the other's files too, on a condition variable, and a
+    file of one can wait for a page the other holds: a cycle the detector
+    cannot see. The count is now per plan, and a thread draining the queue
+    takes only its own plan's files.
+  - `tests/tools/oa_common.sh`: two more modes, `units` and `unitspar`,
+    which are `unit` and `unitpar` with four unit threads.
+  Uncommitted.
+- **Setup:** as run 26, `adr-tests.sh /tmp/rltest3/src` with the five
+  modes, then `tunables`.
+- **Results:** `adr-tests-run28.txt`. All six pass in all five modes, in
+  645 s: every invariant holds with four unit threads, and nothing stalled.
+  `oa_throughput`, transactions a second:
+
+  | Cell     | Page locks | Unit           | Unit, file per thread | 4 unit threads | 4 threads, file per thread |
+  |----------|-----------:|---------------:|----------------------:|---------------:|---------------------------:|
+  | `ins1`   | 8,830      | 11,527 (+31%)  | 11,173 (+27%)         | 8,556 (−3%)    | 8,979 (+2%)                |
+  | `ins100` | 95         | 429 (+352%)    | 460 (+384%)           | 96 (+1%)       | 103 (+8%)                  |
+  | `upd1`   | 9,412      | 9,259 (−2%)    | 9,456 (0%)            | 8,949 (−5%)    | 8,919 (−5%)                |
+  | `updk1`  | 9,238      | 9,479 (+3%)    | 9,040 (−2%)           | 8,511 (−8%)    | 8,602 (−7%)                |
+  | `updhot` | 1,688      | 3,350 (+98%)   | 3,407 (+102%)         | 2,767 (+64%)   | 2,907 (+72%)               |
+  | `upd20`  | 406        | 554 (+36%)     | 538 (+33%)            | 449 (+11%)     | 522 (+29%)                 |
+  | `del1`   | 8,475      | 7,685 (−9%)    | 7,976 (−6%)           | 7,692 (−9%)    | 7,663 (−10%)               |
+
+- **Found:**
+  - Correct, and slow. Units side by side with no rule are page-lock
+    transactions again: in `ins100` 1,058 units were aborted and applied
+    again 5,958 times, and the cell fell to the rate of page locks. `ins1`
+    had 1,407 unit retries where one thread had none. Every cell here
+    writes one table, so units meet on its pages, in no order.
+  - So units are not to be applied side by side on the same files. Next
+    (run 29): a unit thread takes only members whose files no unit being
+    applied writes.
+
+
+### 29. Units side by side only on files apart
+
+- **When:** started 2026-11-14 19:19 UTC. One node.
+- **Change before:** as run 28, and: a unit thread takes a member only if
+  no unit being applied writes any file the member's plan writes, and
+  passes over one that shares a file with a member it has passed over
+  already, so that members on a file keep their order. The blkseq file is
+  not counted. `oa_throughput` has two more cells on four tables `m1` to
+  `m4`, each client keeping to one: `ins100m`, 100-row inserts, and
+  `upd100m`, updates of 100 rows by a range of the indexed column `a`; and
+  it checks the four tables' counts and compares them across nodes.
+  Uncommitted.
+- **Setup:** as run 28.
+- **Results:** `adr-tests-run29.txt`. All six pass in all five modes, in
+  705 s. `oa_throughput`, transactions a second:
+
+  | Cell      | Page locks | Unit          | Unit, file per thread | 4 unit threads | 4 threads, file per thread |
+  |-----------|-----------:|--------------:|----------------------:|---------------:|---------------------------:|
+  | `ins1`    | 9,217      | 11,142 (+21%) | 11,080 (+20%)         | 7,835 (−15%)   | 7,519 (−18%)               |
+  | `ins100`  | 93         | 434 (+367%)   | 456 (+390%)           | 491 (+428%)    | 489 (+426%)                |
+  | `upd1`    | 9,206      | 9,217 (0%)    | 9,479 (+3%)           | 7,797 (−15%)   | 8,016 (−13%)               |
+  | `updk1`   | 8,949      | 9,050 (+1%)   | 9,281 (+4%)           | 6,606 (−26%)   | 6,723 (−25%)               |
+  | `updhot`  | 1,622      | 3,119 (+92%)  | 3,251 (+100%)         | 2,882 (+78%)   | 2,817 (+74%)               |
+  | `upd20`   | 408        | 542 (+33%)    | 553 (+36%)            | 460 (+13%)     | 524 (+28%)                 |
+  | `del1`    | 8,377      | 7,874 (−6%)   | 7,843 (−6%)           | 6,168 (−26%)   | 6,042 (−28%)               |
+  | `ins100m` | 332        | 608 (+83%)    | 602 (+81%)            | 1,026 (+209%)  | 994 (+199%)                |
+  | `upd100m` | 272        | 333 (+22%)    | 307 (+13%)            | 488 (+79%)     | 486 (+79%)                 |
+
+- **Found:**
+  - Units no longer meet: no unit was aborted and applied again in any
+    `oa_throughput` cell with four threads (5,958 in `ins100` in run 28).
+    In the checking tests, retries with four threads are about what one
+    thread has (`oa_bank` 153 against run 26's 157).
+  - On four tables, four unit threads are 69% above one on 100-row inserts
+    (1,026 against 608) and 47% above on 100-row updates (488 against
+    333): three times page locks and 1.8 times.
+  - On one table, single-row cells with four threads are 15 to 30% below
+    one thread, though only one unit at a time can be on `t`. Their units
+    hold twice as many transactions (23,793 for 80,000 inserts against
+    45,998), so members waited longer to be taken. The guess: every member
+    queued woke an idle unit thread, which took the queue's mutex, found
+    nothing it could take and slept. Run 30 tests it.
+
+
+### 30. Several unit threads, woken only for work they can take
+
+- **When:** started 2026-11-14 19:33 UTC. One node.
+- **Change before:** as run 29, and: a unit thread is woken only when one
+  is free and a member is waiting that it could take. Before, every member
+  queued woke one, and with four threads and every member on the same
+  table the three idle ones woke, took the queue's mutex and slept again,
+  thousands of times a second. Uncommitted.
+- **Setup:** as run 29, `oa_throughput` alone with `OA_MODES="unit units"`.
+- **Results:** `adr-tests-run30.txt`. Passes. Transactions a second, one
+  unit thread against four: `ins1` 10,485 and 8,155; `upd1` 9,238 and
+  7,828; `updk1` 8,979 and 6,700; `updhot` 3,062 and 2,837; `upd20` 539
+  and 438; `del1` 7,505 and 5,874; `ins100` 411 and 409; `ins100m` 658 and
+  792; `upd100m` 320 and 435.
+- **Found:** the guess was wrong. Four threads on one table are still 7 to
+  25% behind one, and their units still hold more transactions each.
+
+
+### 31. The same, with where a unit's time goes
+
+- **When:** started 2026-11-14 19:38 UTC. One node.
+- **Change before:** none to the database (run 30's). The tests now report
+  `ordered_apply_apply_us` (writing plans to the btrees), `held_us` (a
+  unit's begin to the end of its commit) and the members' waits.
+  Uncommitted.
+- **Setup:** as run 30.
+- **Results:** `adr-tests-run31.txt`, with a table at its end worked out
+  from the counters: per unit, its transactions, the time writing to the
+  btrees and committing, the members' wait, and how much of the cell's
+  time a unit was being applied (`busy`).
+- **Found:**
+  - The unit threads are not waiting: on one table a unit is being applied
+    86 to 94% of the time with four threads (74 to 82% with one), and
+    never two at once (`busy` under 1, no unit retries). What changes is
+    that the same writes take longer. Writing a transaction's plan to the
+    btrees: `ins1` 70 µs with one thread and 103 µs with four, `upd1` 74
+    and 101, `updk1` 78 and 130, `del1` 91 and 134, `upd20` 1,420 and
+    1,906. Commits take 13 against 23 µs. Longer applies make the members
+    wait longer, units grow, and the rate falls.
+  - The likely reason: when the queue empties, the next member wakes
+    whichever idle thread the condition variable picks, so units go from
+    thread to thread and core to core, with cold caches. With one thread
+    every unit is applied on one hot thread. Run 32 tests it.
+  - Four tables: 4.5 and 8.2 ms a unit with four threads against 5.8 and
+    11.3 with one, a unit applied 3.4 of the time: side by side, as meant.
+
+
+### 32. Several unit threads, the last one idle woken first
+
+- **When:** started 2026-11-14 19:43 UTC. One node.
+- **Change before:** as run 31, and: each unit thread waits on a condition
+  variable of its own, and work wakes the thread idle the shortest time,
+  the one that applied the last unit. Uncommitted.
+- **Setup:** as run 30.
+- **Results:** `adr-tests-run32.txt`. Passes. Transactions a second, one
+  unit thread against four, and writing a transaction's plan to the btrees
+  (`apply_us` over transactions):
+
+  | Cell      | One thread       | Four threads     | Against one |
+  |-----------|-----------------:|-----------------:|------------:|
+  | `ins1`    | 10,526 (70 µs)   | 9,445 (88 µs)    | −10%        |
+  | `upd1`    | 9,143 (74 µs)    | 8,621 (90 µs)    | −6%         |
+  | `updk1`   | 8,989 (82 µs)    | 8,000 (103 µs)   | −11%        |
+  | `updhot`  | 3,056            | 2,973            | −3%         |
+  | `upd20`   | 540              | 526              | −3%         |
+  | `del1`    | 7,685 (93 µs)    | 6,717 (114 µs)   | −13%        |
+  | `ins100`  | 409              | 492              | +20%        |
+  | `ins100m` | 559              | 879              | +57%        |
+
+- **Found:**
+  - Waking the thread that applied the last unit halves the loss on one
+    table: 3 to 13% behind one thread, where run 31 had 7 to 25%. So
+    units going from thread to thread was most of it.
+  - Not all: a transaction's writes still take a fifth more with four
+    threads, though on one table the same thread now takes nearly every
+    unit. Not found; a profile on xeon needs `perf`, which needs sudo
+    there (`perf_event_paranoid` 4).
+  - Four tables: still 57% above one thread on 100-row inserts.
+
+
+### 33. The ADR's tests in five modes, on run 32's code
+
+- **When:** started 2026-11-14 19:48 UTC. One node.
+- **Change before:** none (run 32's tree). Uncommitted.
+- **Setup:** as run 29, `adr-tests.sh /tmp/rltest3/src`, all five modes.
+- **Results:** `adr-tests-run33.txt`. All six pass in all five modes, in
+  696 s; no database stopped committing. `oa_throughput`, transactions a
+  second, page locks / unit / unit a file per thread / four unit threads /
+  four threads a file per thread: `ins1` 8,791 / 11,527 / 10,499 / 9,445 /
+  8,999; `ins100` 89 / 461 / 489 / 456 / 461; `upd1` 9,434 / 9,467 / 9,467 /
+  8,547 / 8,611; `updk1` 8,979 / 9,238 / 8,820 / 7,812 / 8,008; `updhot`
+  1,616 / 3,147 / 3,321 / 3,075 / 3,077; `upd20` 396 / 555 / 524 / 541 /
+  541; `del1` 8,122 / 7,692 / 7,700 / 6,975 / 6,975; `ins100m` 316 / 714 /
+  658 / 788 / 800; `upd100m` 293 / 338 / 282 / 457 / 458.
+- **Found:** correct in every mode. Four threads against one as in run 32:
+  on one table 7 to 18% behind on single-row cells and level on the rest
+  (`ins100` this time level, +20% in run 32); on four tables +10% on
+  inserts and +35% on updates (+57% on inserts in run 32). Single runs of
+  a cell here differ by a fifth from run to run.
+
+
 ## Elsewhere
 
 - **Adaptive mode on the existing rowlocks code**, by a second agent, on
