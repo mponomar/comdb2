@@ -413,7 +413,7 @@ REGISTER_TUNABLE("disable_tagged_api", "Disables 'enable_tagged_api'",
                  NULL, NULL);
 REGISTER_TUNABLE("disable_tagged_api_writes", "Disables tag api writes",
                  TUNABLE_BOOLEAN, &gbl_disable_tagged_api_writes, NOARG, NULL, NULL,
-                 NULL, NULL);
+                 disable_tagged_api_writes_update, NULL);
 REGISTER_TUNABLE("temptable_recreate_size", "Sets temptable re-create size threshold.  (Default: 1048576).",
                  TUNABLE_INTEGER, &gbl_temptable_recreate_size, 0, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("disable_temptable_pool", "Sets 'temptable_limit' to 0.",
@@ -2997,8 +2997,9 @@ REGISTER_TUNABLE("async_dist_commit_max_outstanding_trans",
 REGISTER_TUNABLE("ordered_apply",
                  "Plan a write request's btree operations without touching pages, then apply "
                  "the plans one transaction at a time, so writers do not hold page locks while "
-                 "they run. Requests a plan cannot hold yet run as before. (Default: off)",
-                 TUNABLE_BOOLEAN, &gbl_ordered_apply, EXPERIMENTAL, NULL, NULL, NULL, NULL);
+                 "they run. Requests a plan cannot hold yet run as before. Needs "
+                 "disable_tagged_api_writes on. (Default: off)",
+                 TUNABLE_BOOLEAN, &gbl_ordered_apply, EXPERIMENTAL, NULL, NULL, ordered_apply_update, NULL);
 REGISTER_TUNABLE("ordered_apply_serial_commit",
                  "With ordered_apply, do not start applying the next plan until the transaction "
                  "being applied has committed. Off starts the next one as soon as this one is "

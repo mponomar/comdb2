@@ -685,7 +685,7 @@
 (name='one_pass_delete', description='', type='BOOLEAN', value='ON', read_only='N')
 (name='only_match_on_commit', description='Only rep_verify_match on commit records', type='BOOLEAN', value='ON', read_only='N')
 (name='optimize_repdb_truncate', description='Enables use of optimized repdb truncate code. (Default: on)', type='BOOLEAN', value='ON', read_only='Y')
-(name='ordered_apply', description='Plan a write request's btree operations without touching pages, then apply the plans one transaction at a time, so writers do not hold page locks while they run. Requests a plan cannot hold yet run as before. (Default: off)', type='BOOLEAN', value='OFF', read_only='N')
+(name='ordered_apply', description='Plan a write request's btree operations without touching pages, then apply the plans one transaction at a time, so writers do not hold page locks while they run. Requests a plan cannot hold yet run as before. Needs disable_tagged_api_writes on. (Default: off)', type='BOOLEAN', value='OFF', read_only='N')
 (name='ordered_apply_parallel_min_ops', description='An ordered_apply plan with fewer btree operations than this is applied on the thread that owns it. (Default: 64)', type='INTEGER', value='64', read_only='N')
 (name='ordered_apply_serial_commit', description='With ordered_apply, do not start applying the next plan until the transaction being applied has committed. Off starts the next one as soon as this one is applied; it then waits for any page lock this one still holds. (Default: on)', type='BOOLEAN', value='ON', read_only='N')
 (name='ordered_apply_threads', description='Threads that help apply an ordered_apply plan, one btree file each; 0 applies each plan on the thread that owns it. (Default: 3)', type='INTEGER', value='3', read_only='N')

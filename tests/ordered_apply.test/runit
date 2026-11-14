@@ -37,6 +37,20 @@ sql "create table bl(a int, b blob)" >/dev/null
 sql "insert into t values(1, 1, 1, 'off')" >/dev/null
 [ "$(counter txns)" = "0" ] || fail "nothing should be planned while the feature is off"
 
+# Tagged-api writes do not go through plan mode, so ordered_apply needs them
+# refused, and they cannot be allowed again while it is on.
+tunable_value() { master_sql "select value from comdb2_tunables where name='$1'"; }
+set_tunable disable_tagged_api_writes 0
+set_tunable ordered_apply 1 || true
+[ "$(tunable_value ordered_apply)" = "OFF" ] || fail "ordered_apply turned on while tagged writes are allowed"
+set_tunable disable_tagged_api_writes 1
+set_tunable ordered_apply 1
+[ "$(tunable_value ordered_apply)" = "ON" ] || fail "ordered_apply did not turn on"
+set_tunable disable_tagged_api_writes 0 || true
+[ "$(tunable_value disable_tagged_api_writes)" = "ON" ] \
+    || fail "tagged writes were allowed again while ordered_apply is on"
+set_tunable ordered_apply 0
+
 ################################################################
 # 2. On: inserts into a table with no unique key are planned, and
 #    the rows and their index entries are all there.

@@ -1600,6 +1600,33 @@ static int enable_bulk_import_different_tables_update(void *context, void *value
     return 0;
 }
 
+/* Ordered apply releases nothing early yet, but it will (docs/adr/0003), and
+ * tagged-api writes do not go through plan mode: they would write under page
+ * locks around plans they cannot see.  So ordered_apply is allowed only while
+ * tagged writes are refused, and tagged writes cannot be allowed again while
+ * it is on. */
+static int ordered_apply_update(void *context, void *value)
+{
+    int val = *(int *)value;
+    if (val && !gbl_disable_tagged_api_writes) {
+        logmsg(LOGMSG_ERROR, "ordered_apply needs disable_tagged_api_writes on\n");
+        return -1;
+    }
+    gbl_ordered_apply = val;
+    return 0;
+}
+
+static int disable_tagged_api_writes_update(void *context, void *value)
+{
+    int val = *(int *)value;
+    if (!val && gbl_ordered_apply) {
+        logmsg(LOGMSG_ERROR, "disable_tagged_api_writes cannot be turned off while ordered_apply is on\n");
+        return -1;
+    }
+    gbl_disable_tagged_api_writes = val;
+    return 0;
+}
+
 /* Register all db tunables. */
 int register_db_tunables(struct dbenv *db)
 {

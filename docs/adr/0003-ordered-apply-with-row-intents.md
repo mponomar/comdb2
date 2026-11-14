@@ -417,6 +417,54 @@ measured above:
   the commit-LSN map already gives children the parent's commit LSN. One unit
   costs the replicant's receive thread one commit instead of many.
 
+#### Failed requests wait too
+
+A request that fails is also a commit. Its error reply is written to blkseq
+and committed (`db/toblock.c:5984`), and the reply goes out only after
+replicants acknowledge that commit. Today this is what keeps an error from
+outliving its cause:
+
+1. T1 commits on the master and releases its page locks. No replicant has
+   acknowledged it yet.
+2. T2 finds T1's key and fails with a duplicate. Its blkseq commit is later
+   in the log than T1's commit.
+3. Replicants apply commits in LSN order, so a replicant that acknowledges
+   T2's commit has applied T1.
+4. If the master is lost before those acknowledgements arrive, T2's reply is
+   never sent. The client retries on the new master, where T1 does not exist,
+   and the insert succeeds.
+
+Nothing states this as a rule today. It follows from writing the commit
+record before releasing locks: a change can be seen only once its commit is in
+the log, so whatever fails because of it commits later in the log.
+
+With page locks released after each operation, T2 can see T1's key before T1
+has a commit record. T2's blkseq commit can then be in the log ahead of T1's.
+A replicant acknowledges it without having applied T1, because it applies
+nothing of T1 until T1's commit record arrives. T2's error goes to the
+application. If the master is now lost, the new master rolls T1 back, and an
+application that looks the key up does not find it.
+
+So the dependencies above apply to every commit a request makes, whether the
+request succeeds or fails. **A request does not write its commit record,
+including the blkseq record of an error reply, until every transaction whose
+writes it read has committed.** The same holds for a verify error, a missing
+parent key or any other error built from what prepare read. The rule is
+transitive: if T2 read from T1 and T1 read from T0, T1 cannot commit before
+T0, so T2 cannot either. Since a reply waits for acknowledgements of its own
+commit, every node that acknowledged it has everything the reply depended on.
+
+The guarantee is only as strong as the ack wait, the same as today. If
+replicants that do not answer in time are made incoherent and the reply goes
+out anyway, losing the master can lose T1 after T2's error has been returned,
+just as it can lose a commit that was reported as successful. `durable_lsns`
+turns such a reply into `NOT_DURABLE`, and the client retries.
+
+The current implementation holds page locks to commit, so a request never
+reads a change before it commits, and none of this applies yet. The read
+`uniq_read` makes in prepare does not wait for a locked page, and so does not
+see a key added by a transaction that has not committed.
+
 ### An example
 
 T1 and T2 each insert rows whose `a` key lands on the right-edge leaf P of the
@@ -466,7 +514,9 @@ unrolled exactly as pages changed by an uncommitted transaction are today.
   slices, so later small transactions can go ahead; a small transaction that
   ends up mutually dependent with it commits in the same unit.
 - **Other writers.** Schema-change converters, queue consumers and any other
-  code that writes table btrees must go through the same stages.
+  code that writes table btrees must go through the same stages. Tagged-api
+  (non-SQL `OP_BLOCK`) writes do not; they are excluded by requiring
+  `disable_tagged_api_writes` with `ordered_apply`.
 
 ## Why the rest of the system is unaffected
 
@@ -583,6 +633,16 @@ for measurement only, see
 for [Commit units](#commit-units), and `ordered_apply_unique` (on), for
 [Unique keys](#unique-keys). The code is `bdb/plan.c`, with hooks in
 `bdb/ll.c`, `bdb/tran.c`, `db/toblock.c`, `db/sltdbt.c` and `db/record.c`.
+
+`ordered_apply` can be turned on only while `disable_tagged_api_writes` is
+on, and `disable_tagged_api_writes` cannot be turned off while
+`ordered_apply` is on (`db/db_tunables.c`). Tagged-api writes have no OSQL
+session, so they never enter plan mode. Today they would only wait on page
+locks alongside plans, but once plans release page locks early they would
+read changes that are not committed, and they write no stamps. A database
+that takes tagged writes keeps ordered apply off. An lrl that uses legacy
+defaults, which allow tagged writes, has to set `disable_tagged_api_writes`
+before `ordered_apply`.
 
 What it does:
 
@@ -1058,7 +1118,23 @@ Things learned the hard way, which the next step must respect:
   mirroring all have to produce plan entries, and every read they do has to go
   through the plan and note a stamp. A missed read is a correctness bug,
   so the list of reads needs to be exhaustive and the rules need a model or
-  proof as well as the Jepsen suite.
+  proof as well as the Jepsen suite. A missed read also escapes the
+  dependency rules, so a request could reply before what it read is durable
+  (see [Failed requests wait too](#failed-requests-wait-too)).
+- **Requests without a blkseq record.** A request without one fails with a
+  plain abort, with no commit to order and no acknowledgement to wait for.
+  OSQL requests always have one: for `BLOCK2_SOCK_SQL`, `BLOCK2_RECOM`,
+  `BLOCK2_SNAPISOL` and `BLOCK2_SERIAL` the master builds the key itself from
+  the session's uuid or rqid (`osql_bplog_set_blkseq`,
+  `db/osqlblockproc.c:734`), whatever the replicant sent. Remote (fdb) writes
+  are OSQL sessions whose uuid is the fdb transaction id
+  (`db/fdb_bend_sql.c:352`). The exceptions are the `use_blkseq` switch
+  turned off, and old tagged requests whose `BLOCK_SEQ` is all zeros, which
+  plan mode does not handle. Plan mode already refuses a request without a
+  blkseq record: it starts only when there is a parent transaction
+  (`db/toblock.c:3294`), and the parent is begun only for a request with a
+  blkseq record (`db/toblock.c:3282`). That check has to stay when plan mode
+  grows.
 - **A page missing from the buffer pool stalls an apply thread**, and with it
   every transaction queued on that file, or every write on the master under
   serial apply. Prefetching in prepare and from the queue is meant to make
@@ -1084,7 +1160,15 @@ Things learned the hard way, which the next step must respect:
 - **Which stamp table.** The exact table with eviction has no false conflicts
   but does more work under the sequence mutex; the fixed array is simpler and
   its false-conflict rate depends on its size and on transaction size. Not
-  decided.
+  decided. The array also changes what a dependency is. A slot holds the last
+  writer of any name that hashes to it, not necessarily the writer of the
+  name that was read: T5 writes A, T7 writes B into the same slot, and T9
+  reads A and notes stamp 7. Waiting for T7 is not enough, because T7 may
+  share nothing with T5 and commit before it. With the array, a stamp of N
+  has to mean waiting until every transaction numbered N or less has
+  committed, which is one watermark. With the exact table, the last writer
+  of a name read that name first, so it depends on every earlier writer and
+  waiting for it alone is enough.
 - **One transaction's log records written by several threads.** A latch on
   the transaction or a child transaction per file; see
   [Transaction boundaries](#transaction-boundaries). Not decided.
