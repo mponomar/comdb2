@@ -1,0 +1,84 @@
+# pass 1 Sun Nov 15 02:31:57 UTC 2026
+master=node3
+(name='maxwt', value='32')
+(name='cachekb', value='4194304')
+(out='rowlocks is             disabled')
+## load 2000000 rows, a = 1..2000000
+loaded in 208s: 2000000 rows
+## config=pg
+STEP 1/5 mixnc 32 100 60
+mixnc K=32  M=100  txns=1920   secs=  38.20 txn/s=       50 rows/s=     5026 ms/txn=636.69 | commits=1920 deadlocks=1187 retries=1187 lockwaits=3922 lockwait_ms=18267 lockreq/row=33.9 master=node3 cpu(cores) master=1.59 replicants=2.12,2.37
+     master-events n=1920 avg-ms total=222.6 queue=198.7 processing=23.9 lockwait=9.5 | avg-concurrent queued=10.0 processing=1.2 lockwaiting=0.48
+     client-errors=0
+## config=unit
+STEP 2/5 mixnc 32 100 60
+mixnc K=32  M=100  txns=1920   secs=  12.52 txn/s=      153 rows/s=    15330 ms/txn=208.75 | commits=1920 deadlocks=0 retries=0 lockwaits=510 lockwait_ms=8216 lockreq/row=24.0 master=node3 cpu(cores) master=2.57 replicants=8.14,6.01
+     master-events n=1920 avg-ms total=100.4 queue=0.0 processing=100.4 lockwait=4.3 | avg-concurrent queued=0.0 processing=15.4 lockwaiting=0.66
+     client-errors=0
+     plan: txns=1920 units=348 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=277 read-wait-us/wait=20313 dup=0 unit-retries=0 apply-us/txn=5852
+## config=unit-p
+STEP 3/5 mixnc 32 100 60
+mixnc K=32  M=100  txns=1920   secs=  14.16 txn/s=      136 rows/s=    13558 ms/txn=236.01 | commits=1920 deadlocks=0 retries=0 lockwaits=84 lockwait_ms=1023 lockreq/row=23.5 master=node3 cpu(cores) master=3.71 replicants=5.40,11.56
+     master-events n=1920 avg-ms total=81.3 queue=0.0 processing=81.3 lockwait=0.5 | avg-concurrent queued=0.0 processing=11.0 lockwaiting=0.07
+     client-errors=0
+     plan: txns=1920 units=634 parallel=634 fallbacks=0 stale=0 read-locked=0 read-waits=405 read-wait-us/wait=12435 dup=0 unit-retries=0 apply-us/txn=4950
+## config=unit-m
+STEP 4/5 mixnc 32 100 60
+mixnc K=32  M=100  txns=1920   secs=  12.59 txn/s=      153 rows/s=    15253 ms/txn=209.80 | commits=1920 deadlocks=0 retries=0 lockwaits=591 lockwait_ms=11348 lockreq/row=24.0 master=node3 cpu(cores) master=2.64 replicants=6.16,7.98
+     master-events n=1920 avg-ms total=102.6 queue=0.0 processing=102.6 lockwait=6.0 | avg-concurrent queued=0.0 processing=15.6 lockwaiting=0.91
+     client-errors=0
+     plan: txns=1920 units=390 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=299 read-wait-us/wait=18275 dup=0 unit-retries=0 apply-us/txn=5895
+## config=unit-pm
+STEP 5/5 mixnc 32 100 60
+mixnc K=32  M=100  txns=1920   secs=  11.78 txn/s=      163 rows/s=    16303 ms/txn=196.29 | commits=1920 deadlocks=0 retries=0 lockwaits=80 lockwait_ms=943 lockreq/row=23.6 master=node3 cpu(cores) master=4.83 replicants=7.70,9.08
+     master-events n=1920 avg-ms total=86.0 queue=0.0 processing=86.0 lockwait=0.5 | avg-concurrent queued=0.0 processing=14.0 lockwaiting=0.08
+     client-errors=0
+     plan: txns=1920 units=555 parallel=555 fallbacks=0 stale=0 read-locked=0 read-waits=388 read-wait-us/wait=16776 dup=0 unit-retries=0 apply-us/txn=4867
+node1: 2192450	1173564071319	1096386328286	1096506796487	86631107
+node2: 2192450	1173564071319	1096386328286	1096506796487	86631107
+node3: 2192450	1173564071319	1096386328286	1096506796487	86631107
+Verify succeeded.
+ALLDONE
+# pass 2 Sun Nov 15 02:38:47 UTC 2026
+master=node1
+(name='maxwt', value='32')
+(name='cachekb', value='4194304')
+(out='rowlocks is             disabled')
+## load 2000000 rows, a = 1..2000000
+loaded in 218s: 2000000 rows
+## config=unit-pm
+STEP 1/5 mixnc 32 100 60
+mixnc K=32  M=100  txns=1920   secs=  13.33 txn/s=      144 rows/s=    14401 ms/txn=222.21 | commits=1920 deadlocks=0 retries=0 lockwaits=120 lockwait_ms=1781 lockreq/row=23.6 master=node1 cpu(cores) master=3.95 replicants=11.10,5.54
+     master-events n=1920 avg-ms total=79.4 queue=0.0 processing=79.3 lockwait=0.9 | avg-concurrent queued=0.0 processing=11.4 lockwaiting=0.13
+     client-errors=0
+     plan: txns=1920 units=626 parallel=626 fallbacks=0 stale=0 read-locked=0 read-waits=390 read-wait-us/wait=13996 dup=0 unit-retries=0 apply-us/txn=5009
+## config=unit-m
+STEP 2/5 mixnc 32 100 60
+mixnc K=32  M=100  txns=1920   secs=  12.44 txn/s=      154 rows/s=    15429 ms/txn=207.40 | commits=1920 deadlocks=0 retries=0 lockwaits=537 lockwait_ms=9999 lockreq/row=24.0 master=node1 cpu(cores) master=2.76 replicants=5.00,9.05
+     master-events n=1920 avg-ms total=97.2 queue=0.0 processing=97.2 lockwait=5.3 | avg-concurrent queued=0.0 processing=15.0 lockwaiting=0.81
+     client-errors=0
+     plan: txns=1920 units=379 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=193 read-wait-us/wait=17720 dup=0 unit-retries=0 apply-us/txn=5783
+## config=unit-p
+STEP 3/5 mixnc 32 100 60
+mixnc K=32  M=100  txns=1920   secs=  11.96 txn/s=      161 rows/s=    16057 ms/txn=199.29 | commits=1920 deadlocks=0 retries=0 lockwaits=88 lockwait_ms=974 lockreq/row=23.5 master=node1 cpu(cores) master=4.45 replicants=6.76,9.79
+     master-events n=1920 avg-ms total=79.7 queue=0.0 processing=79.6 lockwait=0.5 | avg-concurrent queued=0.0 processing=12.8 lockwaiting=0.09
+     client-errors=0
+     plan: txns=1920 units=598 parallel=598 fallbacks=0 stale=0 read-locked=0 read-waits=351 read-wait-us/wait=14380 dup=0 unit-retries=0 apply-us/txn=4735
+## config=unit
+STEP 4/5 mixnc 32 100 60
+mixnc K=32  M=100  txns=1920   secs=  11.91 txn/s=      161 rows/s=    16115 ms/txn=198.57 | commits=1920 deadlocks=0 retries=0 lockwaits=631 lockwait_ms=12540 lockreq/row=24.0 master=node1 cpu(cores) master=2.76 replicants=7.35,6.60
+     master-events n=1920 avg-ms total=103.2 queue=0.0 processing=103.2 lockwait=6.6 | avg-concurrent queued=0.0 processing=16.6 lockwaiting=1.07
+     client-errors=0
+     plan: txns=1920 units=327 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=319 read-wait-us/wait=16987 dup=0 unit-retries=0 apply-us/txn=5722
+## config=pg
+STEP 5/5 mixnc 32 100 60
+mixnc K=32  M=100  txns=1920   secs=  29.37 txn/s=       65 rows/s=     6537 ms/txn=489.51 | commits=1920 deadlocks=734 retries=734 lockwaits=3822 lockwait_ms=28453 lockreq/row=31.8 master=node1 cpu(cores) master=2.17 replicants=3.47,2.35
+     master-events n=1920 avg-ms total=178.3 queue=146.6 processing=31.7 lockwait=14.8 | avg-concurrent queued=9.6 processing=2.1 lockwaiting=0.97
+     client-errors=0
+node1: 2191651	1173246046001	1095886372784	1095582095384	86600507
+node2: 2191651	1173246046001	1095886372784	1095582095384	86600507
+node3: 2191651	1173246046001	1095886372784	1095582095384	86600507
+Verify succeeded.
+ALLDONE
+# end Sun Nov 15 02:45:31 UTC 2026
+RUNEND

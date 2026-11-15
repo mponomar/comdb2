@@ -100,16 +100,15 @@ def main():
     rnd = random.Random(run)
     keys = int(os.environ.get("KEYS", "1000000"))
     delnext = 1001
-    if workload == "del":
+    if workload in ("del", "mix", "mixnc"):
         # each key is deleted once: carry on from where the last run stopped
         try:
             delnext = int(open(sdir + "/del.next").read())
         except (OSError, ValueError):
             delnext = 1001
-        if delnext + K * T * M - 1 > keys // 2:
+        if workload == "del" and delnext + K * T * M - 1 > keys // 2:
             sys.exit("del: not enough keys left (next %d of %d)" % (delnext, keys))
-        with open(sdir + "/del.next", "w") as f:
-            f.write("%d\n" % (delnext + K * T * M))
+    dels = 0
     for w in range(K):
         with open("%s/c.w%d.sql" % (sdir, w), "w") as f:
             for t in range(T):
@@ -122,7 +121,35 @@ def main():
                     f.write("insert into t(a,b,c,pad) values %s\n" % ",".join(rows))
                     continue
                 stmts = []
-                if workload == "del":
+                if workload in ("mix", "mixnc"):
+                    if workload == "mix":
+                        lo, hi = keys // 2 + 1, keys
+                    else:
+                        part = (keys - keys // 2) // K
+                        lo = keys // 2 + 1 + w * part
+                        hi = lo + part - 1
+                    used = set()
+
+                    def pick():
+                        while True:
+                            a = rnd.randint(lo, hi)
+                            if a not in used:
+                                used.add(a)
+                                return a
+                    for r in range(M):
+                        x = rnd.random()
+                        if x < 0.40:
+                            stmts.append("insert into t(a,b,c,pad) values (%d,%d,%d,'%s')" %
+                                         (keys + 1 + rnd.getrandbits(61), rnd.getrandbits(62), rnd.getrandbits(62), "x" * 40))
+                        elif x < 0.65:
+                            stmts.append("update t set pad = '%s' where a = %d" %
+                                         ("y" * rnd.randint(30, 40), pick()))
+                        elif x < 0.80:
+                            stmts.append("update t set b = %d where a = %d" % (rnd.getrandbits(62), pick()))
+                        else:
+                            stmts.append("delete from t where a = %d" % (delnext + dels))
+                            dels += 1
+                elif workload == "del":
                     for r in range(M):
                         stmts.append("delete from t where a = %d" % (delnext + (t * M + r) * K + w))
                 else:
@@ -135,13 +162,26 @@ def main():
                 if M > 1:
                     stmts = ["begin"] + stmts + ["commit"]
                 f.write("\n".join(stmts) + "\n")
+    if workload in ("del", "mix", "mixnc"):
+        used = K * T * M if workload == "del" else dels
+        if delnext + used - 1 > keys // 2:
+            sys.exit("%s: not enough keys left (next %d of %d)" % (workload, delnext, keys))
+        with open(sdir + "/del.next", "w") as f:
+            f.write("%d\n" % (delnext + used))
     m = master()
     before = metrics(m)
     c0 = cputicks()
     t0 = time.time()
+    # /scripts is read-only in the dev container: client output goes to /tmp/cw there
     subprocess.run(["docker", "exec", DEV, "bash", "-c",
-                    "for f in /scripts/c.w*.sql; do cdb2sql -s testdb default -f $f > /dev/null 2>&1 & done; wait"])
+                    "rm -rf /tmp/cw; mkdir -p /tmp/cw; for f in /scripts/c.w*.sql; do "
+                    "cdb2sql -s testdb default -f $f > /tmp/cw/$(basename $f .sql).out 2>&1 & done; wait"])
     secs = time.time() - t0
+    out = subprocess.run(["docker", "exec", DEV, "bash", "-c", "ls /tmp/cw/*.out | wc -l; cat /tmp/cw/*.out | grep -ciE 'failed|error'"],
+                         capture_output=True, text=True).stdout.split()
+    nout, errs = int(out[0]), int(out[1]) if len(out) > 1 else -1
+    if nout != K:
+        sys.exit("FAILED: %d of %d clients left output" % (nout, K))
     c1 = cputicks()
     after = metrics(m)
     ev = master_events(m, t0, t0 + secs)
@@ -154,6 +194,9 @@ def main():
           (workload, K, M, txns, secs, txns / secs, txns * M / secs, 1000.0 * secs * K / txns, d["commits"], d["deadlocks"],
            d["retries"], d["lockwaits"], d["lockwait_time"] / 1000.0, d["lockrequests"] / max(1, txns * M), m, cpu))
     print("     " + ev)
+    print("     client-errors=%d" % errs)
+    if d["commits"] == 0:
+        sys.exit("FAILED: no commits on the master")
     sys.stdout.flush()
 
 

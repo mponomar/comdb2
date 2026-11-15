@@ -1154,6 +1154,202 @@ second.
   a cell here differ by a fifth from run to run.
 
 
+### 34. Mixed writes on three nodes, page locks against units
+
+- **When:** started 2026-11-14 21:20 UTC, three nodes.
+- **Change before:** commit `8064adf64` (several unit threads, run 33's
+  code). The image on xeon was run 27's, so it is rebuilt. New workload
+  `mix` in `bench_cluster.py`: each statement is an insert of a new row
+  with a random key above `KEYS` (40%), an update of `pad` (25%) or of the
+  indexed `b` (15%) by a random key in the upper half, or a delete by key
+  from the lower half, each key once (20%); a transaction of M rows mixes
+  them. `ordered-apply-mixed.sh` runs it, as `ordered-apply-updates.sh`
+  runs its cells. Uncommitted.
+- **Setup:** working tree shipped to `xeon:/tmp/rlsrc`, `setup-host.sh`
+  there, then `KEYS=2000000 VARIANTS="pg unit unit-p unit-m unit-pm"
+  ./ordered-apply-mixed.sh`, and a second pass in the opposite order.
+  Cells: 1 row 1, 32 and 64 clients; 10 rows 32 and 64 clients; 100 rows
+  32 clients.
+- **Then:** during pass 1's load, the script's initial load was changed to
+  chunk transactions (`set transaction chunk 100` before each `begin`, one
+  100,000-row `insert ... select` each, under page locks; before, 20,000-row
+  `insert ... select` statements with ordered apply on). Chunking is done
+  on the replicant, so the master applies 100-row transactions. Pass 1 loaded the
+  old way, pass 2 the new. The rows loaded are the same; the load is not
+  measured. The chunked load took 217 s, against 177 s for pass 1's (with
+  ordered apply on); run 35 suggests chunks with ordered apply on would be
+  faster still, not tried here.
+- **Ended:** 21:41 UTC. Pass 1 21:16–21:28, pass 2 21:28–21:41.
+- **Results:** `stage1-mixed-run34.results`. Transactions a second, the two
+  passes and their mean, against page locks:
+
+  | Clients × rows | Page locks       | Unit                  | Unit, file per thread  | 4 unit threads        | 4 threads, file per thread |
+  |----------------|-----------------:|----------------------:|-----------------------:|----------------------:|---------------------------:|
+  | 1 × 1          | 422, 474: 448    | 430, 467: 448 (0%)    | 470, 462: 466 (+4%)    | 527, 483: 505 (+13%)  | 486, 470: 478 (+7%)        |
+  | 32 × 1         | 8,147, 8,577: 8,362 | 7,445, 8,268: 7,856 (−6%) | 8,059, 8,234: 8,146 (−3%) | 7,049, 7,747: 7,398 (−12%) | 6,802, 7,332: 7,067 (−15%) |
+  | 64 × 1         | 8,802, 8,701: 8,752 | 9,741, 9,854: 9,798 (+12%) | 9,390, 10,110: 9,750 (+11%) | 9,692, 10,075: 9,884 (+13%) | 9,569, 10,160: 9,864 (+13%) |
+  | 32 × 10        | 1,451, 1,485: 1,468 | 1,211, 1,212: 1,212 (−17%) | 1,383, 1,343: 1,363 (−7%) | 1,199, 1,249: 1,224 (−17%) | 1,292, 1,316: 1,304 (−11%) |
+  | 64 × 10        | 1,612, 1,394: 1,503 | 1,410, 1,446: 1,428 (−5%) | 1,755, 1,969: 1,862 (+24%) | 1,374, 1,469: 1,422 (−5%) | 1,848, 1,954: 1,901 (+26%) |
+  | 32 × 100       | 61, 82: 72       | 113, 104: 108 (+52%)  | 157, 147: 152 (+113%)  | 111, 115: 113 (+58%)  | 149, 149: 149 (+108%)      |
+
+  Deadlocks, both passes: page locks 8, 13, 183 and 277 in the 32 × 1,
+  64 × 1, 32 × 10 and 64 × 10 cells, 1,399 in 32 × 100; with ordered apply
+  none outside 32 × 100 but one (unit, 64 × 10), and in 32 × 100 16 (unit),
+  60 (a file per thread), 34 (four threads) and 43 (both). In 32 × 100,
+  plans that fell back 1 to 9 a pass, stale retries 11 to 29, unit retries
+  0 to 12. Tables identical on the three nodes and `verify` clean after
+  each pass.
+- **Found:**
+  - The passes agree better than run 27's (mostly within 10%), so the
+    means can be read to about that.
+  - Large mixed transactions are where ordered apply wins: 100-row
+    transactions 1.5 times page locks with one unit thread and 2.1 times
+    with a file per thread, with a twentieth to a thirtieth of the
+    deadlocks.
+  - 10-row transactions with one unit thread are 5 to 17% behind page
+    locks; a file per thread turns 64 clients into +24% and leaves 32
+    clients 7% behind. The unit thread applies a 10-row plan in about
+    0.6–0.7 ms and is the limit there.
+  - Single-row: +11 to +13% at 64 clients in every variant; at 32 clients
+    3 to 15% behind, worst with four unit threads (run 32's slower writes
+    with several threads, on one table).
+  - Four unit threads gain nothing on one table, as runs 29–33 said they
+    would not; the variant to use here is one thread with a file per
+    thread.
+
+
+### 35. Chunk transactions under ordered apply
+
+- **When:** 2026-11-14 21:27 UTC, on the Mac, one scratch node, while run 34
+  ran on xeon.
+- **Change before:** none (commit `8064adf64`, local build).
+- **Setup:** three tables like `t` (indexes on `a`, `b`, `c`), each loaded
+  with 500,000 rows in five transactions of `set transaction chunk 100`,
+  `begin`, one 100,000-row `insert ... select`, `commit` (run 34's load at a
+  quarter the size): `t0` with `ordered_apply` 0, `t1` with units, `t2` with
+  four unit threads. One after the other, once each.
+- **Results:** `t0` 11.9 s, `t1` 8.0 s, `t2` 6.1 s. All three the same
+  count and sums, `verify` clean. With ordered apply each load was 5,000
+  planned transactions in 5,000 units: no fallbacks, unit retries or stale
+  retries.
+- **Found:** chunk transactions work under ordered apply. Each chunk reaches
+  the master as a transaction of its own, and each is planned. The times
+  are single runs in a fixed order on a laptop, so the ordering between
+  them isn't established.
+
+
+### 36. Mixed writes with no row conflicts
+
+- **When:** started 2026-11-14 21:50 UTC, three nodes.
+- **Change before:** none to the database (run 34's image, `8064adf64`).
+  New workload `mixnc` in `bench_cluster.py`: `mix` with each client
+  updating only rows in a slice of the upper half of its own, so no row is
+  touched by two clients (deletes already take each key once, inserts make
+  new rows). Pages are still shared. Checked offline: in `mixnc` no update
+  or delete key appears in two clients' scripts; in `mix` 332 (32 × 1),
+  1,240 (64 × 10) and 2,777 (32 × 100) rows did. `ordered-apply-mixed.sh`
+  takes `WORKLOAD`. Uncommitted.
+- **Setup:** as run 34 (chunked load under page locks in both passes),
+  `KEYS=2000000 WORKLOAD=mixnc VARIANTS="pg unit unit-p unit-m unit-pm"
+  ./ordered-apply-mixed.sh`, then the opposite order.
+- **Ended:** 22:15 UTC. Pass 1 21:50–22:02, pass 2 22:02–22:15.
+- **Results:** `stage1-mixnc-run36.results`. Transactions a second, the two
+  passes and their mean against page locks, with run 34's mean (row
+  conflicts allowed) in brackets:
+
+  | Clients × rows | Page locks            | Unit                       | Unit, file per thread      | 4 unit threads             | 4 threads, file per thread |
+  |----------------|----------------------:|---------------------------:|---------------------------:|---------------------------:|---------------------------:|
+  | 1 × 1          | 473, 482: 478 (448)   | 502, 514: 508, +6% (448)   | 468, 482: 475, −1% (466)   | 497, 477: 487, +2% (505)   | 485, 520: 502, +5% (478)   |
+  | 32 × 1         | 8,301, 8,364: 8,332 (8,362) | 7,742, 8,166: 7,954, −5% (7,856) | 8,196, 8,255: 8,226, −1% (8,146) | 7,443, 7,538: 7,490, −10% (7,398) | 7,100, 7,116: 7,108, −15% (7,067) |
+  | 64 × 1         | 8,426, 8,546: 8,486 (8,752) | 10,433, 9,924: 10,178, +20% (9,798) | 9,950, 10,014: 9,982, +18% (9,750) | 9,494, 10,159: 9,826, +16% (9,884) | 9,910, 9,904: 9,907, +17% (9,864) |
+  | 32 × 10        | 1,296, 1,509: 1,402 (1,468) | 1,236, 1,196: 1,216, −13% (1,212) | 1,547, 1,396: 1,472, +5% (1,363) | 1,158, 1,237: 1,198, −15% (1,224) | 1,304, 1,497: 1,400, 0% (1,304) |
+  | 64 × 10        | 1,324, 1,559: 1,442 (1,503) | 1,492, 1,421: 1,456, +1% (1,428) | 1,840, 1,772: 1,806, +25% (1,862) | 1,419, 1,458: 1,438, 0% (1,422) | 1,806, 1,869: 1,838, +27% (1,901) |
+  | 32 × 100       | 64, 84: 74 (72)       | 146, 115: 130, +76% (108)  | 155, 167: 161, +118% (152) | 157, 147: 152, +105% (113) | 167, 151: 159, +115% (149) |
+
+  Deadlocks, both passes: page locks 5, 8, 150, 230 and 1,342 (32 × 1 to
+  32 × 100); ordered apply none outside 32 × 100, and 31 to 63 there.
+  Tables identical on the three nodes and `verify` clean after each pass.
+- **Found:**
+  - Taking row conflicts away changes almost nothing: every cell is within
+    run-to-run noise of run 34 except 32 × 100 with one unit thread (+20%,
+    +35% with four). `mix` had few row conflicts to begin with (314 to
+    2,686 rows shared between clients in a cell). Page locks deadlock as
+    much without them: their deadlocks are on pages.
+  - **A flaw in `mixnc` as run:** each client's slice is 31,250 rows, so
+    46 to 58 of the 1,920 100-row transactions updated a row twice. Under
+    the default block isolation a transaction does not see its own
+    writes, so the second update names the row's old genid and the
+    transaction fails at commit (`uncommittable txn on upd ... rc=404`) in
+    every variant, page locks included. With ordered apply these are the
+    35 to 65 "fallbacks" in 32 × 100 (1 to 9 in run 34): planned, found
+    the row gone, run again under page locks, failed. Checked on the Mac
+    scratch database: the same five same-row transactions fail or lose a
+    write identically with `ordered_apply` 0 and 1, and all commit
+    correctly, with no fallbacks, under `set transaction read committed`.
+    The scripts send client errors to `/dev/null`, which hid it. About
+    2.5% of the 32 × 100 transactions did no work in every variant; the
+    smaller cells had almost none. The generator now never writes a row
+    twice in a transaction (both `mix` and `mixnc`, checked offline); run
+    36's 32 × 100 numbers are not rerun.
+
+
+### 37. Run 36's 100-row cell again, with no row written twice
+
+- **When:** started 2026-11-15 02:00 UTC, three nodes.
+- **Change before:** none to the database (run 34's image, `8064adf64`).
+  `bench_cluster.py` no longer writes a row twice in a transaction (run
+  36's flaw) and now keeps each client's output and reports
+  `client-errors`, the lines with "failed" or "error" in them.
+  `ordered-apply-mixed.sh` takes `ONLY100=1` to run only the 32 × 100
+  cell. Uncommitted.
+- **Setup:** as run 36, with `ONLY100=1`: `KEYS=2000000 WORKLOAD=mixnc
+  ONLY100=1 VARIANTS="pg unit unit-p unit-m unit-pm"
+  ./ordered-apply-mixed.sh`, then the opposite order.
+- **Ended:** 02:11 UTC. **Failed, nothing measured.**
+- **Results:** `stage1-mixnc100-run37.results`, not to be used. Every cell
+  took 0.12 s at "16,000 txn/s" with no commits on the master, and the
+  tables held exactly the 2,000,000 loaded rows after each pass.
+- **Found:** my change sent each client's output to `/scripts/*.err`, but
+  `/scripts` is mounted read-only in the dev container, so the redirect
+  failed and no client ran. The error count read no files and reported 0.
+  Fixed: client output goes to `/tmp/cw` in the container and is counted
+  there; `bench_cluster.py` fails if fewer files than clients come back or
+  the master saw no commits, and `ordered-apply-mixed.sh` stops when it
+  fails. Checked with a 4 × 10 cell on the idle cluster: 80 commits, row
+  count up 170.
+
+
+### 38. Run 37 again, with the clients running
+
+- **When:** started 2026-11-15 02:32 UTC, three nodes.
+- **Change before:** the fix described under run 37. Uncommitted.
+- **Setup:** as run 37.
+- **Ended:** 02:45 UTC. Pass 1 02:32–02:39, pass 2 02:39–02:45.
+- **Results:** `stage1-mixnc100-run38.results`. 32 clients × 100 rows,
+  transactions a second, the two passes and their mean against page locks,
+  with run 36's mean (some transactions writing a row twice and failing)
+  in brackets:
+
+  | Page locks      | Unit                  | Unit, file per thread  | 4 unit threads        | 4 threads, file per thread |
+  |----------------:|----------------------:|-----------------------:|----------------------:|---------------------------:|
+  | 50, 65: 58 (74) | 153, 161: 157, +173% (130) | 136, 161: 149, +158% (161) | 153, 154: 154, +167% (152) | 163, 144: 154, +167% (159) |
+
+  Every cell 1,920 commits and no client errors. Page locks 1,187 and 734
+  deadlocks; ordered apply none, with no fallbacks, stale retries or unit
+  retries in any cell. Tables identical on the three nodes and `verify`
+  clean after each pass.
+- **Found:**
+  - With no row conflicts at all, ordered apply runs 100-row mixed
+    transactions with no deadlocks and nothing run again, at 2.6 to 2.7
+    times page locks, which still deadlock on pages about every other
+    transaction.
+  - All four ordered-apply variants are within 6% of each other here; the
+    passes differ by up to 17%, so no ranking between them follows.
+  - Page locks are 22% below run 36 and one thread of units 21% above.
+    Page locks' own passes differ by 26% (50 and 65), so how much of
+    that is the fix is not clear.
+
+
 ## Elsewhere
 
 - **Adaptive mode on the existing rowlocks code**, by a second agent, on

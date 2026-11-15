@@ -1,0 +1,263 @@
+# pass 1 Sat Nov 14 21:16:46 UTC 2026
+master=node3
+(name='maxwt', value='32')
+(name='cachekb', value='4194304')
+(out='rowlocks is             disabled')
+## load 2000000 rows, a = 1..2000000
+loaded in 177s: 2000000 rows
+## config=pg
+STEP 1/30 mix 1 1 2000
+mix  K=1   M=1    txns=2000   secs=   4.74 txn/s=      422 rows/s=      422 ms/txn=  2.37 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=24.9 master=node3 cpu(cores) master=0.85 replicants=0.68,0.99
+     master-events n=2000 avg-ms total=1.1 queue=0.0 processing=1.1 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.5 lockwaiting=0.00
+STEP 2/30 mix 32 1 2000
+mix  K=32  M=1    txns=64000  secs=   7.86 txn/s=     8147 rows/s=     8147 ms/txn=  3.93 | commits=64000 deadlocks=8 retries=8 lockwaits=3874 lockwait_ms=876 lockreq/row=24.6 master=node3 cpu(cores) master=8.15 replicants=4.48,13.61
+     master-events n=64000 avg-ms total=2.3 queue=0.0 processing=2.3 lockwait=0.0 | avg-concurrent queued=0.1 processing=18.8 lockwaiting=0.11
+STEP 3/30 mix 64 1 2000
+mix  K=64  M=1    txns=128000 secs=  14.54 txn/s=     8802 rows/s=     8802 ms/txn=  7.27 | commits=128000 deadlocks=9 retries=9 lockwaits=4540 lockwait_ms=1330 lockreq/row=24.5 master=node3 cpu(cores) master=8.85 replicants=7.68,10.69
+     master-events n=128003 avg-ms total=5.9 queue=0.0 processing=5.8 lockwait=0.0 | avg-concurrent queued=0.1 processing=51.4 lockwaiting=0.09
+STEP 4/30 mix 32 10 200
+mix  K=32  M=10   txns=6400   secs=   4.41 txn/s=     1451 rows/s=    14513 ms/txn= 22.05 | commits=6400 deadlocks=136 retries=136 lockwaits=4935 lockwait_ms=7850 lockreq/row=26.9 master=node3 cpu(cores) master=7.94 replicants=8.48,10.28
+     master-events n=6404 avg-ms total=10.6 queue=1.6 processing=9.0 lockwait=1.2 | avg-concurrent queued=2.3 processing=13.1 lockwaiting=1.79
+STEP 5/30 mix 64 10 200
+mix  K=64  M=10   txns=12800  secs=   7.94 txn/s=     1612 rows/s=    16117 ms/txn= 39.71 | commits=12800 deadlocks=193 retries=193 lockwaits=7598 lockwait_ms=11793 lockreq/row=26.8 master=node3 cpu(cores) master=8.32 replicants=9.04,13.32
+     master-events n=12814 avg-ms total=26.4 queue=1.2 processing=25.2 lockwait=0.9 | avg-concurrent queued=2.0 processing=40.7 lockwaiting=1.49
+STEP 6/30 mix 32 100 60
+mix  K=32  M=100  txns=1920   secs=  31.58 txn/s=       61 rows/s=     6079 ms/txn=526.38 | commits=1920 deadlocks=821 retries=821 lockwaits=3964 lockwait_ms=27254 lockreq/row=32.1 master=node3 cpu(cores) master=1.99 replicants=3.21,2.48
+     master-events n=2000 avg-ms total=181.0 queue=151.5 processing=29.5 lockwait=13.6 | avg-concurrent queued=9.6 processing=1.9 lockwaiting=0.86
+## config=unit
+STEP 7/30 mix 1 1 2000
+mix  K=1   M=1    txns=2000   secs=   4.65 txn/s=      430 rows/s=      430 ms/txn=  2.32 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=26.0 master=node3 cpu(cores) master=1.36 replicants=1.19,0.79
+     master-events n=2000 avg-ms total=1.1 queue=0.0 processing=1.1 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.5 lockwaiting=0.00
+     plan: txns=2000 units=2000 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=0 read-wait-us/wait=0 dup=0 unit-retries=0 apply-us/txn=171
+STEP 8/30 mix 32 1 2000
+mix  K=32  M=1    txns=64000  secs=   8.60 txn/s=     7445 rows/s=     7445 ms/txn=  4.30 | commits=64000 deadlocks=0 retries=0 lockwaits=1 lockwait_ms=0 lockreq/row=26.1 master=node3 cpu(cores) master=5.67 replicants=13.43,2.83
+     master-events n=64000 avg-ms total=2.2 queue=0.0 processing=2.2 lockwait=0.0 | avg-concurrent queued=0.1 processing=16.4 lockwaiting=0.00
+     plan: txns=64000 units=15308 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=61 read-wait-us/wait=437 dup=0 unit-retries=0 apply-us/txn=103
+STEP 9/30 mix 64 1 2000
+mix  K=64  M=1    txns=128000 secs=  13.14 txn/s=     9741 rows/s=     9741 ms/txn=  6.57 | commits=128000 deadlocks=0 retries=0 lockwaits=1 lockwait_ms=0 lockreq/row=25.9 master=node3 cpu(cores) master=6.94 replicants=7.42,8.72
+     master-events n=128002 avg-ms total=4.3 queue=0.0 processing=4.3 lockwait=0.0 | avg-concurrent queued=0.2 processing=41.9 lockwaiting=0.00
+     plan: txns=128000 units=8520 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=30 read-wait-us/wait=755 dup=0 unit-retries=0 apply-us/txn=92
+STEP 10/30 mix 32 10 200
+mix  K=32  M=10   txns=6400   secs=   5.29 txn/s=     1211 rows/s=    12109 ms/txn= 26.43 | commits=6400 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=24.1 master=node3 cpu(cores) master=3.42 replicants=7.99,7.20
+     master-events n=6402 avg-ms total=14.9 queue=0.0 processing=14.9 lockwait=0.0 | avg-concurrent queued=0.0 processing=18.1 lockwaiting=0.00
+     plan: txns=6400 units=992 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=293 read-wait-us/wait=3207 dup=0 unit-retries=0 apply-us/txn=709
+STEP 11/30 mix 64 10 200
+mix  K=64  M=10   txns=12800  secs=   9.08 txn/s=     1410 rows/s=    14101 ms/txn= 45.39 | commits=12800 deadlocks=0 retries=0 lockwaits=1 lockwait_ms=0 lockreq/row=24.4 master=node3 cpu(cores) master=3.70 replicants=9.45,8.87
+     master-events n=12817 avg-ms total=27.1 queue=0.0 processing=27.0 lockwait=0.0 | avg-concurrent queued=0.0 processing=38.2 lockwaiting=0.00
+     plan: txns=12800 units=830 parallel=0 fallbacks=0 stale=4 read-locked=0 read-waits=84 read-wait-us/wait=6618 dup=0 unit-retries=0 apply-us/txn=670
+STEP 12/30 mix 32 100 60
+mix  K=32  M=100  txns=1920   secs=  16.97 txn/s=      113 rows/s=    11312 ms/txn=282.90 | commits=1920 deadlocks=11 retries=9 lockwaits=1217 lockwait_ms=29713 lockreq/row=25.7 master=node3 cpu(cores) master=2.12 replicants=6.15,5.70
+     master-events n=1997 avg-ms total=138.6 queue=4.3 processing=134.2 lockwait=15.1 | avg-concurrent queued=0.5 processing=15.8 lockwaiting=1.77
+     plan: txns=1919 units=474 parallel=0 fallbacks=1 stale=29 read-locked=0 read-waits=553 read-wait-us/wait=23655 dup=0 unit-retries=2 apply-us/txn=6670
+## config=unit-p
+STEP 13/30 mix 1 1 2000
+mix  K=1   M=1    txns=2000   secs=   4.25 txn/s=      470 rows/s=      470 ms/txn=  2.13 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=25.9 master=node3 cpu(cores) master=1.37 replicants=1.12,1.54
+     master-events n=2000 avg-ms total=0.8 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+     plan: txns=2000 units=2000 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=0 read-wait-us/wait=0 dup=0 unit-retries=0 apply-us/txn=156
+STEP 14/30 mix 32 1 2000
+mix  K=32  M=1    txns=64000  secs=   7.94 txn/s=     8059 rows/s=     8059 ms/txn=  3.97 | commits=64000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=26.0 master=node3 cpu(cores) master=6.22 replicants=6.52,7.15
+     master-events n=64000 avg-ms total=2.5 queue=0.0 processing=2.5 lockwait=0.0 | avg-concurrent queued=0.1 processing=20.3 lockwaiting=0.00
+     plan: txns=64000 units=12010 parallel=387 fallbacks=0 stale=0 read-locked=0 read-waits=64 read-wait-us/wait=388 dup=0 unit-retries=0 apply-us/txn=98
+STEP 15/30 mix 64 1 2000
+mix  K=64  M=1    txns=128000 secs=  13.63 txn/s=     9390 rows/s=     9390 ms/txn=  6.82 | commits=128000 deadlocks=0 retries=0 lockwaits=1 lockwait_ms=0 lockreq/row=25.7 master=node3 cpu(cores) master=7.53 replicants=6.85,8.89
+     master-events n=128000 avg-ms total=4.7 queue=0.0 processing=4.7 lockwait=0.0 | avg-concurrent queued=0.2 processing=44.2 lockwaiting=0.00
+     plan: txns=128000 units=8631 parallel=4465 fallbacks=0 stale=0 read-locked=0 read-waits=55 read-wait-us/wait=685 dup=0 unit-retries=0 apply-us/txn=94
+STEP 16/30 mix 32 10 200
+mix  K=32  M=10   txns=6400   secs=   4.63 txn/s=     1383 rows/s=    13834 ms/txn= 23.13 | commits=6400 deadlocks=0 retries=0 lockwaits=4 lockwait_ms=0 lockreq/row=23.8 master=node3 cpu(cores) master=5.46 replicants=8.83,8.32
+     master-events n=6402 avg-ms total=12.9 queue=0.0 processing=12.9 lockwait=0.0 | avg-concurrent queued=0.0 processing=17.8 lockwaiting=0.00
+     plan: txns=6400 units=1187 parallel=957 fallbacks=0 stale=0 read-locked=0 read-waits=520 read-wait-us/wait=2284 dup=0 unit-retries=0 apply-us/txn=615
+STEP 17/30 mix 64 10 200
+mix  K=64  M=10   txns=12800  secs=   7.29 txn/s=     1755 rows/s=    17553 ms/txn= 36.46 | commits=12800 deadlocks=0 retries=0 lockwaits=6 lockwait_ms=2 lockreq/row=23.8 master=node3 cpu(cores) master=5.62 replicants=7.52,18.81
+     master-events n=12811 avg-ms total=15.8 queue=0.0 processing=15.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=27.8 lockwaiting=0.00
+     plan: txns=12800 units=2165 parallel=1439 fallbacks=0 stale=3 read-locked=0 read-waits=636 read-wait-us/wait=2714 dup=0 unit-retries=0 apply-us/txn=493
+STEP 18/30 mix 32 100 60
+mix  K=32  M=100  txns=1920   secs=  12.20 txn/s=      157 rows/s=    15741 ms/txn=203.29 | commits=1920 deadlocks=46 retries=21 lockwaits=488 lockwait_ms=10186 lockreq/row=25.0 master=node3 cpu(cores) master=4.47 replicants=9.12,6.55
+     master-events n=1991 avg-ms total=93.2 queue=5.5 processing=87.7 lockwait=5.1 | avg-concurrent queued=0.9 processing=14.3 lockwaiting=0.83
+     plan: txns=1912 units=602 parallel=590 fallbacks=9 stale=11 read-locked=8 read-waits=633 read-wait-us/wait=18632 dup=0 unit-retries=12 apply-us/txn=4564
+## config=unit-m
+STEP 19/30 mix 1 1 2000
+mix  K=1   M=1    txns=2000   secs=   3.79 txn/s=      527 rows/s=      527 ms/txn=  1.90 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=25.9 master=node3 cpu(cores) master=1.30 replicants=1.18,1.53
+     master-events n=2000 avg-ms total=0.7 queue=0.0 processing=0.7 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+     plan: txns=2000 units=2000 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=0 read-wait-us/wait=0 dup=0 unit-retries=0 apply-us/txn=139
+STEP 20/30 mix 32 1 2000
+mix  K=32  M=1    txns=64000  secs=   9.08 txn/s=     7049 rows/s=     7049 ms/txn=  4.54 | commits=64000 deadlocks=0 retries=0 lockwaits=2 lockwait_ms=0 lockreq/row=26.0 master=node3 cpu(cores) master=5.68 replicants=6.89,5.04
+     master-events n=64000 avg-ms total=3.1 queue=0.0 processing=3.0 lockwait=0.0 | avg-concurrent queued=0.1 processing=21.4 lockwaiting=0.00
+     plan: txns=64000 units=10037 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=83 read-wait-us/wait=556 dup=0 unit-retries=0 apply-us/txn=118
+STEP 21/30 mix 64 1 2000
+mix  K=64  M=1    txns=128000 secs=  13.21 txn/s=     9692 rows/s=     9692 ms/txn=  6.60 | commits=128000 deadlocks=0 retries=0 lockwaits=1 lockwait_ms=0 lockreq/row=25.9 master=node3 cpu(cores) master=6.99 replicants=6.46,9.75
+     master-events n=128004 avg-ms total=4.3 queue=0.0 processing=4.3 lockwait=0.0 | avg-concurrent queued=0.2 processing=41.6 lockwaiting=0.00
+     plan: txns=128000 units=8550 parallel=0 fallbacks=0 stale=3 read-locked=0 read-waits=21 read-wait-us/wait=752 dup=0 unit-retries=0 apply-us/txn=93
+STEP 22/30 mix 32 10 200
+mix  K=32  M=10   txns=6400   secs=   5.34 txn/s=     1199 rows/s=    11990 ms/txn= 26.69 | commits=6400 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=24.1 master=node3 cpu(cores) master=3.46 replicants=6.73,8.28
+     master-events n=6401 avg-ms total=15.1 queue=0.0 processing=15.1 lockwait=0.0 | avg-concurrent queued=0.0 processing=18.1 lockwaiting=0.00
+     plan: txns=6400 units=1033 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=417 read-wait-us/wait=2732 dup=0 unit-retries=0 apply-us/txn=723
+STEP 23/30 mix 64 10 200
+mix  K=64  M=10   txns=12800  secs=   9.32 txn/s=     1374 rows/s=    13736 ms/txn= 46.59 | commits=12800 deadlocks=0 retries=0 lockwaits=1 lockwait_ms=14 lockreq/row=24.4 master=node3 cpu(cores) master=3.73 replicants=7.44,11.14
+     master-events n=12811 avg-ms total=27.2 queue=0.0 processing=27.2 lockwait=0.0 | avg-concurrent queued=0.0 processing=37.3 lockwaiting=0.00
+     plan: txns=12800 units=877 parallel=0 fallbacks=0 stale=4 read-locked=0 read-waits=91 read-wait-us/wait=6494 dup=0 unit-retries=0 apply-us/txn=686
+STEP 24/30 mix 32 100 60
+mix  K=32  M=100  txns=1920   secs=  17.32 txn/s=      111 rows/s=    11086 ms/txn=288.66 | commits=1920 deadlocks=24 retries=18 lockwaits=1155 lockwait_ms=28593 lockreq/row=25.5 master=node3 cpu(cores) master=2.21 replicants=5.38,6.30
+     master-events n=2000 avg-ms total=139.2 queue=5.3 processing=133.9 lockwait=14.7 | avg-concurrent queued=0.6 processing=15.5 lockwaiting=1.70
+     plan: txns=1918 units=463 parallel=0 fallbacks=3 stale=24 read-locked=2 read-waits=592 read-wait-us/wait=25219 dup=0 unit-retries=6 apply-us/txn=6698
+## config=unit-pm
+STEP 25/30 mix 1 1 2000
+mix  K=1   M=1    txns=2000   secs=   4.11 txn/s=      486 rows/s=      486 ms/txn=  2.06 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=25.9 master=node3 cpu(cores) master=1.51 replicants=1.28,1.72
+     master-events n=2000 avg-ms total=0.8 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+     plan: txns=2000 units=2000 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=0 read-wait-us/wait=0 dup=0 unit-retries=0 apply-us/txn=165
+STEP 26/30 mix 32 1 2000
+mix  K=32  M=1    txns=64000  secs=   9.41 txn/s=     6802 rows/s=     6802 ms/txn=  4.70 | commits=64000 deadlocks=0 retries=0 lockwaits=1 lockwait_ms=0 lockreq/row=26.0 master=node3 cpu(cores) master=5.76 replicants=5.65,6.20
+     master-events n=64000 avg-ms total=3.3 queue=0.0 processing=3.2 lockwait=0.0 | avg-concurrent queued=0.1 processing=22.0 lockwaiting=0.00
+     plan: txns=64000 units=9969 parallel=710 fallbacks=0 stale=0 read-locked=0 read-waits=89 read-wait-us/wait=469 dup=0 unit-retries=0 apply-us/txn=118
+STEP 27/30 mix 64 1 2000
+mix  K=64  M=1    txns=128000 secs=  13.38 txn/s=     9569 rows/s=     9569 ms/txn=  6.69 | commits=128000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=25.7 master=node3 cpu(cores) master=7.63 replicants=8.69,7.29
+     master-events n=128000 avg-ms total=4.7 queue=0.0 processing=4.6 lockwait=0.0 | avg-concurrent queued=0.2 processing=44.4 lockwaiting=0.00
+     plan: txns=128000 units=8410 parallel=4455 fallbacks=0 stale=0 read-locked=0 read-waits=47 read-wait-us/wait=710 dup=0 unit-retries=0 apply-us/txn=93
+STEP 28/30 mix 32 10 200
+mix  K=32  M=10   txns=6400   secs=   4.95 txn/s=     1292 rows/s=    12924 ms/txn= 24.76 | commits=6400 deadlocks=0 retries=0 lockwaits=2 lockwait_ms=0 lockreq/row=23.9 master=node3 cpu(cores) master=5.08 replicants=6.47,10.95
+     master-events n=6401 avg-ms total=12.4 queue=0.0 processing=12.4 lockwait=0.0 | avg-concurrent queued=0.0 processing=16.0 lockwaiting=0.00
+     plan: txns=6400 units=1414 parallel=1030 fallbacks=0 stale=0 read-locked=0 read-waits=515 read-wait-us/wait=2109 dup=0 unit-retries=0 apply-us/txn=648
+STEP 29/30 mix 64 10 200
+mix  K=64  M=10   txns=12800  secs=   6.92 txn/s=     1848 rows/s=    18484 ms/txn= 34.62 | commits=12800 deadlocks=0 retries=0 lockwaits=3 lockwait_ms=0 lockreq/row=23.9 master=node3 cpu(cores) master=6.21 replicants=14.17,11.52
+     master-events n=12811 avg-ms total=19.3 queue=0.0 processing=19.3 lockwait=0.0 | avg-concurrent queued=0.0 processing=35.6 lockwaiting=0.00
+     plan: txns=12800 units=1261 parallel=1101 fallbacks=0 stale=3 read-locked=0 read-waits=604 read-wait-us/wait=3269 dup=0 unit-retries=0 apply-us/txn=488
+STEP 30/30 mix 32 100 60
+mix  K=32  M=100  txns=1920   secs=  12.91 txn/s=      149 rows/s=    14874 ms/txn=215.14 | commits=1920 deadlocks=30 retries=16 lockwaits=299 lockwait_ms=5760 lockreq/row=24.7 master=node3 cpu(cores) master=4.48 replicants=10.20,6.68
+     master-events n=1982 avg-ms total=86.7 queue=4.7 processing=82.0 lockwait=3.0 | avg-concurrent queued=0.7 processing=12.6 lockwaiting=0.46
+     plan: txns=1916 units=644 parallel=637 fallbacks=6 stale=11 read-locked=5 read-waits=647 read-wait-us/wait=16548 dup=0 unit-retries=7 apply-us/txn=4855
+node1: 2576973	1409818665435	1288287065402	1288590826890	100504560
+node2: 2576973	1409818665435	1288287065402	1288590826890	100504560
+node3: 2576973	1409818665435	1288287065402	1288590826890	100504560
+Verify succeeded.
+ALLDONE
+# pass 2 Sat Nov 14 21:28:51 UTC 2026
+master=node2
+(name='maxwt', value='32')
+(name='cachekb', value='4194304')
+(out='rowlocks is             disabled')
+## load 2000000 rows, a = 1..2000000
+loaded in 217s: 2000000 rows
+## config=unit-pm
+STEP 1/30 mix 1 1 2000
+mix  K=1   M=1    txns=2000   secs=   4.25 txn/s=      470 rows/s=      470 ms/txn=  2.13 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=26.0 master=node2 cpu(cores) master=1.42 replicants=1.20,1.60
+     master-events n=2000 avg-ms total=0.9 queue=0.0 processing=0.9 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+     plan: txns=2000 units=2000 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=0 read-wait-us/wait=0 dup=0 unit-retries=0 apply-us/txn=174
+STEP 2/30 mix 32 1 2000
+mix  K=32  M=1    txns=64000  secs=   8.73 txn/s=     7332 rows/s=     7332 ms/txn=  4.36 | commits=64000 deadlocks=0 retries=0 lockwaits=1 lockwait_ms=0 lockreq/row=26.0 master=node2 cpu(cores) master=5.89 replicants=5.92,7.10
+     master-events n=64000 avg-ms total=2.9 queue=0.0 processing=2.8 lockwait=0.0 | avg-concurrent queued=0.1 processing=20.8 lockwaiting=0.00
+     plan: txns=64000 units=11265 parallel=579 fallbacks=0 stale=0 read-locked=0 read-waits=49 read-wait-us/wait=547 dup=0 unit-retries=0 apply-us/txn=108
+STEP 3/30 mix 64 1 2000
+mix  K=64  M=1    txns=128000 secs=  12.60 txn/s=    10160 rows/s=    10160 ms/txn=  6.30 | commits=128000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=25.6 master=node2 cpu(cores) master=7.57 replicants=8.21,8.90
+     master-events n=128000 avg-ms total=4.3 queue=0.0 processing=4.3 lockwait=0.0 | avg-concurrent queued=0.2 processing=43.8 lockwaiting=0.00
+     plan: txns=128000 units=8825 parallel=4315 fallbacks=0 stale=0 read-locked=0 read-waits=87 read-wait-us/wait=672 dup=0 unit-retries=0 apply-us/txn=86
+STEP 4/30 mix 32 10 200
+mix  K=32  M=10   txns=6400   secs=   4.86 txn/s=     1316 rows/s=    13163 ms/txn= 24.31 | commits=6400 deadlocks=0 retries=0 lockwaits=2 lockwait_ms=0 lockreq/row=23.7 master=node2 cpu(cores) master=4.66 replicants=7.11,10.98
+     master-events n=6402 avg-ms total=10.8 queue=0.0 processing=10.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=14.2 lockwaiting=0.00
+     plan: txns=6400 units=1613 parallel=1152 fallbacks=0 stale=0 read-locked=0 read-waits=301 read-wait-us/wait=1702 dup=0 unit-retries=0 apply-us/txn=617
+STEP 5/30 mix 64 10 200
+mix  K=64  M=10   txns=12800  secs=   6.55 txn/s=     1954 rows/s=    19537 ms/txn= 32.76 | commits=12800 deadlocks=0 retries=0 lockwaits=3 lockwait_ms=0 lockreq/row=23.6 master=node2 cpu(cores) master=5.95 replicants=14.77,17.28
+     master-events n=12806 avg-ms total=15.2 queue=0.0 processing=15.1 lockwait=0.0 | avg-concurrent queued=0.0 processing=29.6 lockwaiting=0.00
+     plan: txns=12800 units=1943 parallel=1588 fallbacks=0 stale=1 read-locked=0 read-waits=326 read-wait-us/wait=2101 dup=0 unit-retries=0 apply-us/txn=458
+STEP 6/30 mix 32 100 60
+mix  K=32  M=100  txns=1920   secs=  12.88 txn/s=      149 rows/s=    14902 ms/txn=214.74 | commits=1920 deadlocks=13 retries=9 lockwaits=312 lockwait_ms=6086 lockreq/row=24.8 master=node2 cpu(cores) master=4.06 replicants=11.35,7.52
+     master-events n=1995 avg-ms total=68.9 queue=2.7 processing=66.3 lockwait=3.0 | avg-concurrent queued=0.4 processing=10.3 lockwaiting=0.47
+     plan: txns=1919 units=862 parallel=859 fallbacks=1 stale=16 read-locked=0 read-waits=486 read-wait-us/wait=16083 dup=0 unit-retries=3 apply-us/txn=4549
+## config=unit-m
+STEP 7/30 mix 1 1 2000
+mix  K=1   M=1    txns=2000   secs=   4.14 txn/s=      483 rows/s=      483 ms/txn=  2.07 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=25.9 master=node2 cpu(cores) master=1.25 replicants=1.05,1.52
+     master-events n=2000 avg-ms total=0.8 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+     plan: txns=2000 units=2000 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=0 read-wait-us/wait=0 dup=0 unit-retries=0 apply-us/txn=146
+STEP 8/30 mix 32 1 2000
+mix  K=32  M=1    txns=64000  secs=   8.26 txn/s=     7747 rows/s=     7747 ms/txn=  4.13 | commits=64000 deadlocks=0 retries=0 lockwaits=1 lockwait_ms=0 lockreq/row=26.0 master=node2 cpu(cores) master=6.13 replicants=5.92,7.60
+     master-events n=64001 avg-ms total=2.6 queue=0.0 processing=2.6 lockwait=0.0 | avg-concurrent queued=0.1 processing=20.3 lockwaiting=0.00
+     plan: txns=64000 units=11425 parallel=0 fallbacks=0 stale=1 read-locked=0 read-waits=21 read-wait-us/wait=532 dup=0 unit-retries=0 apply-us/txn=107
+STEP 9/30 mix 64 1 2000
+mix  K=64  M=1    txns=128000 secs=  12.70 txn/s=    10075 rows/s=    10075 ms/txn=  6.35 | commits=128000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=26.0 master=node2 cpu(cores) master=6.97 replicants=7.58,8.85
+     master-events n=128000 avg-ms total=4.2 queue=0.0 processing=4.2 lockwait=0.0 | avg-concurrent queued=0.2 processing=42.2 lockwaiting=0.00
+     plan: txns=128000 units=8344 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=34 read-wait-us/wait=711 dup=0 unit-retries=0 apply-us/txn=89
+STEP 10/30 mix 32 10 200
+mix  K=32  M=10   txns=6400   secs=   5.12 txn/s=     1249 rows/s=    12489 ms/txn= 25.62 | commits=6400 deadlocks=0 retries=0 lockwaits=2 lockwait_ms=0 lockreq/row=24.2 master=node2 cpu(cores) master=3.34 replicants=7.83,8.76
+     master-events n=6403 avg-ms total=13.6 queue=0.0 processing=13.6 lockwait=0.0 | avg-concurrent queued=0.0 processing=17.0 lockwaiting=0.00
+     plan: txns=6400 units=1112 parallel=0 fallbacks=0 stale=1 read-locked=0 read-waits=235 read-wait-us/wait=2972 dup=0 unit-retries=0 apply-us/txn=680
+STEP 11/30 mix 64 10 200
+mix  K=64  M=10   txns=12800  secs=   8.72 txn/s=     1469 rows/s=    14686 ms/txn= 43.58 | commits=12800 deadlocks=0 retries=0 lockwaits=2 lockwait_ms=0 lockreq/row=24.4 master=node2 cpu(cores) master=3.81 replicants=10.67,9.81
+     master-events n=12813 avg-ms total=25.9 queue=0.0 processing=25.9 lockwait=0.0 | avg-concurrent queued=0.0 processing=38.0 lockwaiting=0.00
+     plan: txns=12800 units=870 parallel=0 fallbacks=0 stale=3 read-locked=0 read-waits=112 read-wait-us/wait=4763 dup=0 unit-retries=0 apply-us/txn=643
+STEP 12/30 mix 32 100 60
+mix  K=32  M=100  txns=1920   secs=  16.75 txn/s=      115 rows/s=    11463 ms/txn=279.15 | commits=1920 deadlocks=10 retries=10 lockwaits=463 lockwait_ms=8258 lockreq/row=25.2 master=node2 cpu(cores) master=2.12 replicants=7.34,6.06
+     master-events n=1981 avg-ms total=119.1 queue=3.8 processing=115.3 lockwait=4.2 | avg-concurrent queued=0.4 processing=13.6 lockwaiting=0.50
+     plan: txns=1916 units=692 parallel=0 fallbacks=4 stale=23 read-locked=0 read-waits=453 read-wait-us/wait=19230 dup=0 unit-retries=0 apply-us/txn=6346
+## config=unit-p
+STEP 13/30 mix 1 1 2000
+mix  K=1   M=1    txns=2000   secs=   4.33 txn/s=      462 rows/s=      462 ms/txn=  2.16 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=26.0 master=node2 cpu(cores) master=0.88 replicants=1.10,0.97
+     master-events n=2000 avg-ms total=0.9 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+     plan: txns=2000 units=2000 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=0 read-wait-us/wait=0 dup=0 unit-retries=0 apply-us/txn=158
+STEP 14/30 mix 32 1 2000
+mix  K=32  M=1    txns=64000  secs=   7.77 txn/s=     8234 rows/s=     8234 ms/txn=  3.89 | commits=64000 deadlocks=0 retries=0 lockwaits=1 lockwait_ms=0 lockreq/row=26.0 master=node2 cpu(cores) master=6.39 replicants=6.36,8.17
+     master-events n=64001 avg-ms total=2.4 queue=0.0 processing=2.4 lockwait=0.0 | avg-concurrent queued=0.1 processing=19.5 lockwaiting=0.00
+     plan: txns=64000 units=12874 parallel=371 fallbacks=0 stale=1 read-locked=0 read-waits=36 read-wait-us/wait=377 dup=0 unit-retries=0 apply-us/txn=94
+STEP 15/30 mix 64 1 2000
+mix  K=64  M=1    txns=128000 secs=  12.66 txn/s=    10110 rows/s=    10110 ms/txn=  6.33 | commits=128000 deadlocks=0 retries=0 lockwaits=2 lockwait_ms=1 lockreq/row=25.7 master=node2 cpu(cores) master=7.62 replicants=6.85,10.26
+     master-events n=128004 avg-ms total=4.3 queue=0.0 processing=4.3 lockwait=0.0 | avg-concurrent queued=0.2 processing=43.6 lockwaiting=0.00
+     plan: txns=128000 units=8702 parallel=4268 fallbacks=0 stale=1 read-locked=0 read-waits=30 read-wait-us/wait=770 dup=0 unit-retries=0 apply-us/txn=88
+STEP 16/30 mix 32 10 200
+mix  K=32  M=10   txns=6400   secs=   4.77 txn/s=     1343 rows/s=    13426 ms/txn= 23.84 | commits=6400 deadlocks=0 retries=0 lockwaits=1 lockwait_ms=0 lockreq/row=23.8 master=node2 cpu(cores) master=4.93 replicants=7.84,10.05
+     master-events n=6402 avg-ms total=11.9 queue=0.0 processing=11.9 lockwait=0.0 | avg-concurrent queued=0.0 processing=15.9 lockwaiting=0.00
+     plan: txns=6399 units=1412 parallel=1054 fallbacks=1 stale=0 read-locked=0 read-waits=259 read-wait-us/wait=1843 dup=0 unit-retries=0 apply-us/txn=596
+STEP 17/30 mix 64 10 200
+mix  K=64  M=10   txns=12800  secs=   6.50 txn/s=     1969 rows/s=    19690 ms/txn= 32.50 | commits=12800 deadlocks=0 retries=0 lockwaits=2 lockwait_ms=0 lockreq/row=23.7 master=node2 cpu(cores) master=5.98 replicants=14.80,14.83
+     master-events n=12812 avg-ms total=16.7 queue=0.0 processing=16.7 lockwait=0.0 | avg-concurrent queued=0.0 processing=32.9 lockwaiting=0.00
+     plan: txns=12800 units=1549 parallel=1344 fallbacks=0 stale=4 read-locked=0 read-waits=600 read-wait-us/wait=2413 dup=0 unit-retries=0 apply-us/txn=458
+STEP 18/30 mix 32 100 60
+mix  K=32  M=100  txns=1920   secs=  13.04 txn/s=      147 rows/s=    14722 ms/txn=217.36 | commits=1920 deadlocks=14 retries=8 lockwaits=170 lockwait_ms=4093 lockreq/row=24.3 master=node2 cpu(cores) master=4.18 replicants=11.61,6.78
+     master-events n=1961 avg-ms total=71.2 queue=2.5 processing=68.7 lockwait=2.1 | avg-concurrent queued=0.4 processing=10.3 lockwaiting=0.31
+     plan: txns=1917 units=803 parallel=798 fallbacks=3 stale=12 read-locked=2 read-waits=515 read-wait-us/wait=13979 dup=0 unit-retries=4 apply-us/txn=4577
+## config=unit
+STEP 19/30 mix 1 1 2000
+mix  K=1   M=1    txns=2000   secs=   4.29 txn/s=      467 rows/s=      467 ms/txn=  2.14 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=26.0 master=node2 cpu(cores) master=1.08 replicants=1.52,0.68
+     master-events n=2000 avg-ms total=0.9 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+     plan: txns=2000 units=2000 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=0 read-wait-us/wait=0 dup=0 unit-retries=0 apply-us/txn=145
+STEP 20/30 mix 32 1 2000
+mix  K=32  M=1    txns=64000  secs=   7.74 txn/s=     8268 rows/s=     8268 ms/txn=  3.87 | commits=64000 deadlocks=0 retries=0 lockwaits=2 lockwait_ms=0 lockreq/row=26.1 master=node2 cpu(cores) master=6.35 replicants=6.90,7.68
+     master-events n=64000 avg-ms total=2.3 queue=0.0 processing=2.3 lockwait=0.0 | avg-concurrent queued=0.1 processing=19.1 lockwaiting=0.00
+     plan: txns=64000 units=12940 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=60 read-wait-us/wait=350 dup=0 unit-retries=0 apply-us/txn=95
+STEP 21/30 mix 64 1 2000
+mix  K=64  M=1    txns=128000 secs=  12.99 txn/s=     9854 rows/s=     9854 ms/txn=  6.49 | commits=128000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=25.9 master=node2 cpu(cores) master=6.96 replicants=7.43,9.39
+     master-events n=128001 avg-ms total=4.3 queue=0.0 processing=4.3 lockwait=0.0 | avg-concurrent queued=0.2 processing=42.0 lockwaiting=0.00
+     plan: txns=128000 units=8606 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=19 read-wait-us/wait=679 dup=0 unit-retries=0 apply-us/txn=91
+STEP 22/30 mix 32 10 200
+mix  K=32  M=10   txns=6400   secs=   5.28 txn/s=     1212 rows/s=    12119 ms/txn= 26.41 | commits=6400 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=24.1 master=node2 cpu(cores) master=3.50 replicants=10.96,6.31
+     master-events n=6400 avg-ms total=12.4 queue=0.0 processing=12.4 lockwait=0.0 | avg-concurrent queued=0.0 processing=15.0 lockwaiting=0.00
+     plan: txns=6400 units=1358 parallel=0 fallbacks=0 stale=0 read-locked=0 read-waits=178 read-wait-us/wait=2341 dup=0 unit-retries=0 apply-us/txn=693
+STEP 23/30 mix 64 10 200
+mix  K=64  M=10   txns=12800  secs=   8.85 txn/s=     1446 rows/s=    14458 ms/txn= 44.27 | commits=12800 deadlocks=1 retries=1 lockwaits=5 lockwait_ms=5 lockreq/row=24.3 master=node2 cpu(cores) master=3.82 replicants=9.48,11.86
+     master-events n=12807 avg-ms total=25.4 queue=0.1 processing=25.3 lockwait=0.0 | avg-concurrent queued=0.1 processing=36.7 lockwaiting=0.00
+     plan: txns=12800 units=933 parallel=0 fallbacks=0 stale=2 read-locked=0 read-waits=170 read-wait-us/wait=5546 dup=0 unit-retries=0 apply-us/txn=643
+STEP 24/30 mix 32 100 60
+mix  K=32  M=100  txns=1920   secs=  18.49 txn/s=      104 rows/s=    10384 ms/txn=308.15 | commits=1920 deadlocks=5 retries=5 lockwaits=645 lockwait_ms=12594 lockreq/row=24.9 master=node2 cpu(cores) master=1.94 replicants=9.77,4.80
+     master-events n=1986 avg-ms total=107.2 queue=2.5 processing=104.8 lockwait=6.4 | avg-concurrent queued=0.3 processing=11.3 lockwaiting=0.69
+     plan: txns=1919 units=649 parallel=0 fallbacks=1 stale=20 read-locked=0 read-waits=368 read-wait-us/wait=16691 dup=0 unit-retries=0 apply-us/txn=6653
+## config=pg
+STEP 25/30 mix 1 1 2000
+mix  K=1   M=1    txns=2000   secs=   4.22 txn/s=      474 rows/s=      474 ms/txn=  2.11 | commits=2000 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=24.8 master=node2 cpu(cores) master=1.35 replicants=1.55,1.11
+     master-events n=2000 avg-ms total=0.8 queue=0.0 processing=0.8 lockwait=0.0 | avg-concurrent queued=0.0 processing=0.4 lockwaiting=0.00
+STEP 26/30 mix 32 1 2000
+mix  K=32  M=1    txns=64000  secs=   7.46 txn/s=     8577 rows/s=     8577 ms/txn=  3.73 | commits=64000 deadlocks=0 retries=0 lockwaits=1064 lockwait_ms=221 lockreq/row=24.5 master=node2 cpu(cores) master=8.34 replicants=8.60,9.13
+     master-events n=64001 avg-ms total=2.4 queue=0.0 processing=2.4 lockwait=0.0 | avg-concurrent queued=0.1 processing=20.8 lockwaiting=0.03
+STEP 27/30 mix 64 1 2000
+mix  K=64  M=1    txns=128000 secs=  14.71 txn/s=     8701 rows/s=     8701 ms/txn=  7.36 | commits=128000 deadlocks=4 retries=4 lockwaits=2833 lockwait_ms=1048 lockreq/row=24.5 master=node2 cpu(cores) master=8.62 replicants=8.72,9.70
+     master-events n=128000 avg-ms total=5.9 queue=0.0 processing=5.9 lockwait=0.0 | avg-concurrent queued=0.1 processing=51.6 lockwaiting=0.07
+STEP 28/30 mix 32 10 200
+mix  K=32  M=10   txns=6400   secs=   4.31 txn/s=     1485 rows/s=    14847 ms/txn= 21.55 | commits=6400 deadlocks=47 retries=47 lockwaits=2253 lockwait_ms=3598 lockreq/row=26.6 master=node2 cpu(cores) master=7.53 replicants=9.39,10.39
+     master-events n=6403 avg-ms total=10.9 queue=0.5 processing=10.4 lockwait=0.6 | avg-concurrent queued=0.8 processing=15.4 lockwaiting=0.84
+STEP 29/30 mix 64 10 200
+mix  K=64  M=10   txns=12800  secs=   9.18 txn/s=     1394 rows/s=    13945 ms/txn= 45.90 | commits=12800 deadlocks=84 retries=84 lockwaits=4022 lockwait_ms=11108 lockreq/row=27.2 master=node2 cpu(cores) master=7.06 replicants=14.05,9.28
+     master-events n=12810 avg-ms total=23.3 queue=0.5 processing=22.8 lockwait=0.9 | avg-concurrent queued=0.7 processing=31.8 lockwaiting=1.19
+STEP 30/30 mix 32 100 60
+mix  K=32  M=100  txns=1920   secs=  23.45 txn/s=       82 rows/s=     8188 ms/txn=390.83 | commits=1920 deadlocks=578 retries=578 lockwaits=3514 lockwait_ms=26515 lockreq/row=30.3 master=node2 cpu(cores) master=2.42 replicants=8.38,1.64
+     master-events n=1985 avg-ms total=133.8 queue=103.4 processing=30.5 lockwait=13.4 | avg-concurrent queued=8.8 processing=2.6 lockwaiting=1.13
+node1: 2578275	1410401612035	1288595663810	1288929098358	100562539
+node2: 2578275	1410401612035	1288595663810	1288929098358	100562539
+node3: 2578275	1410401612035	1288595663810	1288929098358	100562539
+Verify succeeded.
+ALLDONE
+# end Sat Nov 14 21:41:20 UTC 2026

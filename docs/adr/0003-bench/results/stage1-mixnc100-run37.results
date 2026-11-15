@@ -1,0 +1,396 @@
+# pass 1 Sun Nov 15 02:00:51 UTC 2026
+master=node1
+(name='maxwt', value='32')
+(name='cachekb', value='4194304')
+(out='rowlocks is             disabled')
+## load 2000000 rows, a = 1..2000000
+loaded in 220s: 2000000 rows
+## config=pg
+STEP 1/5 mixnc 32 100 60
+bash: line 1: /scripts/c.w0.err: Read-only file system
+bash: line 1: /scripts/c.w1.err: Read-only file system
+bash: line 1: /scripts/c.w10.err: Read-only file system
+bash: line 1: /scripts/c.w11.err: Read-only file system
+bash: line 1: /scripts/c.w12.err: Read-only file system
+bash: line 1: /scripts/c.w14.err: Read-only file system
+bash: line 1: /scripts/c.w13.err: Read-only file system
+bash: line 1: /scripts/c.w15.err: Read-only file system
+bash: line 1: /scripts/c.w16.err: Read-only file system
+bash: line 1: /scripts/c.w17.err: Read-only file system
+bash: line 1: /scripts/c.w18.err: Read-only file system
+bash: line 1: /scripts/c.w19.err: Read-only file system
+bash: line 1: /scripts/c.w2.err: Read-only file system
+bash: line 1: /scripts/c.w20.err: Read-only file system
+bash: line 1: /scripts/c.w21.err: Read-only file system
+bash: line 1: /scripts/c.w22.err: Read-only file system
+bash: line 1: /scripts/c.w23.err: Read-only file system
+bash: line 1: /scripts/c.w24.err: Read-only file system
+bash: line 1: /scripts/c.w25.err: Read-only file system
+bash: line 1: /scripts/c.w26.err: Read-only file system
+bash: line 1: /scripts/c.w27.err: Read-only file system
+bash: line 1: /scripts/c.w28.err: Read-only file system
+bash: line 1: /scripts/c.w29.err: Read-only file system
+bash: line 1: /scripts/c.w3.err: Read-only file system
+bash: line 1: /scripts/c.w30.err: Read-only file system
+bash: line 1: /scripts/c.w31.err: Read-only file system
+bash: line 1: /scripts/c.w4.err: Read-only file system
+bash: line 1: /scripts/c.w5.err: Read-only file system
+bash: line 1: /scripts/c.w6.err: Read-only file system
+bash: line 1: /scripts/c.w7.err: Read-only file system
+bash: line 1: /scripts/c.w8.err: Read-only file system
+bash: line 1: /scripts/c.w9.err: Read-only file system
+mixnc K=32  M=100  txns=1920   secs=   0.12 txn/s=    16079 rows/s=  1607889 ms/txn=  1.99 | commits=0 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=0.0 master=node1 cpu(cores) master=0.17 replicants=0.08,0.08
+     master-events: none
+     client-errors=0
+## config=unit
+STEP 2/5 mixnc 32 100 60
+bash: line 1: /scripts/c.w0.err: Read-only file system
+bash: line 1: /scripts/c.w1.err: Read-only file system
+bash: line 1: /scripts/c.w10.err: Read-only file system
+bash: line 1: /scripts/c.w11.err: Read-only file system
+bash: line 1: /scripts/c.w12.err: Read-only file system
+bash: line 1: /scripts/c.w13.err: Read-only file system
+bash: line 1: /scripts/c.w14.err: Read-only file system
+bash: line 1: /scripts/c.w15.err: Read-only file system
+bash: line 1: /scripts/c.w16.err: Read-only file system
+bash: line 1: /scripts/c.w17.err: Read-only file system
+bash: line 1: /scripts/c.w19.err: Read-only file system
+bash: line 1: /scripts/c.w18.err: Read-only file system
+bash: line 1: /scripts/c.w2.err: Read-only file system
+bash: line 1: /scripts/c.w20.err: Read-only file system
+bash: line 1: /scripts/c.w21.err: Read-only file system
+bash: line 1: /scripts/c.w23.err: Read-only file system
+bash: line 1: /scripts/c.w22.err: Read-only file system
+bash: line 1: /scripts/c.w24.err: Read-only file system
+bash: line 1: /scripts/c.w25.err: Read-only file system
+bash: line 1: /scripts/c.w26.err: Read-only file system
+bash: line 1: /scripts/c.w28.err: Read-only file system
+bash: line 1: /scripts/c.w27.err: Read-only file system
+bash: line 1: /scripts/c.w29.err: Read-only file system
+bash: line 1: /scripts/c.w30.err: Read-only file system
+bash: line 1: /scripts/c.w3.err: Read-only file system
+bash: line 1: /scripts/c.w4.err: Read-only file system
+bash: line 1: /scripts/c.w31.err: Read-only file system
+bash: line 1: /scripts/c.w5.err: Read-only file system
+bash: line 1: /scripts/c.w7.err: Read-only file system
+bash: line 1: /scripts/c.w6.err: Read-only file system
+bash: line 1: /scripts/c.w8.err: Read-only file system
+bash: line 1: /scripts/c.w9.err: Read-only file system
+mixnc K=32  M=100  txns=1920   secs=   0.11 txn/s=    17024 rows/s=  1702403 ms/txn=  1.88 | commits=0 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=0.0 master=node1 cpu(cores) master=0.00 replicants=0.09,0.09
+     master-events: none
+     client-errors=0
+## config=unit-p
+STEP 3/5 mixnc 32 100 60
+bash: line 1: /scripts/c.w0.err: Read-only file system
+bash: line 1: /scripts/c.w1.err: Read-only file system
+bash: line 1: /scripts/c.w11.err: Read-only file system
+bash: line 1: /scripts/c.w10.err: Read-only file system
+bash: line 1: /scripts/c.w12.err: Read-only file system
+bash: line 1: /scripts/c.w13.err: Read-only file system
+bash: line 1: /scripts/c.w14.err: Read-only file system
+bash: line 1: /scripts/c.w15.err: Read-only file system
+bash: line 1: /scripts/c.w16.err: Read-only file system
+bash: line 1: /scripts/c.w17.err: Read-only file system
+bash: line 1: /scripts/c.w19.err: Read-only file system
+bash: line 1: /scripts/c.w18.err: Read-only file system
+bash: line 1: /scripts/c.w20.err: Read-only file system
+bash: line 1: /scripts/c.w2.err: Read-only file system
+bash: line 1: /scripts/c.w21.err: Read-only file system
+bash: line 1: /scripts/c.w22.err: Read-only file system
+bash: line 1: /scripts/c.w24.err: Read-only file system
+bash: line 1: /scripts/c.w23.err: Read-only file system
+bash: line 1: /scripts/c.w25.err: Read-only file system
+bash: line 1: /scripts/c.w26.err: Read-only file system
+bash: line 1: /scripts/c.w28.err: Read-only file system
+bash: line 1: /scripts/c.w27.err: Read-only file system
+bash: line 1: /scripts/c.w29.err: Read-only file system
+bash: line 1: /scripts/c.w30.err: Read-only file system
+bash: line 1: /scripts/c.w3.err: Read-only file system
+bash: line 1: /scripts/c.w31.err: Read-only file system
+bash: line 1: /scripts/c.w4.err: Read-only file system
+bash: line 1: /scripts/c.w5.err: Read-only file system
+bash: line 1: /scripts/c.w7.err: Read-only file system
+bash: line 1: /scripts/c.w6.err: Read-only file system
+bash: line 1: /scripts/c.w8.err: Read-only file system
+bash: line 1: /scripts/c.w9.err: Read-only file system
+mixnc K=32  M=100  txns=1920   secs=   0.11 txn/s=    17654 rows/s=  1765419 ms/txn=  1.81 | commits=0 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=0.0 master=node1 cpu(cores) master=0.09 replicants=0.00,0.09
+     master-events: none
+     client-errors=0
+## config=unit-m
+STEP 4/5 mixnc 32 100 60
+bash: line 1: /scripts/c.w0.err: Read-only file system
+bash: line 1: /scripts/c.w1.err: Read-only file system
+bash: line 1: /scripts/c.w10.err: Read-only file system
+bash: line 1: /scripts/c.w12.err: Read-only file system
+bash: line 1: /scripts/c.w11.err: Read-only file system
+bash: line 1: /scripts/c.w13.err: Read-only file system
+bash: line 1: /scripts/c.w14.err: Read-only file system
+bash: line 1: /scripts/c.w15.err: Read-only file system
+bash: line 1: /scripts/c.w16.err: Read-only file system
+bash: line 1: /scripts/c.w17.err: Read-only file system
+bash: line 1: /scripts/c.w18.err: Read-only file system
+bash: line 1: /scripts/c.w19.err: Read-only file system
+bash: line 1: /scripts/c.w2.err: Read-only file system
+bash: line 1: /scripts/c.w20.err: Read-only file system
+bash: line 1: /scripts/c.w21.err: Read-only file system
+bash: line 1: /scripts/c.w22.err: Read-only file system
+bash: line 1: /scripts/c.w23.err: Read-only file system
+bash: line 1: /scripts/c.w24.err: Read-only file system
+bash: line 1: /scripts/c.w25.err: Read-only file system
+bash: line 1: /scripts/c.w26.err: Read-only file system
+bash: line 1: /scripts/c.w28.err: Read-only file system
+bash: line 1: /scripts/c.w27.err: Read-only file system
+bash: line 1: /scripts/c.w29.err: Read-only file system
+bash: line 1: /scripts/c.w3.err: Read-only file system
+bash: line 1: /scripts/c.w30.err: Read-only file system
+bash: line 1: /scripts/c.w4.err: Read-only file system
+bash: line 1: /scripts/c.w31.err: Read-only file system
+bash: line 1: /scripts/c.w6.err: Read-only file system
+bash: line 1: /scripts/c.w5.err: Read-only file system
+bash: line 1: /scripts/c.w7.err: Read-only file system
+bash: line 1: /scripts/c.w8.err: Read-only file system
+bash: line 1: /scripts/c.w9.err: Read-only file system
+mixnc K=32  M=100  txns=1920   secs=   0.11 txn/s=    16696 rows/s=  1669631 ms/txn=  1.92 | commits=0 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=0.0 master=node1 cpu(cores) master=0.00 replicants=0.00,0.17
+     master-events: none
+     client-errors=0
+## config=unit-pm
+STEP 5/5 mixnc 32 100 60
+bash: line 1: /scripts/c.w0.err: Read-only file system
+bash: line 1: /scripts/c.w1.err: Read-only file system
+bash: line 1: /scripts/c.w10.err: Read-only file system
+bash: line 1: /scripts/c.w11.err: Read-only file system
+bash: line 1: /scripts/c.w12.err: Read-only file system
+bash: line 1: /scripts/c.w13.err: Read-only file system
+bash: line 1: /scripts/c.w14.err: Read-only file system
+bash: line 1: /scripts/c.w15.err: Read-only file system
+bash: line 1: /scripts/c.w16.err: Read-only file system
+bash: line 1: /scripts/c.w17.err: Read-only file system
+bash: line 1: /scripts/c.w18.err: Read-only file system
+bash: line 1: /scripts/c.w19.err: Read-only file system
+bash: line 1: /scripts/c.w2.err: Read-only file system
+bash: line 1: /scripts/c.w20.err: Read-only file system
+bash: line 1: /scripts/c.w21.err: Read-only file system
+bash: line 1: /scripts/c.w22.err: Read-only file system
+bash: line 1: /scripts/c.w23.err: Read-only file system
+bash: line 1: /scripts/c.w24.err: Read-only file system
+bash: line 1: /scripts/c.w25.err: Read-only file system
+bash: line 1: /scripts/c.w26.err: Read-only file system
+bash: line 1: /scripts/c.w28.err: Read-only file system
+bash: line 1: /scripts/c.w27.err: Read-only file system
+bash: line 1: /scripts/c.w29.err: Read-only file system
+bash: line 1: /scripts/c.w3.err: Read-only file system
+bash: line 1: /scripts/c.w31.err: Read-only file system
+bash: line 1: /scripts/c.w30.err: Read-only file system
+bash: line 1: /scripts/c.w4.err: Read-only file system
+bash: line 1: /scripts/c.w5.err: Read-only file system
+bash: line 1: /scripts/c.w6.err: Read-only file system
+bash: line 1: /scripts/c.w7.err: Read-only file system
+bash: line 1: /scripts/c.w8.err: Read-only file system
+bash: line 1: /scripts/c.w9.err: Read-only file system
+mixnc K=32  M=100  txns=1920   secs=   0.10 txn/s=    19954 rows/s=  1995432 ms/txn=  1.60 | commits=0 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=0.0 master=node1 cpu(cores) master=0.00 replicants=0.00,0.10
+     master-events: none
+     client-errors=0
+node1: 2000000	1000000000006	1000000118776	999972636100	80000000
+node2: 2000000	1000000000006	1000000118776	999972636100	80000000
+node3: 2000000	1000000000006	1000000118776	999972636100	80000000
+Verify succeeded.
+ALLDONE
+# pass 2 Sun Nov 15 02:06:10 UTC 2026
+master=node1
+(name='maxwt', value='32')
+(name='cachekb', value='4194304')
+(out='rowlocks is             disabled')
+## load 2000000 rows, a = 1..2000000
+loaded in 220s: 2000000 rows
+## config=unit-pm
+STEP 1/5 mixnc 32 100 60
+bash: line 1: /scripts/c.w1.err: Read-only file system
+bash: line 1: /scripts/c.w0.err: Read-only file system
+bash: line 1: /scripts/c.w11.err: Read-only file system
+bash: line 1: /scripts/c.w10.err: Read-only file system
+bash: line 1: /scripts/c.w12.err: Read-only file system
+bash: line 1: /scripts/c.w14.err: Read-only file system
+bash: line 1: /scripts/c.w13.err: Read-only file system
+bash: line 1: /scripts/c.w15.err: Read-only file system
+bash: line 1: /scripts/c.w16.err: Read-only file system
+bash: line 1: /scripts/c.w18.err: Read-only file system
+bash: line 1: /scripts/c.w17.err: Read-only file system
+bash: line 1: /scripts/c.w19.err: Read-only file system
+bash: line 1: /scripts/c.w2.err: Read-only file system
+bash: line 1: /scripts/c.w20.err: Read-only file system
+bash: line 1: /scripts/c.w21.err: Read-only file system
+bash: line 1: /scripts/c.w22.err: Read-only file system
+bash: line 1: /scripts/c.w23.err: Read-only file system
+bash: line 1: /scripts/c.w24.err: Read-only file system
+bash: line 1: /scripts/c.w25.err: Read-only file system
+bash: line 1: /scripts/c.w27.err: Read-only file system
+bash: line 1: /scripts/c.w26.err: Read-only file system
+bash: line 1: /scripts/c.w28.err: Read-only file system
+bash: line 1: /scripts/c.w29.err: Read-only file system
+bash: line 1: /scripts/c.w30.err: Read-only file system
+bash: line 1: /scripts/c.w3.err: Read-only file system
+bash: line 1: /scripts/c.w31.err: Read-only file system
+bash: line 1: /scripts/c.w4.err: Read-only file system
+bash: line 1: /scripts/c.w5.err: Read-only file system
+bash: line 1: /scripts/c.w6.err: Read-only file system
+bash: line 1: /scripts/c.w8.err: Read-only file system
+bash: line 1: /scripts/c.w7.err: Read-only file system
+bash: line 1: /scripts/c.w9.err: Read-only file system
+mixnc K=32  M=100  txns=1920   secs=   0.11 txn/s=    16932 rows/s=  1693182 ms/txn=  1.89 | commits=0 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=0.0 master=node1 cpu(cores) master=0.09 replicants=0.00,0.09
+     master-events: none
+     client-errors=0
+## config=unit-m
+STEP 2/5 mixnc 32 100 60
+bash: line 1: /scripts/c.w0.err: Read-only file system
+bash: line 1: /scripts/c.w1.err: Read-only file system
+bash: line 1: /scripts/c.w10.err: Read-only file system
+bash: line 1: /scripts/c.w11.err: Read-only file system
+bash: line 1: /scripts/c.w12.err: Read-only file system
+bash: line 1: /scripts/c.w13.err: Read-only file system
+bash: line 1: /scripts/c.w14.err: Read-only file system
+bash: line 1: /scripts/c.w15.err: Read-only file system
+bash: line 1: /scripts/c.w16.err: Read-only file system
+bash: line 1: /scripts/c.w17.err: Read-only file system
+bash: line 1: /scripts/c.w18.err: Read-only file system
+bash: line 1: /scripts/c.w19.err: Read-only file system
+bash: line 1: /scripts/c.w2.err: Read-only file system
+bash: line 1: /scripts/c.w20.err: Read-only file system
+bash: line 1: /scripts/c.w21.err: Read-only file system
+bash: line 1: /scripts/c.w22.err: Read-only file system
+bash: line 1: /scripts/c.w24.err: Read-only file system
+bash: line 1: /scripts/c.w23.err: Read-only file system
+bash: line 1: /scripts/c.w25.err: Read-only file system
+bash: line 1: /scripts/c.w26.err: Read-only file system
+bash: line 1: /scripts/c.w27.err: Read-only file system
+bash: line 1: /scripts/c.w28.err: Read-only file system
+bash: line 1: /scripts/c.w29.err: Read-only file system
+bash: line 1: /scripts/c.w3.err: Read-only file system
+bash: line 1: /scripts/c.w30.err: Read-only file system
+bash: line 1: /scripts/c.w31.err: Read-only file system
+bash: line 1: /scripts/c.w4.err: Read-only file system
+bash: line 1: /scripts/c.w5.err: Read-only file system
+bash: line 1: /scripts/c.w6.err: Read-only file system
+bash: line 1: /scripts/c.w7.err: Read-only file system
+bash: line 1: /scripts/c.w8.err: Read-only file system
+bash: line 1: /scripts/c.w9.err: Read-only file system
+mixnc K=32  M=100  txns=1920   secs=   0.11 txn/s=    17370 rows/s=  1737023 ms/txn=  1.84 | commits=0 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=0.0 master=node1 cpu(cores) master=0.00 replicants=0.09,0.09
+     master-events: none
+     client-errors=0
+## config=unit-p
+STEP 3/5 mixnc 32 100 60
+bash: line 1: /scripts/c.w0.err: Read-only file system
+bash: line 1: /scripts/c.w10.err: Read-only file system
+bash: line 1: /scripts/c.w1.err: Read-only file system
+bash: line 1: /scripts/c.w12.err: Read-only file system
+bash: line 1: /scripts/c.w11.err: Read-only file system
+bash: line 1: /scripts/c.w13.err: Read-only file system
+bash: line 1: /scripts/c.w14.err: Read-only file system
+bash: line 1: /scripts/c.w15.err: Read-only file system
+bash: line 1: /scripts/c.w16.err: Read-only file system
+bash: line 1: /scripts/c.w17.err: Read-only file system
+bash: line 1: /scripts/c.w18.err: Read-only file system
+bash: line 1: /scripts/c.w19.err: Read-only file system
+bash: line 1: /scripts/c.w2.err: Read-only file system
+bash: line 1: /scripts/c.w20.err: Read-only file system
+bash: line 1: /scripts/c.w21.err: Read-only file system
+bash: line 1: /scripts/c.w23.err: Read-only file system
+bash: line 1: /scripts/c.w22.err: Read-only file system
+bash: line 1: /scripts/c.w24.err: Read-only file system
+bash: line 1: /scripts/c.w25.err: Read-only file system
+bash: line 1: /scripts/c.w27.err: Read-only file system
+bash: line 1: /scripts/c.w26.err: Read-only file system
+bash: line 1: /scripts/c.w28.err: Read-only file system
+bash: line 1: /scripts/c.w3.err: Read-only file system
+bash: line 1: /scripts/c.w29.err: Read-only file system
+bash: line 1: /scripts/c.w30.err: Read-only file system
+bash: line 1: /scripts/c.w31.err: Read-only file system
+bash: line 1: /scripts/c.w4.err: Read-only file system
+bash: line 1: /scripts/c.w5.err: Read-only file system
+bash: line 1: /scripts/c.w7.err: Read-only file system
+bash: line 1: /scripts/c.w6.err: Read-only file system
+bash: line 1: /scripts/c.w8.err: Read-only file system
+bash: line 1: /scripts/c.w9.err: Read-only file system
+mixnc K=32  M=100  txns=1920   secs=   0.11 txn/s=    16887 rows/s=  1688744 ms/txn=  1.89 | commits=0 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=0.0 master=node1 cpu(cores) master=0.09 replicants=0.00,0.00
+     master-events: none
+     client-errors=0
+## config=unit
+STEP 4/5 mixnc 32 100 60
+bash: line 1: /scripts/c.w1.err: Read-only file system
+bash: line 1: /scripts/c.w0.err: Read-only file system
+bash: line 1: /scripts/c.w11.err: Read-only file system
+bash: line 1: /scripts/c.w10.err: Read-only file system
+bash: line 1: /scripts/c.w12.err: Read-only file system
+bash: line 1: /scripts/c.w13.err: Read-only file system
+bash: line 1: /scripts/c.w14.err: Read-only file system
+bash: line 1: /scripts/c.w15.err: Read-only file system
+bash: line 1: /scripts/c.w16.err: Read-only file system
+bash: line 1: /scripts/c.w17.err: Read-only file system
+bash: line 1: /scripts/c.w18.err: Read-only file system
+bash: line 1: /scripts/c.w19.err: Read-only file system
+bash: line 1: /scripts/c.w2.err: Read-only file system
+bash: line 1: /scripts/c.w20.err: Read-only file system
+bash: line 1: /scripts/c.w22.err: Read-only file system
+bash: line 1: /scripts/c.w21.err: Read-only file system
+bash: line 1: /scripts/c.w23.err: Read-only file system
+bash: line 1: /scripts/c.w24.err: Read-only file system
+bash: line 1: /scripts/c.w26.err: Read-only file system
+bash: line 1: /scripts/c.w25.err: Read-only file system
+bash: line 1: /scripts/c.w28.err: Read-only file system
+bash: line 1: /scripts/c.w27.err: Read-only file system
+bash: line 1: /scripts/c.w29.err: Read-only file system
+bash: line 1: /scripts/c.w3.err: Read-only file system
+bash: line 1: /scripts/c.w30.err: Read-only file system
+bash: line 1: /scripts/c.w31.err: Read-only file system
+bash: line 1: /scripts/c.w4.err: Read-only file system
+bash: line 1: /scripts/c.w5.err: Read-only file system
+bash: line 1: /scripts/c.w6.err: Read-only file system
+bash: line 1: /scripts/c.w7.err: Read-only file system
+bash: line 1: /scripts/c.w8.err: Read-only file system
+bash: line 1: /scripts/c.w9.err: Read-only file system
+mixnc K=32  M=100  txns=1920   secs=   0.11 txn/s=    17077 rows/s=  1707699 ms/txn=  1.87 | commits=0 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=0.0 master=node1 cpu(cores) master=0.09 replicants=0.09,0.00
+     master-events: none
+     client-errors=0
+## config=pg
+STEP 5/5 mixnc 32 100 60
+bash: line 1: /scripts/c.w0.err: Read-only file system
+bash: line 1: /scripts/c.w1.err: Read-only file system
+bash: line 1: /scripts/c.w10.err: Read-only file system
+bash: line 1: /scripts/c.w11.err: Read-only file system
+bash: line 1: /scripts/c.w12.err: Read-only file system
+bash: line 1: /scripts/c.w13.err: Read-only file system
+bash: line 1: /scripts/c.w14.err: Read-only file system
+bash: line 1: /scripts/c.w15.err: Read-only file system
+bash: line 1: /scripts/c.w16.err: Read-only file system
+bash: line 1: /scripts/c.w17.err: Read-only file system
+bash: line 1: /scripts/c.w18.err: Read-only file system
+bash: line 1: /scripts/c.w19.err: Read-only file system
+bash: line 1: /scripts/c.w2.err: Read-only file system
+bash: line 1: /scripts/c.w20.err: Read-only file system
+bash: line 1: /scripts/c.w21.err: Read-only file system
+bash: line 1: /scripts/c.w22.err: Read-only file system
+bash: line 1: /scripts/c.w23.err: Read-only file system
+bash: line 1: /scripts/c.w24.err: Read-only file system
+bash: line 1: /scripts/c.w25.err: Read-only file system
+bash: line 1: /scripts/c.w27.err: Read-only file system
+bash: line 1: /scripts/c.w26.err: Read-only file system
+bash: line 1: /scripts/c.w28.err: Read-only file system
+bash: line 1: /scripts/c.w29.err: Read-only file system
+bash: line 1: /scripts/c.w3.err: Read-only file system
+bash: line 1: /scripts/c.w31.err: Read-only file system
+bash: line 1: /scripts/c.w30.err: Read-only file system
+bash: line 1: /scripts/c.w4.err: Read-only file system
+bash: line 1: /scripts/c.w5.err: Read-only file system
+bash: line 1: /scripts/c.w6.err: Read-only file system
+bash: line 1: /scripts/c.w7.err: Read-only file system
+bash: line 1: /scripts/c.w8.err: Read-only file system
+bash: line 1: /scripts/c.w9.err: Read-only file system
+mixnc K=32  M=100  txns=1920   secs=   0.11 txn/s=    16971 rows/s=  1697100 ms/txn=  1.89 | commits=0 deadlocks=0 retries=0 lockwaits=0 lockwait_ms=0 lockreq/row=0.0 master=node1 cpu(cores) master=0.00 replicants=0.09,0.09
+     master-events: none
+     client-errors=0
+node1: 2000000	1000000000006	1000000118776	999972636100	80000000
+node2: 2000000	1000000000006	1000000118776	999972636100	80000000
+node3: 2000000	1000000000006	1000000118776	999972636100	80000000
+Verify succeeded.
+ALLDONE
+# end Sun Nov 15 02:11:31 UTC 2026
+RUNEND
