@@ -1258,6 +1258,9 @@ REGISTER_TUNABLE("test_file_version_deadlock",
 REGISTER_TUNABLE("test_llmeta_blob_deadlock",
                  "Fail this many llmeta parameter writes in a caller's transaction with a deadlock", TUNABLE_INTEGER,
                  &gbl_test_llmeta_blob_deadlock, INTERNAL | EXPERIMENTAL, NULL, NULL, NULL, NULL);
+REGISTER_TUNABLE("test_snap_catalog_fail",
+                 "Fail every build of the tables as of a snapshot start, as if llmeta could not be read",
+                 TUNABLE_BOOLEAN, &gbl_test_snap_catalog_fail, INTERNAL | EXPERIMENTAL, NULL, NULL, NULL, NULL);
 REGISTER_TUNABLE("test_scindex_deadlock",
                  "Test index on expressions schema change deadlock",
                  TUNABLE_BOOLEAN, &gbl_test_scindex_deadlock, READONLY, NULL,

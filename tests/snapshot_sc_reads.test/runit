@@ -40,7 +40,8 @@ run_lines() {
 
 # check <case> <output of the transaction> <expected>: the expected rows of
 # the statement after "select 'last'", "ERR <text>" for an error of the
-# rest of the transaction, or "OK" for no error in the transaction.  The
+# rest of the transaction, "ANYERR <text>" for an error of any statement, or
+# "OK" for no error in the transaction.  The
 # output has the rows of each statement, then a "[statement] rc 0" line;
 # errors come from stderr, so not in order.
 check() {
@@ -50,6 +51,8 @@ check() {
     local rows=$(sed '$d' <<< "$got")
     if [[ "$exp" == "OK" ]]; then
         grep -q "failed with" <<< "$out" || return
+    elif [[ "$exp" == "ANYERR "* ]]; then
+        grep -q "failed with.*${exp#ANYERR }" <<< "$out" && return
     elif [[ "$exp" == "ERR "* ]]; then
         sed -n '/^(last=.last.)$/,$p' <<< "$out" | grep -q "failed with.*${exp#ERR }" && return
     else
@@ -170,15 +173,23 @@ live rename_table_under_view "$VIEW" "alter table T rename to T_r" "$SELV" "$ROW
 # the transaction cannot write a table as it was before a schema change
 live write_old_table "" "rebuild T" "insert into T values(9,9)" "ERR was schema changed"
 # "delfiles" removes the old files of a table, which the snapshot needs: a
-# statement that reads the table fails, also when the schema change history
-# is gone, and the other tables of the snapshot are still as of its start
-GONE="ERR its files were removed"
+# statement that reads the table fails (the schema change history plays no
+# part), and the other tables of the snapshot are still as of its start
+GONE="ERR its files cannot be opened"
 live delfiles "" $'truncate table T\nmaster delfiles T' "$SEL" "$GONE"
 live delfiles_clear_history "" $'truncate table T\nmaster delfiles T\nmaster clear_sc_history' "$SEL" "$GONE"
 live delfiles_other_table $'create table T_o(i int)\ninsert into T_o values(1)' \
     $'truncate table T_o\nmaster delfiles T_o\nalter table T add k int' "$SEL" "$ROWS"
 live delfiles_other_table_read $'create table T_o(i int)\ninsert into T_o values(1)' \
     $'truncate table T_o\nmaster delfiles T_o\nalter table T add k int' "select * from T_o" "$GONE"
+# a snapshot that cannot read the tables as of its start fails; it never
+# reads the current tables instead.  Every statement after the change fails,
+# also "select 'last'".
+FAIL_ON="ALLNODES exec procedure sys.cmd.send('test_snap_catalog_fail 1')"
+FAIL_OFF="ALLNODES exec procedure sys.cmd.send('test_snap_catalog_fail 0')"
+NOCAT="ANYERR cannot read the tables as of the snapshot start"
+live catalog_fails "" "alter table T add k int"$'\n'"$FAIL_ON" "$SEL" "$NOCAT"
+run_lines "$FAIL_OFF"
 
 asof insert "insert into T values(4,4)" "$SEL" "$ROWS"
 asof add_column "alter table T add k int" "$SEL" "$ROWS"
@@ -221,5 +232,7 @@ asof delfiles $'truncate table T\nmaster delfiles T' "$SEL" "$GONE"
 asof delfiles_clear_history $'truncate table T\nmaster delfiles T\nmaster clear_sc_history' "$SEL" "$GONE"
 asof delfiles_other_table $'truncate table T_o\nmaster delfiles T_o\nalter table T add k int' "$SEL" "$ROWS" \
     $'create table T_o(i int)\ninsert into T_o values(1)'
+asof catalog_fails "alter table T add k int"$'\n'"$FAIL_ON" "$SEL" "$NOCAT"
+run_lines "$FAIL_OFF"
 
 exit $failed

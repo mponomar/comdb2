@@ -1742,6 +1742,10 @@ static void reqlog_setup_begin_commit_rollback(struct sqlthdstate *thd, struct s
     log_queue_time(thd->logger, clnt);
 }
 
+/* populate_modsnap_state(): the logs cannot rebuild the snapshot */
+enum { MODSNAP_START_UNAVAILABLE = -2 };
+static const char modsnap_start_unavailable_msg[] = "snapshot start is older than the database logs";
+
 static int populate_modsnap_state(struct sqlclntstate *clnt)
 {
     assert_no_schema_lk();
@@ -1771,6 +1775,15 @@ static int populate_modsnap_state(struct sqlclntstate *clnt)
                               &clnt->modsnap_registration);
     if (rc) {
         logmsg(LOGMSG_ERROR, "%s: Failed to register modsnap txn\n", __func__);
+        goto done;
+    }
+
+    /* registered: the logs stay from now on; fail if some are already gone */
+    if (bdb_check_modsnap_start(db->handle, clnt->modsnap_start_lsn_file, clnt->modsnap_start_lsn_offset,
+                                clnt->last_checkpoint_lsn_file, clnt->last_checkpoint_lsn_offset)) {
+        bdb_unregister_modsnap(thedb->bdb_env, clnt->modsnap_registration);
+        clnt->modsnap_registration = NULL;
+        rc = MODSNAP_START_UNAVAILABLE;
         goto done;
     }
 
@@ -1821,12 +1834,18 @@ int handle_sql_begin(struct sqlthdstate *thd, struct sqlclntstate *clnt,
 
     /* Latch the last commit LSN */
     assert(!clnt->modsnap_in_progress);
-    if (clnt->dbtran.mode == TRANLEVEL_SNAPISOL && populate_modsnap_state(clnt) != 0 && !clnt->osql.replay &&
-        sideeffects == TRANS_CLNTCOMM_NORMAL) {
-        /* No durable start lsn: hasql retries a not-durable begin */
+    int modsnap_rc = 0;
+    if (clnt->dbtran.mode == TRANLEVEL_SNAPISOL && (modsnap_rc = populate_modsnap_state(clnt)) != 0 &&
+        !clnt->osql.replay && sideeffects == TRANS_CLNTCOMM_NORMAL) {
         sql_set_sqlengine_state(clnt, __FILE__, __LINE__, SQLENG_NORMAL_PROCESS);
         Pthread_mutex_unlock(&clnt->wait_mutex);
-        send_run_error(clnt, "Transaction is not durable", CDB2ERR_NOTDURABLE);
+        if (modsnap_rc == MODSNAP_START_UNAVAILABLE) {
+            /* no node can do better: do not retry */
+            send_run_error(clnt, modsnap_start_unavailable_msg, CDB2ERR_PREPARE_ERROR);
+        } else {
+            /* No durable start lsn: hasql retries a not-durable begin */
+            send_run_error(clnt, "Transaction is not durable", CDB2ERR_NOTDURABLE);
+        }
         rc = SQLITE_CLIENT_CHANGENODE;
         reqlog_end_request(thd->logger, rc, __func__, __LINE__);
         return rc;
@@ -3365,7 +3384,11 @@ static int get_prepared_stmt_int(struct sqlthdstate *thd,
 
     int rc = sqlengine_prepare_engine(thd, clnt, flags);
 
-    if (thd->sqldb == NULL) {
+    if (rc == SQLITE_TRAN_NOLOG) {
+        /* the tables as of the snapshot start cannot be read */
+        errstat_set_rcstrf(err, ERR_PREPARE, "%s", snap_catalog_errmsg);
+        return rc;
+    } else if (thd->sqldb == NULL) {
         return handle_bad_engine(clnt);
     } else if (rc) {
         return rc;
@@ -3511,10 +3534,16 @@ int get_prepared_stmt(struct sqlthdstate *thd, struct sqlclntstate *clnt,
 {
     curtran_assert_nolocks();
     assert(!clnt->modsnap_in_progress || clnt->in_client_trans);
-    if (clnt->dbtran.mode == TRANLEVEL_SNAPISOL && !clnt->modsnap_in_progress && populate_modsnap_state(clnt)) {
+    int modsnap_rc;
+    if (clnt->dbtran.mode == TRANLEVEL_SNAPISOL && !clnt->modsnap_in_progress &&
+        (modsnap_rc = populate_modsnap_state(clnt)) != 0) {
         /* sql_statement_done needs it, and a nested replay hasn't set it */
         if (!clnt->sql_ref && clnt->sql)
             clnt->sql_ref = create_string_ref(clnt->sql);
+        if (modsnap_rc == MODSNAP_START_UNAVAILABLE) {
+            errstat_set_rcstrf(err, ERR_PREPARE, "%s", modsnap_start_unavailable_msg);
+            return SQLITE_ERROR;
+        }
         return SQLITE_CLIENT_CHANGENODE;
     }
     if (gbl_sleep_5s_after_caching_table_versions) {
@@ -4552,8 +4581,12 @@ static int prepare_engine(struct sqlthdstate *thd, struct sqlclntstate *clnt,
     }
 
 check_version:
-    /* a snapshot that crossed a schema change sees the tables as they were */
-    snap_catalog_prepare(clnt, &snap_catalog_id);
+    /* a snapshot that crossed a schema change sees the tables as they were,
+     * or fails */
+    if (snap_catalog_prepare(clnt, &snap_catalog_id)) {
+        rc = SQLITE_TRAN_NOLOG;
+        goto done;
+    }
     if (thd->sqldb && thd->snap_catalog_id != snap_catalog_id) {
         stmt_cache_reset(thd->stmt_cache);
         sqlite3_close_serial(&thd->sqldb);

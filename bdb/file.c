@@ -310,25 +310,27 @@ static void bdb_modsnap_delete_log(bdb_state_type *bdb_state, int filenum,
     bdb_delete_timestamp_lsn(bdb_state, timestamp);
 }
 
-void bdb_checkpoint_list_get_ckplsn_before_lsn(DB_LSN lsn, DB_LSN *lsnout)
+/* Set *lsnout to the checkpoint LSN of the newest checkpoint at or before
+ * lsn.  Return -1 if there is none: lsn is older than the logs. */
+int bdb_checkpoint_list_get_ckplsn_before_lsn(DB_LSN lsn, DB_LSN *lsnout)
 {
     struct checkpoint_list *ckp = NULL;
     if (!ckp_lst_ready)
-        return;
+        return -1;
     Pthread_mutex_lock(&ckp_lst_mtx);
     LISTC_FOR_EACH_REVERSE(&ckp_lst, ckp, lnk)
     {
         if (log_compare(&ckp->lsn, &lsn) <= 0) {
             *lsnout = ckp->ckp_lsn;
             Pthread_mutex_unlock(&ckp_lst_mtx);
-            return;
+            return 0;
         }
     }
     Pthread_mutex_unlock(&ckp_lst_mtx);
 
     logmsg(LOGMSG_ERROR, "%s: Failed to find checkpoint LSN before %"PRIu32":%"PRIu32".\n",
         __func__, lsn.file, lsn.offset);
-    abort();
+    return -1;
 }
 
 void bdb_checkpoint_list_get_ckp_before_timestamp(int timestamp, DB_LSN *lsnout)

@@ -8843,12 +8843,13 @@ static int sqlite3LockStmtTables_int(sqlite3_stmt *pStmt, int after_recovery)
             }
         }
 
-        /* the files of a table as the snapshot saw it are gone */
+        /* the files of a table as the snapshot saw it are gone, or do not
+         * open */
         if (snap_catalog_table_unavailable(db)) {
-            logmsg(LOGMSG_ERROR, "%s: table %s: files as of %u:%u are gone\n", __func__, db->tablename,
+            logmsg(LOGMSG_ERROR, "%s: table %s: files as of %u:%u do not open\n", __func__, db->tablename,
                    clnt->modsnap_start_lsn_file, clnt->modsnap_start_lsn_offset);
             sqlite3_mutex_enter(sqlite3_db_mutex(p->db));
-            sqlite3VdbeError(p, "table \"%s\" as of the snapshot is not available: its files were removed",
+            sqlite3VdbeError(p, "table \"%s\" as of the snapshot is not available: its files cannot be opened",
                              db->tablename);
             sqlite3VdbeTransferError(p);
             sqlite3MakeSureDbHasErr(p->db, SQLITE_OK);

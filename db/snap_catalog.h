@@ -27,13 +27,19 @@ struct snap_catalog;
 struct timepart_views;
 
 /* A schema change is about to become visible.  Call with the schema lock
- * held exclusively, before the commit. */
+ * held exclusively, before the commit; or, for a change that sqlite engines
+ * only see through gbl_views_gen (time partitions), with views_lk held for
+ * write, before bumping gbl_views_gen. */
 void snap_catalog_schema_changed(void);
 
 /* Make clnt->dbtran.snap_catalog the tables as of the modsnap start LSN.
  * Sets *id to the id of the catalog, or to 0 if the snapshot sees the
- * current tables.  Call with the schema lock held for read. */
-void snap_catalog_prepare(struct sqlclntstate *clnt, uint64_t *id);
+ * current tables.  Returns non-0 if the tables as of the start LSN cannot be
+ * read: the statement must fail (see snap_catalog_errmsg).  Call with the
+ * schema lock held for read. */
+int snap_catalog_prepare(struct sqlclntstate *clnt, uint64_t *id);
+
+extern const char snap_catalog_errmsg[];
 
 /* Copy the sqlite_master entries of the catalog of clnt to thd */
 int snap_catalog_copy_rootpages(struct sqlclntstate *clnt, struct sql_thread *thd);

@@ -25,6 +25,7 @@
 #include "crc32c.h"
 #include "sql.h"
 #include "views.h"
+#include "snap_catalog.h"
 #include "locks.h"
 #include "schemachange.h"
 #include "bdb_schemachange.h"
@@ -1226,7 +1227,12 @@ void *_view_cron_phase2(struct cron_event *event, struct errstat *err)
             }
         }
 
-        /* tell the world */
+        /* tell the world.  The shard list changed in its own transaction,
+         * not in a schema change: make snapshots compare their time
+         * partitions again (snap_catalog.c).  A snapshot refreshes its
+         * views under views_lk, which we hold, so it cannot see the new
+         * views before this. */
+        snap_catalog_schema_changed();
         gbl_views_gen++;
         view->version = gbl_views_gen;
 

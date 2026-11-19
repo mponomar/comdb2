@@ -25,12 +25,22 @@
  * the log that removed them is deleted, and the snapshot holds that log.  A
  * table created after the start LSN is not in the catalog.
  *
+ * A snapshot never reads the current tables in place of the tables as of
+ * its start LSN.  If llmeta cannot be read as of the start LSN, every
+ * statement of the snapshot fails (snap_catalog_prepare() returns an error).
+ * The snapshot cannot start if the logs no longer reach back to its start
+ * LSN (bdb_check_modsnap_start()), and once it starts, log deletion keeps
+ * them.  So the catalog is exact, and it needs no schema change history: it
+ * compares llmeta as of the start LSN with llmeta now.  That takes two
+ * things: everything a read depends on is in llmeta and compared here, and
+ * every change to it calls snap_catalog_schema_changed().
+ *
  * The old files of a table can be gone: "delfiles" removes the files that
- * llmeta does not name, even if the logs still do.  Such a table is in the
- * catalog without files, so that sqlite knows it, and a statement that uses it
- * fails (see snap_catalog_table_unavailable()).  The other tables of the
- * catalog are not affected.  Do not fall back to the current table: it is not
- * the table as of the start LSN.
+ * llmeta does not name, even if the logs still do.  We only find out when we
+ * open them.  Such a table, or any table whose old files do not open, is in
+ * the catalog without files, so that sqlite knows it, and a statement that
+ * uses it fails (see snap_catalog_table_unavailable()).  The other tables of
+ * the catalog are not affected.
  *
  * sqlite sees the catalog through its own sqlite_master entries, and
  * get_dbtable_by_name() returns its tables on the sql thread of the snapshot.
@@ -45,6 +55,7 @@
  */
 
 #include <inttypes.h>
+#include <poll.h>
 
 #include "comdb2.h"
 #include "sql.h"
@@ -58,6 +69,8 @@
 #include <sys_wrap.h>
 
 extern pthread_mutex_t csc2_subsystem_mtx;
+
+int gbl_test_snap_catalog_fail = 0;
 
 /* An old table: a table as a snapshot saw it before a schema change */
 struct snap_table {
@@ -78,6 +91,7 @@ struct snap_catalog {
     uint64_t id;
     int64_t sc_gen;  /* sc_gen when built */
     int dbopen_gen;
+    int failed;      /* the tables as of the start LSN cannot be read */
     int nents;       /* 0: the snapshot sees the current tables */
     struct snap_catalog_ent *ents;
     master_entry_t *master;
@@ -123,9 +137,9 @@ static int sc_after_lsn(uint32_t file, uint32_t offset, int64_t *gen)
 }
 
 /* 1 if db has the sql name alias (NULL: its own name), the schema csc2 and
- * the files that llmeta names through tran.  The csc2 version alone does not
- * tell: a table without instant schema change keeps version 1 through an
- * index change. */
+ * the files that llmeta names through tran, 0 if not, -1 if llmeta cannot be
+ * read.  The csc2 version alone does not tell: a table without instant
+ * schema change keeps version 1 through an index change. */
 static int same_table(tran_type *tran, struct dbtable *db, const char *alias, const char *csc2)
 {
     unsigned long long vers;
@@ -136,13 +150,15 @@ static int same_table(tran_type *tran, struct dbtable *db, const char *alias, co
     if (db->csc2_schema == NULL || strcmp(db->csc2_schema, csc2) != 0)
         return 0;
     for (int i = 0; i < db->numblobs + 1; i++) {
-        if (bdb_get_file_version_data_by_name(tran, db->tablename, i, &vers, &bdberr) < 0 ||
-            vers != bdb_get_open_file_version(db->handle, 1, i))
+        if (bdb_get_file_version_data_by_name(tran, db->tablename, i, &vers, &bdberr) < 0)
+            return -1;
+        if (vers != bdb_get_open_file_version(db->handle, 1, i))
             return 0;
     }
     for (int i = 0; i < db->nix; i++) {
-        if (bdb_get_file_version_index_by_name(tran, db->tablename, i, &vers, &bdberr) < 0 ||
-            vers != bdb_get_open_file_version(db->handle, 0, i))
+        if (bdb_get_file_version_index_by_name(tran, db->tablename, i, &vers, &bdberr) < 0)
+            return -1;
+        if (vers != bdb_get_open_file_version(db->handle, 0, i))
             return 0;
     }
     return 1;
@@ -270,7 +286,8 @@ static struct snap_table *get_old_table(tran_type *tran, const char *name, const
 
     Pthread_mutex_lock(&snap_tables_lk);
     for (st = snap_tables; st; st = st->next) {
-        if (strcasecmp(st->name, name) == 0 && st->dbopen_gen == dbopen_gen && same_table(tran, st->db, alias, csc2)) {
+        if (strcasecmp(st->name, name) == 0 && st->dbopen_gen == dbopen_gen &&
+            same_table(tran, st->db, alias, csc2) == 1) {
             st->refs++;
             break;
         }
@@ -378,9 +395,15 @@ static int build_catalog(struct sqlclntstate *clnt, struct snap_catalog *cat)
     char **names = calloc(MAX_NUM_TABLES, sizeof(char *));
     int *dbnums = calloc(MAX_NUM_TABLES, sizeof(int));
     struct dbtable **dbs = NULL;
+    char *tp_then = NULL, *tp_now = NULL;
     int ntables = 0, changed = 0, nlive = 0, rc = -1, bdberr;
 
-    tran_type *tran = bdb_tran_begin(thedb->bdb_env, NULL, &bdberr);
+    tran_type *tran = NULL;
+    if (gbl_test_snap_catalog_fail) {
+        logmsg(LOGMSG_ERROR, "%s: test_snap_catalog_fail is set\n", __func__);
+        goto done;
+    }
+    tran = bdb_tran_begin(thedb->bdb_env, NULL, &bdberr);
     if (names == NULL || dbnums == NULL || tran == NULL)
         goto done;
     bdb_tran_set_llmeta_snap(tran, clnt->modsnap_start_lsn_file, clnt->modsnap_start_lsn_offset,
@@ -397,7 +420,17 @@ static int build_catalog(struct sqlclntstate *clnt, struct snap_catalog *cat)
     if (ntables && (cat->ents == NULL || dbs == NULL))
         goto done;
 
-    cat->views = views_create_all_views_tran(tran);
+    /* the time partitions as of the start LSN, and whether they changed
+     * since: a partition can change without a table changing (the shard list
+     * of a rollout, the retention) */
+    if (views_read_all_views_tran(tran, &tp_then) < 0 || views_read_all_views_tran(NULL, &tp_now) < 0) {
+        logmsg(LOGMSG_ERROR, "%s: cannot read the time partitions as of %u:%u\n", __func__,
+               clnt->modsnap_start_lsn_file, clnt->modsnap_start_lsn_offset);
+        goto done;
+    }
+    if (tp_then ? tp_now == NULL || strcmp(tp_then, tp_now) != 0 : tp_now != NULL)
+        changed = 1;
+    cat->views = views_create_all_views_str(tp_then);
     cat->view_hash = llmeta_read_views(tran);
     if (cat->views == NULL || cat->view_hash == NULL)
         goto done;
@@ -425,8 +458,15 @@ static int build_catalog(struct sqlclntstate *clnt, struct snap_catalog *cat)
         }
 
         struct dbtable *live = get_live_dbtable_by_name(names[i]);
-        if (live && strcasecmp(live->tablename, names[i]) == 0 && same_table(tran, live, ent->alias, csc2)) {
+        int same = 0;
+        if (live && strcasecmp(live->tablename, names[i]) == 0 &&
+            (same = same_table(tran, live, ent->alias, csc2)) != 0) {
             free(csc2);
+            if (same < 0) {
+                logmsg(LOGMSG_ERROR, "%s: cannot read the files of table %s as of %u:%u\n", __func__, names[i],
+                       clnt->modsnap_start_lsn_file, clnt->modsnap_start_lsn_offset);
+                goto done;
+            }
             dbs[i] = live;
             nlive++;
             continue;
@@ -461,6 +501,8 @@ static int build_catalog(struct sqlclntstate *clnt, struct snap_catalog *cat)
     rc = 0;
 
 done:
+    free(tp_then);
+    free(tp_now);
     if (tran)
         bdb_tran_abort(thedb->bdb_env, tran, &bdberr);
     for (int i = 0; names && i < ntables; i++)
@@ -471,39 +513,65 @@ done:
     return rc;
 }
 
-void snap_catalog_prepare(struct sqlclntstate *clnt, uint64_t *id)
+const char snap_catalog_errmsg[] = "cannot read the tables as of the snapshot start";
+
+/* build_catalog() reads llmeta in a transaction of its own, which can lose
+ * a deadlock to a writer: try this many times before failing */
+enum { BUILD_CATALOG_TRIES = 5 };
+
+int snap_catalog_prepare(struct sqlclntstate *clnt, uint64_t *id)
 {
     struct snap_catalog *cat = clnt->dbtran.snap_catalog;
     int64_t gen;
 
     *id = 0;
     if (clnt->dbtran.mode != TRANLEVEL_SNAPISOL || !clnt->modsnap_in_progress)
-        return;
+        return 0;
     if (!sc_after_lsn(clnt->modsnap_start_lsn_file, clnt->modsnap_start_lsn_offset, &gen))
-        return;
+        return 0;
 
     if (cat && cat->sc_gen == gen && cat->dbopen_gen == bdb_get_dbopen_gen()) {
+        if (cat->failed)
+            return -1;
         *id = cat->nents ? cat->id : 0;
-        return;
+        return 0;
     }
 
     /* build without the old catalog, so lookups see the current tables; free
      * it after, so the old tables both use stay open */
     clnt->dbtran.snap_catalog = NULL;
     struct snap_catalog *newcat = calloc(1, sizeof(*newcat));
-    if (newcat) {
-        newcat->id = ATOMIC_ADD64(snap_seq, 1);
-        newcat->sc_gen = gen;
-        newcat->dbopen_gen = bdb_get_dbopen_gen();
-        if (build_catalog(clnt, newcat)) {
-            /* read the current tables until the next schema change */
+    if (newcat == NULL) {
+        logmsg(LOGMSG_ERROR, "%s: out of memory for the catalog as of %u:%u\n", __func__,
+               clnt->modsnap_start_lsn_file, clnt->modsnap_start_lsn_offset);
+        snap_catalog_free(&cat);
+        return -1;
+    }
+    newcat->id = ATOMIC_ADD64(snap_seq, 1);
+    newcat->sc_gen = gen;
+    newcat->dbopen_gen = bdb_get_dbopen_gen();
+    int rc = -1;
+    for (int try = 0; rc && try < BUILD_CATALOG_TRIES; try++) {
+        if (try)
+            poll(NULL, 0, 10 * try);
+        if ((rc = build_catalog(clnt, newcat)) != 0)
             clear_catalog(newcat);
-        }
+    }
+    if (rc) {
+        /* never read the current tables instead: they are not the tables as
+         * of the start LSN.  Every statement fails until the catalog is built
+         * again after the next schema change. */
+        logmsg(LOGMSG_ERROR, "%s: cannot build the catalog as of %u:%u\n", __func__, clnt->modsnap_start_lsn_file,
+               clnt->modsnap_start_lsn_offset);
+        newcat->failed = 1;
     }
     snap_catalog_free(&cat);
     clnt->dbtran.snap_catalog = newcat;
-    if (newcat && newcat->nents)
+    if (newcat->failed)
+        return -1;
+    if (newcat->nents)
         *id = newcat->id;
+    return 0;
 }
 
 int snap_catalog_copy_rootpages(struct sqlclntstate *clnt, struct sql_thread *thd)

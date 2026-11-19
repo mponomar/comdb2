@@ -399,18 +399,11 @@ timepart_views_t *views_create_all_views(void)
     return _create_all_views(views_str, 1);
 }
 
-timepart_views_t *views_create_all_views_tran(void *tran)
+timepart_views_t *views_create_all_views_str(const char *views_str)
 {
-    char *views_str;
-    timepart_views_t *ret;
-
-    views_str = views_read_all_views_tran(tran);
     if (!views_str)
         return (timepart_views_t *)calloc(1, sizeof(timepart_views_t));
-
-    ret = _create_all_views(views_str, 0);
-    free(views_str);
-    return ret;
+    return _create_all_views(views_str, 0);
 }
 
 /* parse a user-provided json create command and update the in-memory views */

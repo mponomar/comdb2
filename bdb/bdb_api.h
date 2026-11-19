@@ -1508,6 +1508,13 @@ int bdb_register_modsnap(bdb_state_type *bdb_state,
                         unsigned int last_checkpoint_lsn_offset,
                         void ** registration);
 
+/* Returns 0 if the logs can rebuild pages as of the start LSN of a
+ * registered modsnap transaction, non-0 if they cannot: the transaction must
+ * not start. */
+int bdb_check_modsnap_start(bdb_state_type *bdb_state, unsigned int modsnap_start_lsn_file,
+                            unsigned int modsnap_start_lsn_offset, unsigned int last_checkpoint_lsn_file,
+                            unsigned int last_checkpoint_lsn_offset);
+
 /* 
  * Returns 1 if this registered modsnap txn is allowed to open cursors; 0 otherwise
  */

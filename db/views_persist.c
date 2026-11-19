@@ -124,24 +124,27 @@ int views_read_view(void *tran, const char *name, char **pstr)
  */
 char *views_read_all_views(void)
 {
-    return views_read_all_views_tran(NULL);
+    char *blob = NULL;
+    if (views_read_all_views_tran(NULL, &blob) != 0)
+        return NULL;
+    return blob;
 }
 
 /**
  * Read the llmeta cson representation of all the views through tran
  *
  */
-char *views_read_all_views_tran(void *tran)
+int views_read_all_views_tran(void *tran, char **out)
 {
     char *blob = NULL;
     int blob_len = 0;
-    int rc;
 
-    rc =
-        bdb_get_table_csonparameters(tran, LLMETA_TABLE_NAME, &blob, &blob_len);
-    if (rc) {
-        return NULL;
-    }
-
-    return blob;
+    *out = NULL;
+    int rc = bdb_get_table_csonparameters(tran, LLMETA_TABLE_NAME, &blob, &blob_len);
+    if (rc < 0)
+        return -1;
+    if (rc > 0)
+        return 1;
+    *out = blob;
+    return 0;
 }

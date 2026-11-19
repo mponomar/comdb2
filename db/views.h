@@ -200,10 +200,12 @@ int views_read_view(void *tran, const char *name, char **pstr);
 char *views_read_all_views(void);
 
 /**
- * Read the llmeta cson representation of all the views through tran
+ * Read the llmeta cson representation of all the views through tran into
+ * *out (malloced).  Return 0 if found, 1 if there are no views (*out is
+ * NULL), -1 if llmeta cannot be read.
  *
  */
-char *views_read_all_views_tran(void *tran);
+int views_read_all_views_tran(void *tran, char **out);
 
 /**
  * Create in-memory view set corresponding to the llmeta saved value
@@ -212,15 +214,16 @@ char *views_read_all_views_tran(void *tran);
 timepart_views_t *views_create_all_views(void);
 
 /**
- * Create a view set from the llmeta that tran reads, for example as of a
- * snapshot (see bdb_tran_set_llmeta_snap()).  The set does not register its
- * shards with the tables; free it with timepart_views_free()
+ * Create a view set from the llmeta cson representation views_str (NULL: no
+ * views), for example as of a snapshot (see bdb_tran_set_llmeta_snap()).
+ * The set does not register its shards with the tables; free it with
+ * timepart_views_free().  Return NULL on error.
  *
  */
-timepart_views_t *views_create_all_views_tran(void *tran);
+timepart_views_t *views_create_all_views_str(const char *views_str);
 
 /**
- * Free a view set from views_create_all_views_tran()
+ * Free a view set from views_create_all_views_str()
  *
  */
 void timepart_views_free(timepart_views_t *views);
