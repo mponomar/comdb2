@@ -1341,7 +1341,8 @@ int (*SCDONE_CALLBACKS[])(const char *, void *, scdone_t) = {
 int64_t gbl_schema_gen = 1;
 
 /* Schema changes after which a snapshot that started earlier can no longer
- * read the table correctly.  A drop needs nothing: the table is gone. */
+ * read the table correctly.  A drop needs nothing: the table is gone.  Nor
+ * does change_stripe: stripes are only added, and no rows move. */
 static int scdone_changes_table(scdone_t type)
 {
     switch (type) {
@@ -1350,7 +1351,6 @@ static int scdone_changes_table(scdone_t type)
     case bulkimport:
     case rename_table:
     case alias_table:
-    case change_stripe:
         return 1;
     default:
         return 0;
@@ -1373,12 +1373,6 @@ void sc_bump_changed_gen(scdone_t type, struct dbtable *db)
         return;
 
     assert_wrlock_schema_lk();
-
-    if (type == change_stripe) {
-        for (int i = 0; i < thedb->num_dbs; i++)
-            bump_table_changed_gen(thedb->dbs[i]);
-        return;
-    }
 
     if (db)
         bump_table_changed_gen(db);
