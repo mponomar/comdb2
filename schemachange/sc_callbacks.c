@@ -17,6 +17,7 @@
 #include <memory_sync.h>
 #include "schemachange.h"
 #include "sc_callbacks.h"
+#include "snap_catalog.h"
 #include "sc_global.h"
 #include "sc_add_table.h"
 #include "sc_schema.h"
@@ -1337,15 +1338,69 @@ int (*SCDONE_CALLBACKS[])(const char *, void *, scdone_t) = {
     &scdone_queue_file,    &scdone_rename_table,   &scdone_alias,
     &scdone_default_cons};
 
+int64_t gbl_schema_gen = 1;
+
+/* Schema changes after which a snapshot that started earlier can no longer
+ * read the table correctly.  A drop needs nothing: the table is gone.  Nor
+ * does change_stripe: stripes are only added, and no rows move. */
+static int scdone_changes_table(scdone_t type)
+{
+    switch (type) {
+    case alter:
+    case fastinit: /* also add */
+    case bulkimport:
+    case rename_table:
+    case alias_table:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+static void bump_table_changed_gen(struct dbtable *db)
+{
+    db->changed_gen = ATOMIC_ADD64(gbl_schema_gen, 1);
+}
+
+/* Mark the tables changed by a schema change, so that snapshot and
+ * serializable transactions that started earlier fail when they access them
+ * (see sqlite3LockStmtTables).  The caller holds the schema lock exclusively,
+ * before readers can see the change; readers check under the read lock.  Other
+ * scdone types, such as an analyze, can come without the schema lock. */
+void sc_bump_changed_gen(scdone_t type, struct dbtable *db)
+{
+    if (!scdone_changes_table(type))
+        return;
+
+    assert_wrlock_schema_lk();
+
+    if (db)
+        bump_table_changed_gen(db);
+}
+
 /* TODO fail gracefully now that inline? */
-/* called by bdb layer through a callback as a detached thread,
- * we take ownership of table string
- * run on the replecants after the master is done so that they can reload/update
- * their copies of the modified database
- * if this fails, we panic so that we will be restarted back into a consistent
+/* Called by the bdb layer, inline on the thread that applies the scdone log
+ * record (handle_scdone() -> bdb_scdone_int()), with the schema lock held for
+ * write.  Runs on the replicants after the master is done so that they can
+ * reload/update their copies of the modified database.  arg is a copy that
+ * bdb_scdone_int() made for us; a full rename keeps it as the new
+ * db->tablename (see rename_db()).
+ * If this fails, we panic so that we will be restarted back into a consistent
  * state */
 int scdone_callback(bdb_state_type *bdb_state, const char table[], void *arg,
                     scdone_t type)
 {
-    return SCDONE_CALLBACKS[type](table, arg, type);
+    /* before the change is visible: the commit is already in the log */
+    snap_catalog_schema_changed();
+
+    int rc = SCDONE_CALLBACKS[type](table, arg, type);
+
+    if (rc == 0) {
+        /* a rename passes the new name in arg, which the renamed table now
+         * holds as its name */
+        const char *name = (type == rename_table && arg) ? (const char *)arg : table;
+        sc_bump_changed_gen(type, name ? get_dbtable_by_name(name) : NULL);
+    }
+
+    return rc;
 }

@@ -1533,6 +1533,13 @@ __txn_commit_int(txnp, flags, ltranid, llid, last_commit_lsn, rlocks, inlks,
 
 				utxnid_track->utxnid = txnp->utxnid;
 				listc_atl(&txnp->parent->committed_kids, utxnid_track);
+
+				/* Our committed children now commit with our parent.  comdb2
+				 * transactions nest at most two levels (parent and child), so
+				 * this list is normally empty.  This is defensive: a third
+				 * level would otherwise be missing from the commit LSN map. */
+				while ((utxnid_track = listc_rtl(&txnp->committed_kids)) != NULL)
+					listc_atl(&txnp->parent->committed_kids, utxnid_track);
 			}
 		}
 	}
@@ -1578,7 +1585,9 @@ __txn_commit_int(txnp, flags, ltranid, llid, last_commit_lsn, rlocks, inlks,
 			goto err;
 		}
 
-		/* No grandchildren in comdb2, so this is sufficient. */
+		/* Holds every descendant: a child passes its committed kids up when it
+		 * commits.  In comdb2 that is only direct children, since transactions
+		 * nest at most two levels; deeper nesting is a caller bug. */
 		LISTC_FOR_EACH(&txnp->committed_kids, utxnid_track, lnk) {
 			ret = __txn_commit_map_add_nolock(dbenv, utxnid_track->utxnid, txnp->last_lsn);
 			if (ret != 0) {

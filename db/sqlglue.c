@@ -109,6 +109,7 @@
 #include <sqlwriter.h>
 
 #include "views.h"
+#include "snap_catalog.h"
 
 int gbl_delay_sql_lock_release_sec = 5;
 
@@ -336,6 +337,11 @@ enum { AUTHENTICATE_READ = 1, AUTHENTICATE_WRITE = 2 };
 
 static int chunk_transaction(BtCursor *pCur, struct sqlclntstate *clnt,
                              struct sql_thread *thd);
+
+void clear_snap_state(dbtran_type *dbtran)
+{
+    snap_catalog_free(&dbtran->snap_catalog);
+}
 
 static void initialize_curtran_for_modsnap(cursor_tran_t * const curtran, const struct sqlclntstate * const clnt)
 {
@@ -2057,7 +2063,7 @@ int create_datacopy_array(struct dbtable *tbl)
 
 /* This creates SQL statements that correspond to a table's schema. These
    statements are used to bootstrap sqlite. */
-static int create_sqlmaster_record(struct dbtable *tbl, void *tran)
+int create_sqlmaster_record(struct dbtable *tbl, void *tran)
 {
     int field;
     char namebuf[128];
@@ -5930,15 +5936,6 @@ int sqlite3BtreeBeginTrans(Vdbe *vdbe, Btree *pBt, int wrflag, int *pSchemaVersi
         goto done;
     }
 
-    if (clnt->dbtran.mode == TRANLEVEL_SERIAL) {
-        rc = cache_table_versions(clnt);
-        if (rc) {
-            logmsg(LOGMSG_ERROR, "%s: Failed to cache table versions\n", __func__);
-            rc = SQLITE_ERROR;
-            goto done;
-        }
-    }
-
     if (!must_start_new_transaction(clnt, wrflag)) {
         rc = SQLITE_OK;
         goto done;
@@ -5957,6 +5954,12 @@ int sqlite3BtreeBeginTrans(Vdbe *vdbe, Btree *pBt, int wrflag, int *pSchemaVersi
                tranlevel_tostr(clnt->dbtran.mode));
         clnt->translevel_changed = 1;
         clnt->dbtran.mode = TRANLEVEL_RECOM;
+    }
+
+    /* read before the snapshot starts: a schema change that commits in
+     * between fails the transaction instead of being missed */
+    if (clnt->dbtran.mode == TRANLEVEL_SERIAL) {
+        clnt->dbtran.schema_gen = ATOMIC_LOAD64(gbl_schema_gen);
     }
 
     rc = start_new_transaction(clnt);
@@ -6211,10 +6214,8 @@ int sqlite3BtreeCommit(Btree *pBt)
         clnt->selectv_arr = NULL;
     }
 
-    if (clnt->dbtran.table_version_cache) {
-        bdb_free_table_version_cache(clnt->dbtran.table_version_cache);
-        clnt->dbtran.table_version_cache = NULL;
-    }
+    clnt->dbtran.schema_gen = 0;
+    clear_snap_state(&clnt->dbtran);
 
     reset_clnt_flags(clnt);
 
@@ -6333,10 +6334,8 @@ int sqlite3BtreeRollback(Btree *pBt, int dummy, int writeOnlyDummy)
         clnt->selectv_arr = NULL;
     }
 
-    if (clnt->dbtran.table_version_cache) {
-        bdb_free_table_version_cache(clnt->dbtran.table_version_cache);
-        clnt->dbtran.table_version_cache = NULL;
-    }
+    clnt->dbtran.schema_gen = 0;
+    clear_snap_state(&clnt->dbtran);
 
     reset_clnt_flags(clnt);
 
@@ -8903,6 +8902,37 @@ static int sqlite3LockStmtTables_int(sqlite3_stmt *pStmt, int after_recovery)
             }
         }
 
+        /* the files of a table as the snapshot saw it are gone, or do not
+         * open */
+        if (snap_catalog_table_unavailable(db)) {
+            logmsg(LOGMSG_ERROR, "%s: table %s: files as of %u:%u do not open\n", __func__, db->tablename,
+                   clnt->modsnap_start_lsn_file, clnt->modsnap_start_lsn_offset);
+            sqlite3_mutex_enter(sqlite3_db_mutex(p->db));
+            sqlite3VdbeError(p, "table \"%s\" as of the snapshot is not available: its files cannot be opened",
+                             db->tablename);
+            sqlite3VdbeTransferError(p);
+            sqlite3MakeSureDbHasErr(p->db, SQLITE_OK);
+            sqlite3_mutex_leave(sqlite3_db_mutex(p->db));
+            return SQLITE_SCHEMA;
+        }
+
+        /* a table as a snapshot saw it before a schema change does not
+         * change, and the snapshot holds it; it cannot be written */
+        if (snap_catalog_is_old_table(db)) {
+            if (!sqlite3_stmt_readonly(pStmt)) {
+                sqlite3_mutex_enter(sqlite3_db_mutex(p->db));
+                sqlite3VdbeError(p, "table \"%s\" was schema changed", db->tablename);
+                sqlite3VdbeTransferError(p);
+                sqlite3MakeSureDbHasErr(p->db, SQLITE_OK);
+                sqlite3_mutex_leave(sqlite3_db_mutex(p->db));
+                return SQLITE_SCHEMA;
+            }
+            if (!after_recovery)
+                db->nsql++;
+            reqlog_add_table(thrman_get_reqlogger(thrman_self()), db->tablename);
+            continue;
+        }
+
         if ((rc = bdb_lock_table_read_fromlid(db->handle, bdb_get_lid_from_cursortran(clnt->dbtran.cursor_tran))) !=
             0) {
             logmsg(LOGMSG_ERROR, "%s lock table %s returns %d\n", __func__, tab->zName, rc);
@@ -8945,23 +8975,19 @@ static int sqlite3LockStmtTables_int(sqlite3_stmt *pStmt, int after_recovery)
             }
         }
 
-        /* in snapshot and stronger isolations, check cached table versions */
-        if (clnt->dbtran.table_version_cache &&
-            (clnt->dbtran.mode == TRANLEVEL_SERIAL || clnt->dbtran.mode == TRANLEVEL_SNAPISOL)) {
-            /* make sure btrees have not changed since the transaction started
-             */
-            rc = bdb_osql_check_table_version(db->handle, clnt->dbtran.table_version_cache);
-            if (rc != 0) {
-                /* fprintf(stderr, "bdb_osql_check_table_version failed rc=%d\n", rc);*/
-                sqlite3_mutex_enter(sqlite3_db_mutex(p->db));
-                sqlite3VdbeError(p, "table \"%s\" was schema changed",
-                                 db->tablename);
-                sqlite3VdbeTransferError(p);
-                sqlite3MakeSureDbHasErr(p->db, SQLITE_OK);
-                sqlite3_mutex_leave(sqlite3_db_mutex(p->db));
+        /* serializable fails if the table changed since the transaction
+         * started; snapshot reads it as of its start LSN (snap_catalog.c) */
+        if (clnt->dbtran.mode == TRANLEVEL_SERIAL && clnt->dbtran.schema_gen &&
+            db->changed_gen > clnt->dbtran.schema_gen) {
+            logmsg(LOGMSG_ERROR, "table \"%s\" changed, gen %" PRId64 " > %" PRId64 "\n", db->tablename,
+                   db->changed_gen, clnt->dbtran.schema_gen);
+            sqlite3_mutex_enter(sqlite3_db_mutex(p->db));
+            sqlite3VdbeError(p, "table \"%s\" was schema changed", db->tablename);
+            sqlite3VdbeTransferError(p);
+            sqlite3MakeSureDbHasErr(p->db, SQLITE_OK);
+            sqlite3_mutex_leave(sqlite3_db_mutex(p->db));
 
-                return SQLITE_SCHEMA;
-            }
+            return SQLITE_SCHEMA;
         }
 
         if (after_recovery) {
@@ -9287,8 +9313,14 @@ sqlite3BtreeCursor_cursor(Btree *pBt,      /* The btree */
 
     initialize_curtran_for_modsnap(clnt->dbtran.cursor_tran, clnt);
 
-    /* initialize the shadow, if any  */
-    cur->shadtbl = osql_get_shadow_bydb(thd->clnt, cur->db);
+    if (snap_catalog_table_unavailable(cur->db)) {
+        logmsg(LOGMSG_ERROR, "%s: table %s as of the snapshot has no files\n", __func__, cur->db->tablename);
+        return SQLITE_SCHEMA;
+    }
+
+    /* initialize the shadow, if any; this transaction did not write a table
+     * as a snapshot saw it before a schema change */
+    cur->shadtbl = snap_catalog_is_old_table(cur->db) ? NULL : osql_get_shadow_bydb(thd->clnt, cur->db);
 
     if (cur->ixnum == -1) {
         if (is_stat2(cur->db->tablename) || is_stat4(cur->db->tablename)) {
@@ -9412,7 +9444,11 @@ sqlite3BtreeCursor_cursor(Btree *pBt,      /* The btree */
     }
 
     enum bdb_open_type open_type;
-    if (shadow_tran && (clnt->dbtran.mode != TRANLEVEL_SOSQL)) {
+    if (snap_catalog_is_old_table(cur->db)) {
+        /* not written in this transaction: no shadows */
+        shadow_tran = NULL;
+        open_type = BDB_OPEN_REAL;
+    } else if (shadow_tran && (clnt->dbtran.mode != TRANLEVEL_SOSQL)) {
         open_type = (wrFlag) ? BDB_OPEN_BOTH_CREATE : BDB_OPEN_BOTH;
     } else {
         open_type = BDB_OPEN_REAL;
@@ -9420,7 +9456,9 @@ sqlite3BtreeCursor_cursor(Btree *pBt,      /* The btree */
     assert(clnt->dbtran.mode != TRANLEVEL_SNAPISOL || clnt->modsnap_in_progress);
     cur->bdbcur =
         bdb_cursor_open(cur->db->handle, clnt->dbtran.cursor_tran, shadow_tran, cur->ixnum, open_type,
-                        (clnt->dbtran.mode == TRANLEVEL_SOSQL) ? NULL : osql_get_shadtbl_addtbl_newcursor(cur),
+                        (clnt->dbtran.mode == TRANLEVEL_SOSQL || snap_catalog_is_old_table(cur->db))
+                            ? NULL
+                            : osql_get_shadtbl_addtbl_newcursor(cur),
                         clnt->pageordertablescan, rowlocks, rowlocks ? &clnt->holding_pagelocks_flag : NULL,
                         rowlocks ? pause_pagelock_cursors : NULL, rowlocks ? (void *)thd : NULL,
                         rowlocks ? count_pagelock_cursors : NULL, rowlocks ? (void *)thd : NULL, clnt->bdb_osql_trak,

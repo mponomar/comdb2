@@ -16,6 +16,7 @@
 
 #include "schemachange.h"
 #include "sc_stripes.h"
+#include "snap_catalog.h"
 
 void apply_new_stripe_settings(int newdtastripe, int newblobstripe)
 {
@@ -150,6 +151,11 @@ int do_alter_stripes_int(struct schema_change_type *s)
 
     if (open_all_dbs_tran(phys_tran) != 0)
         exit(1);
+
+    /* Replicants do this in scdone_callback.  No table needs its changed_gen
+     * bumped: the stripe count only grows, no rows move, and the files an
+     * older snapshot reads are all still there. */
+    snap_catalog_schema_changed();
 
     unlock_schema_lk();
 

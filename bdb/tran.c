@@ -19,6 +19,7 @@
  */
 
 #include <errno.h>
+#include <inttypes.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <netinet/in.h>
@@ -734,6 +735,16 @@ static tran_type *bdb_tran_begin_logical_int(bdb_state_type *bdb_state,
                 tran, tran->tranclass);
 
     return tran;
+}
+
+void bdb_tran_set_llmeta_snap(tran_type *tran, uint32_t lsn_file, uint32_t lsn_offset, uint32_t ckp_file,
+                              uint32_t ckp_offset)
+{
+    tran->llmeta_snap = 1;
+    tran->llmeta_snap_lsn.file = lsn_file;
+    tran->llmeta_snap_lsn.offset = lsn_offset;
+    tran->llmeta_snap_ckp_lsn.file = ckp_file;
+    tran->llmeta_snap_ckp_lsn.offset = ckp_offset;
 }
 
 #define GET_TRANID(tranid) (tranid) ? (tranid) : get_id(bdb_state)
@@ -2730,6 +2741,37 @@ int bdb_get_lowest_modsnap_file(bdb_state_type *bdb_state)
     return min_file;
 }
 
+/* Return 0 if the logs can rebuild pages as of a registered modsnap start
+ * LSN.  The registration keeps the logs from now on; this catches the logs
+ * removed before it, for example between choosing the start LSN and
+ * registering, or for the old start LSN of an HA retry.  Versioned page reads
+ * take a page written before the commit LSN map's smallest log file to be
+ * the version as of any start LSN, so the start LSN must not be older than
+ * that file. */
+int bdb_check_modsnap_start(bdb_state_type *bdb_state, unsigned int start_file, unsigned int start_offset,
+                            unsigned int ckp_file, unsigned int ckp_offset)
+{
+    DB_ENV *dbenv = bdb_state->dbenv;
+    const DB_LSN start = {.file = start_file, .offset = start_offset};
+    DB_LSN ckp;
+
+    if (bdb_checkpoint_list_get_ckplsn_before_lsn(start, &ckp) || ckp.file != ckp_file || ckp.offset != ckp_offset) {
+        logmsg(LOGMSG_ERROR, "%s: the checkpoint before snapshot start LSN %u:%u is gone\n", __func__, start_file,
+               start_offset);
+        return -1;
+    }
+
+    Pthread_mutex_lock(&dbenv->txmap->txmap_mutexp);
+    const int64_t smallest_logfile = dbenv->txmap->smallest_logfile;
+    Pthread_mutex_unlock(&dbenv->txmap->txmap_mutexp);
+    if (smallest_logfile != -1 && start_file < smallest_logfile) {
+        logmsg(LOGMSG_ERROR, "%s: snapshot start LSN %u:%u is older than log file %" PRId64 "\n", __func__,
+               start_file, start_offset, smallest_logfile);
+        return -1;
+    }
+    return 0;
+}
+
 int bdb_is_modsnap_txn_allowed_to_open_cursors(void * registration)
 {
     return ((MODSNAP_TXN *) registration)->is_allowed_to_open_cursors;
@@ -2857,8 +2899,10 @@ int bdb_get_modsnap_start_state(bdb_state_type *bdb_state,
 
     const DB_LSN modsnap_start_lsn = {*modsnap_start_lsn_file, *modsnap_start_lsn_offset};
 
-    DB_LSN last_checkpoint_lsn;
-    bdb_checkpoint_list_get_ckplsn_before_lsn(modsnap_start_lsn, &last_checkpoint_lsn);
+    /* none: the start LSN is older than the logs; bdb_check_modsnap_start()
+     * fails the transaction after it registers */
+    DB_LSN last_checkpoint_lsn = {0};
+    (void)bdb_checkpoint_list_get_ckplsn_before_lsn(modsnap_start_lsn, &last_checkpoint_lsn);
 
     *last_checkpoint_lsn_file = last_checkpoint_lsn.file;
     *last_checkpoint_lsn_offset = last_checkpoint_lsn.offset;
